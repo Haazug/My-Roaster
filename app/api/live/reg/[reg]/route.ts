@@ -1,0 +1,1 @@
+import { NextResponse } from 'next/server'; import { live } from '@/lib/live'; export async function GET(_:Request,{params}:{params:Promise<{reg:string}>}){try{return NextResponse.json({ok:true,data:await live(`/reg/${encodeURIComponent((await params).reg).toUpperCase()}`)})}catch{return NextResponse.json({ok:false,error:'Live traffic unavailable'},{status:502})}}
