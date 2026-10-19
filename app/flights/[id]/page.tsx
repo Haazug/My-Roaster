@@ -6,32 +6,10 @@ import { ArrowLeft, MapPin, Clock, Plane } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
 import { useMapStore, type Point } from '@/lib/map-store'
 import { ExportMenu } from '@/components/ExportMenu'
+import { AirlineLogo } from '@/components/AirlineLogo'
 import { type ExportFlight } from '@/lib/export'
 
-// Dados de exemplo - em produção viriam da API
-const SAMPLE_FLIGHTS: Record<string, {
-  airline: string
-  airlineIata: string
-  airlineIcao: string
-  flightNumber: string
-  from: string
-  to: string
-  fromCity: string
-  toCity: string
-  fromIcao: string
-  toIcao: string
-  fromLat: number
-  fromLon: number
-  toLat: number
-  toLon: number
-  aircraftType: string
-  aircraftIcao: string
-  distanceNm: number
-  depTime: string
-  depHour: number
-  depMin: number
-  durationMin: number
-}> = {
+const SAMPLE_FLIGHTS: Record<string, any> = {
   'DT-653': {
     airline: 'TAAG Angola Airlines',
     airlineIata: 'DT',
@@ -144,16 +122,14 @@ export default function FlightDetailPage() {
       </Link>
 
       <header className="mt-8 border-b border-white/10 pb-7">
-        <div className="flex items-start gap-4">
-          <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-[#1f88ff]/15 text-sm font-bold text-[#1f88ff]">
-            {flight.airlineIata}
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">{flight.airline}</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight">{flight.flightNumber}</h1>
-            <p className="mt-2 text-sm text-white/45">{flight.fromCity} → {flight.toCity}</p>
-          </div>
-        </div>
+        <AirlineLogo 
+          iata={flight.airlineIata}
+          icao={flight.airlineIcao}
+          name={flight.airline}
+          size="lg"
+        />
+        <h1 className="mt-6 text-3xl font-semibold tracking-tight">{flight.flightNumber}</h1>
+        <p className="mt-2 text-sm text-white/45">{flight.fromCity} → {flight.toCity}</p>
       </header>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
@@ -204,7 +180,7 @@ export default function FlightDetailPage() {
 
       <div className="mt-8 rounded-2xl border border-white/10 bg-white/[.02] p-6">
         <p className="text-sm text-white/60">
-          This is a simulated flight for flight simulation only. Aircraft type, registration, and schedule are estimated and may differ from real-world operations.
+          This is a simulated flight for flight simulation only. Aircraft type, registration, and schedule are estimated and may differ from real-world operations. You can import your SimBrief flight plan for accurate data.
         </p>
       </div>
     </section>

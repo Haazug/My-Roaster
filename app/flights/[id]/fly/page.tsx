@@ -3,8 +3,9 @@
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Play, Pause, SkipForward, CheckCircle, Clock } from 'lucide-react'
+import { ArrowLeft, Play, Pause, SkipForward, CheckCircle, Clock, FileUp } from 'lucide-react'
 import { toast } from 'sonner'
+import { AirlineLogo } from '@/components/AirlineLogo'
 
 interface FlightSession {
   id: string
@@ -28,11 +29,11 @@ export default function FlyNowPage() {
 
   const flightKey = id ? (id as string).toUpperCase() : ''
   
-  // Sample flight data - em produção viria da API
   const SAMPLE_DATA: Record<string, any> = {
     'DT-653': {
       airline: 'TAAG Angola Airlines',
       airlineIata: 'DT',
+      airlineIcao: 'DTA',
       flightNumber: '653',
       from: 'Luanda (LAD)',
       to: 'Lisbon (LIS)',
@@ -44,6 +45,7 @@ export default function FlyNowPage() {
     'EK-287': {
       airline: 'Emirates',
       airlineIata: 'EK',
+      airlineIcao: 'UAE',
       flightNumber: '287',
       from: 'Dubai (DXB)',
       to: 'New York (JFK)',
@@ -57,7 +59,6 @@ export default function FlyNowPage() {
   const flightData = SAMPLE_DATA[flightKey]
 
   useEffect(() => {
-    // Initialize session
     if (!session && flightData) {
       const newSession: FlightSession = {
         id: `session-${Date.now()}`,
@@ -82,7 +83,6 @@ export default function FlyNowPage() {
         const newElapsed = now - session.startTime - session.pausedMs
         setElapsed(newElapsed)
 
-        // Update phase based on elapsed time
         const elapsedMin = Math.floor(newElapsed / 1000 / 60)
         if (elapsedMin < 5) setCurrentPhase('Boarding')
         else if (elapsedMin < 10) setCurrentPhase('Pushback')
@@ -150,19 +150,50 @@ export default function FlyNowPage() {
 
   const elapsedMin = Math.floor(elapsed / 1000 / 60)
   const elapsedSec = Math.floor((elapsed / 1000) % 60)
-  const remainingMin = Math.max(0, session.plannedDurationMin - elapsedMin)
-  const progress = Math.min(100, (elapsedMin / session.plannedDurationMin) * 100)
+  const progress = Math.min(100, (elapsedMin / flightData.durationMin) * 100)
+
+  const phases = {
+    'Boarding': { color: '#1f88ff', icon: '🚪', notification: 'Passengers boarding...' },
+    'Pushback': { color: '#facc15', icon: '🔙', notification: 'Pushback in progress' },
+    'Taxi out': { color: '#facc15', icon: '🛫', notification: 'Taxiing to runway' },
+    'Takeoff': { color: '#ff6b6b', icon: '✈️', notification: 'Taking off!' },
+    'Climb': { color: '#4caf50', icon: '📈', notification: 'Climbing to cruise altitude' },
+    'Cruise': { color: '#1f88ff', icon: '✈️', notification: 'Cruising...' },
+    'Descent': { color: '#facc15', icon: '📉', notification: 'Beginning descent' },
+    'Approach': { color: '#ff6b6b', icon: '🎯', notification: 'Approaching destination' },
+    'Landing': { color: '#ff6b6b', icon: '🛬', notification: 'Landing!' },
+    'Taxi in': { color: '#facc15', icon: '🛬', notification: 'Taxiing to gate' },
+    'At gate': { color: '#4caf50', icon: '🎉', notification: 'Flight complete!' },
+  }
+
+  const currentPhaseData = phases[currentPhase as keyof typeof phases] || phases['Ready']
 
   return (
     <section className="min-h-screen p-5 sm:p-8">
-      <Link href={`/flights/${id}`} className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
-        <ArrowLeft className="size-4" /> Back
-      </Link>
+      <div className="flex items-center justify-between mb-8">
+        <Link href={`/flights/${id}`} className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
+          <ArrowLeft className="size-4" /> Back
+        </Link>
+        <Link
+          href={`/flights/${id}/simbrief`}
+          className="flex items-center gap-2 min-h-11 rounded-lg border border-white/10 bg-white/[.08] hover:bg-white/[.12] px-4 text-sm text-white/60 hover:text-white transition"
+          title="Import SimBrief flight plan"
+        >
+          <FileUp className="size-4" />
+          Import Plan
+        </Link>
+      </div>
 
       <header className="mt-8 border-b border-white/10 pb-7">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-semibold">{flightData.airlineIata}{flightData.flightNumber}</h1>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex-1">
+            <AirlineLogo 
+              iata={flightData.airlineIata}
+              icao={flightData.airlineIcao}
+              name={flightData.airline}
+              size="md"
+            />
+            <h1 className="mt-4 text-3xl font-semibold">{flightData.airlineIata}{flightData.flightNumber}</h1>
             <p className="mt-2 text-sm text-white/45">{flightData.from} → {flightData.to}</p>
           </div>
           <div className="text-right">
@@ -173,28 +204,41 @@ export default function FlyNowPage() {
         </div>
       </header>
 
-      {/* Timer */}
-      <div className="mt-8 rounded-2xl border border-white/10 bg-[#111217cc] p-8 text-center">
-        <div className="text-6xl font-bold tabular-nums">
+      <div className="mt-8 rounded-2xl border border-white/10 bg-gradient-to-br from-[#111217cc] to-[#0a0a0acc] p-8 text-center">
+        <div className="text-6xl font-bold tabular-nums text-[#1f88ff]">
           {String(elapsedMin).padStart(2, '0')}:{String(elapsedSec).padStart(2, '0')}
         </div>
         <p className="mt-4 text-sm text-white/45">
-          {session.plannedDurationMin - elapsedMin} min remaining • Planned: {session.plannedDurationMin} min
+          {flightData.durationMin - elapsedMin} min remaining • Planned: {flightData.durationMin} min
         </p>
       </div>
 
-      {/* Progress Bar */}
+      <div className="mt-8 rounded-2xl border border-white/10 bg-white/[.02] p-6">
+        <p className="text-xs font-semibold uppercase tracking-[.2em] text-white/60 mb-3">Current Phase</p>
+        <div className="flex items-center gap-4">
+          <div className="text-4xl">{currentPhaseData.icon}</div>
+          <div className="flex-1">
+            <p className="text-2xl font-bold" style={{ color: currentPhaseData.color }}>
+              {currentPhase}
+            </p>
+            <p className="text-sm text-white/40 mt-1">{currentPhaseData.notification}</p>
+          </div>
+        </div>
+      </div>
+
       <div className="mt-8">
         <div className="mb-2 flex items-center justify-between text-xs text-white/50">
           <span>{currentPhase}</span>
           <span>{progress.toFixed(0)}%</span>
         </div>
-        <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-          <div className="h-full bg-[#1f88ff] transition-all" style={{ width: `${progress}%` }} />
+        <div className="h-3 rounded-full bg-white/10 overflow-hidden">
+          <div 
+            className="h-full transition-all rounded-full"
+            style={{ width: `${progress}%`, backgroundColor: currentPhaseData.color }}
+          />
         </div>
       </div>
 
-      {/* Flight Info */}
       <div className="mt-8 grid gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-white/10 bg-[#111217cc] p-4">
           <p className="text-xs text-white/50">Departure</p>
@@ -210,7 +254,6 @@ export default function FlyNowPage() {
         </div>
       </div>
 
-      {/* Controls */}
       <div className="mt-8 flex gap-3">
         {session.state === 'ready' && (
           <button
@@ -250,7 +293,6 @@ export default function FlyNowPage() {
         )}
       </div>
 
-      {/* End Flight Button */}
       <div className="mt-4 relative">
         <button
           onClick={() => setShowEndMenu(!showEndMenu)}
@@ -304,7 +346,7 @@ export default function FlyNowPage() {
 
       <div className="mt-6 rounded-2xl border border-white/10 bg-white/[.02] p-4 text-center">
         <p className="text-xs text-white/50">
-          💡 Tip: Keep this window open for the full experience. Notifications will alert you at key moments.
+          💡 Tip: Import a SimBrief flight plan for real data. Notifications will alert you at key flight phases.
         </p>
       </div>
     </section>
