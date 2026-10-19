@@ -3,6 +3,7 @@ import { Toaster } from 'sonner'
 import './globals.css'
 import GlobeBackground from '@/components/GlobeBackground'
 import BottomNav from '@/components/BottomNav'
+import BackgroundMusic from '@/components/BackgroundMusic'
 
 export const metadata: Metadata = {
   title: 'MyRoster — Flight planning, simplified',
@@ -17,6 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <GlobeBackground />
         <main className="relative z-10 min-h-screen pb-24 lg:ml-[420px] lg:max-w-[700px]">{children}</main>
         <BottomNav />
+         <BackgroundMusic />
         <Toaster theme="dark" position="top-center" richColors />
       </body>
     </html>

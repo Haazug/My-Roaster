@@ -6,6 +6,7 @@ import useSWR from 'swr'
 import { ArrowLeft, ChevronRight, Plane } from 'lucide-react'
 import { useEffect } from 'react'
 import { useMapStore, type Point } from '@/lib/map-store'
+import { AirlineLogo } from '@/components/AirlineLogo'
 
 const fetcher = (url: string) => fetch(url).then((response) => response.json())
 
@@ -54,9 +55,7 @@ export default function AirlineDetailPage() {
       </Link>
       <header className="mt-8 border-b border-white/10 pb-7">
         <div className="flex items-start gap-4">
-          <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-white text-sm font-black text-black">
-            {airline.iata || <Plane className="size-6 text-[#1f88ff]" />}
-          </div>
+          <AirlineLogo iata={airline.iata} icao={airline.icao} name={airline.name} size="lg" showText={false} />
           <div>
             <p className="text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">Airline route network</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight">{airline.name}</h1>

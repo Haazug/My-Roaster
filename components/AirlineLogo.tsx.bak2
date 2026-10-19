@@ -1,0 +1,70 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { Plane } from 'lucide-react'
+
+const BASE = 'https://cdn.jsdelivr.net/gh/Jxck-S/airline-logos@main'
+const FOLDERS = ['flightaware_logos', 'radarbox_logos', 'custom_logos']
+
+export function AirlineLogo({
+  iata,
+  icao,
+  name,
+  size = 'sm',
+}: {
+  iata?: string
+  icao?: string
+  name: string
+  size?: 'sm' | 'md' | 'lg'
+}) {
+  const [srcIndex, setSrcIndex] = useState(0)
+  const [loaded, setLoaded] = useState(false)
+
+  const sizeClasses = { sm: 'size-10', md: 'size-14', lg: 'size-20' }
+  const containerClasses = { sm: 'gap-2', md: 'gap-3', lg: 'gap-4' }
+
+  const icaoCode = (icao || '').trim().toUpperCase()
+  const label = (iata || icaoCode || name || '?').toUpperCase().slice(0, 2)
+  const sources = icaoCode ? FOLDERS.map((f) => `${BASE}/${f}/${icaoCode}.png`) : []
+  const src = sources[srcIndex]
+
+  useEffect(() => {
+    setSrcIndex(0)
+    setLoaded(false)
+  }, [icaoCode])
+
+  return (
+    <div className={`flex items-center ${containerClasses[size]}`}>
+      <div className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/10 ${sizeClasses[size]}`}>
+        {src && (
+          <img
+            key={src}
+            src={src}
+            alt={`${name} logo`}
+            onLoad={() => setLoaded(true)}
+            onError={() => setSrcIndex((i) => i + 1)}
+            className={`absolute inset-0 h-full w-full bg-white object-contain p-1 transition-opacity ${loaded ? 'opacity-100' : 'opacity-0'}`}
+          />
+        )}
+        {!loaded && (
+          <div className="flex h-full w-full items-center justify-center bg-[#1f88ff]/20">
+            {size === 'lg' ? (
+              <Plane className="size-6 text-[#1f88ff]" />
+            ) : (
+              <span className={`font-black text-[#1f88ff] ${size === 'sm' ? 'text-xs' : 'text-sm'}`}>{label}</span>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <p className={`truncate font-semibold ${size === 'sm' ? 'text-sm' : size === 'md' ? 'text-base' : 'text-lg'}`}>{name}</p>
+        {(iata || icao) && (
+          <p className={`truncate text-white/50 ${size === 'sm' ? 'text-xs' : 'text-sm'}`}>
+            {iata && icao ? `${iata} · ${icao}` : iata || icao}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}

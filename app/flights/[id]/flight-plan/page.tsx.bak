@@ -1,0 +1,192 @@
+'use client'
+
+import Link from 'next/link'
+import { useParams } from 'next/navigation'
+import { useEffect, useRef, useState } from 'react'
+import { ArrowLeft, Upload, Plane, Square, Check } from 'lucide-react'
+import { toast } from 'sonner'
+import { parsePLNFile, createManualFlightPlan, type ParsedFlightPlan } from '@/lib/flight-plan-parser'
+
+const MOMENTS = [
+  { key: 'takeoff', at: 0, title: 'Descolagem', body: 'Voo iniciado. Boa viagem!' },
+  { key: 'toc', at: 0.1, title: 'Top of climb', body: 'Chegaste à altitude de cruzeiro.' },
+  { key: 'mid', at: 0.5, title: 'Meio do voo', body: 'Já fizeste metade da viagem.' },
+  { key: 'tod', at: 0.85, title: 'Top of descent', body: 'Hora de começar a descida.' },
+  { key: 'landing', at: 1, title: 'Aterragem', body: 'Voo concluído. Bem-vindo ao destino!' },
+]
+
+export default function FlightPlanPage() {
+  const { id } = useParams<{ id: string }>()
+  const [plan, setPlan] = useState<ParsedFlightPlan | null>(null)
+  const [error, setError] = useState('')
+  const [form, setForm] = useState({ departure: '', arrival: '', aircraft: 'A320', altitude: 35000, duration: 60 })
+
+  const [startedAt, setStartedAt] = useState<number | null>(null)
+  const [now, setNow] = useState(Date.now())
+  const fired = useRef<Set<string>>(new Set())
+
+  const totalMin = plan ? plan.estimatedTime || form.duration : 0
+  const totalMs = totalMin * 60_000
+  const elapsed = startedAt ? now - startedAt : 0
+  const progress = totalMs ? Math.min(1, elapsed / totalMs) : 0
+
+  const notify = (title: string, body: string) => {
+    toast(title, { description: body })
+    try {
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        new Notification(`✈️ ${title}`, { body })
+      }
+    } catch {}
+  }
+
+  useEffect(() => {
+    if (!startedAt || !totalMs) return
+    const timer = setInterval(() => {
+      const t = Date.now()
+      setNow(t)
+      MOMENTS.forEach((m) => {
+        if (!fired.current.has(m.key) && t - startedAt >= m.at * totalMs) {
+          fired.current.add(m.key)
+          notify(m.title, m.body)
+        }
+      })
+      if (t - startedAt >= totalMs) {
+        clearInterval(timer)
+      }
+    }, 1000)
+    return () => clearInterval(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startedAt, totalMs])
+
+  const initiateFlight = async () => {
+    try {
+      if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+        await Notification.requestPermission()
+      }
+    } catch {}
+    fired.current = new Set()
+    const t = Date.now()
+    setNow(t)
+    setStartedAt(t)
+  }
+
+  const endFlight = () => {
+    setStartedAt(null)
+    fired.current = new Set()
+    toast('Voo terminado', { description: 'Acompanhamento interrompido.' })
+  }
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      setError('')
+      setStartedAt(null)
+      setPlan(parsePLNFile(await file.text()))
+    } catch {
+      setPlan(null)
+      setError('Não foi possível ler este ficheiro .pln')
+    }
+  }
+
+  const handleManual = () => {
+    if (!form.departure || !form.arrival) {
+      setError('Preenche origem e destino')
+      return
+    }
+    setError('')
+    setStartedAt(null)
+    setPlan(createManualFlightPlan({ ...form, passengers: 0, blockTime: '', rules: 'IFR' }))
+  }
+
+  const input = 'w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-[#1f88ff]'
+  const flying = startedAt !== null
+
+  return (
+    <section className="min-h-screen p-5 sm:p-8">
+      <Link href={`/flights/${id}`} className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55">
+        <ArrowLeft className="size-4" /> Back
+      </Link>
+
+      <h1 className="mt-4 text-2xl font-semibold">Flight Plan</h1>
+      <p className="mt-1 text-sm text-white/50">Voo {id}</p>
+
+      <div className="mt-6 rounded-2xl border border-white/10 bg-black/40 p-5">
+        <h2 className="mb-3 text-sm font-medium text-white/70">Carregar ficheiro .pln</h2>
+        <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-[#1f88ff] px-4 py-2 text-sm font-medium">
+          <Upload className="size-4" /> Escolher ficheiro
+          <input type="file" accept=".pln,.xml" onChange={handleFile} className="hidden" />
+        </label>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-white/10 bg-black/40 p-5">
+        <h2 className="mb-3 text-sm font-medium text-white/70">Ou preencher à mão</h2>
+        <div className="grid grid-cols-2 gap-3">
+          <input className={input} placeholder="Origem (ex: FNLU)" value={form.departure} onChange={(e) => setForm({ ...form, departure: e.target.value })} />
+          <input className={input} placeholder="Destino (ex: LPPT)" value={form.arrival} onChange={(e) => setForm({ ...form, arrival: e.target.value })} />
+          <input className={input} placeholder="Aeronave" value={form.aircraft} onChange={(e) => setForm({ ...form, aircraft: e.target.value })} />
+          <input className={input} type="number" placeholder="Altitude (ft)" value={form.altitude} onChange={(e) => setForm({ ...form, altitude: Number(e.target.value) })} />
+          <input className={input} type="number" placeholder="Duração (min)" value={form.duration} onChange={(e) => setForm({ ...form, duration: Number(e.target.value) })} />
+        </div>
+        <p className="mt-2 text-xs text-white/40">Duração em minutos (usada se o plano não trouxer tempo estimado).</p>
+        <button onClick={handleManual} className="mt-3 rounded-xl bg-[#1f88ff] px-4 py-2 text-sm font-medium">
+          Criar plano
+        </button>
+      </div>
+
+      {error && <p className="mt-4 text-sm text-red-300">{error}</p>}
+
+      {plan && (
+        <div className="mt-6 rounded-2xl border border-white/10 bg-black/40 p-5">
+          <h2 className="mb-3 text-lg font-semibold">
+            {plan.departure || '?'} → {plan.arrival || '?'}
+          </h2>
+          <dl className="grid grid-cols-2 gap-3 text-sm">
+            <div><dt className="text-white/40">Aeronave</dt><dd>{plan.aircraft}</dd></div>
+            <div><dt className="text-white/40">Altitude</dt><dd>{plan.cruiseAltitude} ft</dd></div>
+            <div><dt className="text-white/40">Distância</dt><dd>{plan.distance ? `${plan.distance} nm` : '—'}</dd></div>
+            <div><dt className="text-white/40">Duração</dt><dd>{totalMin ? `${totalMin} min` : '—'}</dd></div>
+            <div><dt className="text-white/40">Waypoints</dt><dd>{plan.waypoints.length}</dd></div>
+          </dl>
+
+          {!flying ? (
+            <button
+              onClick={initiateFlight}
+              disabled={!totalMin}
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#4caf50] px-4 py-3 text-sm font-semibold disabled:opacity-40"
+            >
+              <Plane className="size-4" /> Initiate flight
+            </button>
+          ) : (
+            <div className="mt-5">
+              <div className="mb-2 flex items-center justify-between text-xs text-white/50">
+                <span>{Math.floor(elapsed / 60_000)} min de {totalMin} min</span>
+                <span>{Math.round(progress * 100)}%</span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                <div className="h-full bg-[#1f88ff] transition-all" style={{ width: `${progress * 100}%` }} />
+              </div>
+
+              <ul className="mt-4 space-y-2 text-sm">
+                {MOMENTS.map((m) => {
+                  const done = elapsed >= m.at * totalMs
+                  const eta = Math.round(m.at * totalMin)
+                  return (
+                    <li key={m.key} className={`flex items-center gap-2 ${done ? 'text-white' : 'text-white/40'}`}>
+                      {done ? <Check className="size-4 text-[#4caf50]" /> : <span className="size-4 rounded-full border border-white/20" />}
+                      {m.title} <span className="ml-auto text-xs">{eta} min</span>
+                    </li>
+                  )
+                })}
+              </ul>
+
+              <button onClick={endFlight} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-medium">
+                <Square className="size-4" /> Terminar voo
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}

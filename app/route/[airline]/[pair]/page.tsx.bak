@@ -1,0 +1,159 @@
+'use client'
+
+import Link from 'next/link'
+import { useParams } from 'next/navigation'
+import { useEffect } from 'react'
+import useSWR from 'swr'
+import { ArrowLeft, Check, Plane, Star } from 'lucide-react'
+import { toast } from 'sonner'
+import { useLocalStorage } from '@/lib/use-local-storage'
+import { useFavourites } from '@/lib/use-favourites'
+import { useMapStore } from '@/lib/map-store'
+import type { RosterFlight } from '@/lib/roster-data'
+import { simbriefUrl, type ExportFlight } from '@/lib/export'
+import { ExportMenu } from '@/components/export-menu'
+
+type Airport = { iata: string; icao: string; name: string; city: string; country: string; lat: number; lon: number }
+type RouteData = {
+  airline: { id: string; name: string; iata: string; icao: string; country: string }
+  from: Airport
+  to: Airport
+  operated: boolean
+  codeshare: boolean
+  aircraft: { code: string; name: string; icao: string }[]
+  distanceKm: number
+  distanceNm: number
+  error?: string
+}
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json())
+
+export default function RoutePage() {
+  const params = useParams<{ airline: string; pair: string }>()
+  const { data, error, isLoading } = useSWR<RouteData>(`/api/route/${params.airline}/${params.pair}`, fetcher)
+  const [bookings, setBookings] = useLocalStorage<RosterFlight[]>('myroster.bookings', [])
+  const { has, toggle } = useFavourites()
+  const setView = useMapStore((s) => s.setView)
+
+  useEffect(() => {
+    if (data && !data.error) setView({ mode: 'route', from: data.from, to: data.to })
+    return () => setView({ mode: 'idle' })
+  }, [data, setView])
+
+  if (isLoading) return <section className="min-h-screen p-5 text-white/50 sm:p-8" aria-busy="true">Loading route…</section>
+  if (error || !data || data.error) {
+    return (
+      <section className="min-h-screen p-5 sm:p-8">
+        <Link href="/airlines" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55"><ArrowLeft className="size-4" />Airlines</Link>
+        <div className="mt-8 rounded-2xl border border-red-400/20 bg-red-400/10 p-5">This route could not be found in OpenFlights.</div>
+      </section>
+    )
+  }
+
+  const type = data.aircraft[0]
+  const flight: RosterFlight = {
+    id: `${data.airline.iata || data.airline.id}-${data.from.iata}-${data.to.iata}`,
+    airlineIata: data.airline.iata || data.airline.icao,
+    airlineName: data.airline.name,
+    orig: data.from.iata,
+    dest: data.to.iata,
+    flightNumber: data.airline.iata || data.airline.icao,
+    aircraft: type?.name ?? 'Not listed',
+    departure: '',
+    distanceNm: data.distanceNm,
+    fromCity: data.from.city,
+    toCity: data.to.city,
+  }
+  const exportFlight: ExportFlight = {
+    airlineIcao: data.airline.icao || undefined,
+    airlineIata: data.airline.iata,
+    airlineName: data.airline.name,
+    flightNumber: '',
+    origin: data.from,
+    dest: data.to,
+    aircraftIcao: type?.icao ?? '',
+    aircraftName: type?.name ?? 'Not listed',
+    depHour: 12,
+    depMin: 0,
+    durationMin: Math.round((data.distanceKm / 800) * 60 + 30),
+    distanceNm: data.distanceNm,
+  }
+
+  function book() {
+    if (bookings.some((b) => b.id === flight.id)) {
+      toast('This trip is already in your trips')
+      return
+    }
+    setBookings([...bookings, { ...flight, departure: new Date().toISOString() }])
+    toast.success('Trip booked', { action: { label: 'View trips', onClick: () => { window.location.href = '/trips' } } })
+  }
+
+  return (
+    <section className="min-h-screen p-5 sm:p-8">
+      <Link href={`/airlines/${data.airline.id}`} className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
+        <ArrowLeft className="size-4" />{data.airline.name}
+      </Link>
+      <header className="mt-6 flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">
+            {data.operated ? (data.codeshare ? 'Codeshare route' : 'Operated route') : 'Route not listed for this airline'}
+          </p>
+          <h1 className="mt-2 text-balance text-3xl font-semibold sm:text-4xl">{data.from.city} to {data.to.city}</h1>
+          <p className="mt-2 text-sm text-white/45">{data.airline.name} · {data.airline.iata || data.airline.icao}</p>
+        </div>
+        <button
+          aria-label={has(flight.id) ? 'Remove favourite' : 'Add favourite'}
+          aria-pressed={has(flight.id)}
+          onClick={() => toggle(flight)}
+          className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 hover:bg-white/10"
+        >
+          <Star className={`size-5 ${has(flight.id) ? 'fill-[#facc15] text-[#facc15]' : 'text-white/70'}`} />
+        </button>
+      </header>
+
+      <div className="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-[#111217cc]">
+        <div className="flex items-center justify-between gap-4 p-5">
+          <div className="min-w-0">
+            <p className="text-3xl font-semibold">{data.from.iata}</p>
+            <p className="mt-1 truncate text-sm text-white/45">{data.from.icao} · {data.from.name}</p>
+          </div>
+          <Plane className="size-5 shrink-0 text-[#1f88ff]" aria-hidden="true" />
+          <div className="min-w-0 text-right">
+            <p className="text-3xl font-semibold">{data.to.iata}</p>
+            <p className="mt-1 truncate text-sm text-white/45">{data.to.icao} · {data.to.name}</p>
+          </div>
+        </div>
+        <dl className="grid grid-cols-2 border-t border-white/10 sm:grid-cols-3">
+          <Info label="Distance" value={`${data.distanceKm.toLocaleString('en-US')} km · ${data.distanceNm.toLocaleString('en-US')} nm`} />
+          <Info label="Est. block time" value={`${Math.floor(exportFlight.durationMin / 60)}h ${String(exportFlight.durationMin % 60).padStart(2, '0')}m`} />
+          <Info label="Aircraft" value={data.aircraft.length ? data.aircraft.map((a) => a.name).join(', ') : 'Not listed'} />
+        </dl>
+      </div>
+      <p className="mt-3 text-xs text-white/35">Route and equipment from OpenFlights. Flight numbers and schedules are not part of this dataset.</p>
+
+      <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+        <a
+          href={simbriefUrl(exportFlight)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#1f88ff] font-medium text-white hover:bg-[#1674db]"
+        >
+          <Plane className="size-4" />Fly Now
+        </a>
+        <button onClick={book} className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 font-medium hover:bg-white/15">
+          <Check className="size-4" />Book Trip
+        </button>
+        <ExportMenu flight={exportFlight} />
+      </div>
+    </section>
+  )
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="p-5">
+      <dt className="text-xs text-white/40">{label}</dt>
+      <dd className="mt-1 text-sm font-medium">{value}</dd>
+    </div>
+  )
+}

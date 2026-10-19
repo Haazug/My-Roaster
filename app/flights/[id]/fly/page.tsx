@@ -2,353 +2,346 @@
 
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
-import { ArrowLeft, Play, Pause, SkipForward, CheckCircle, Clock, FileUp } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowLeft, Check, FileUp, SkipForward, Star } from 'lucide-react'
 import { toast } from 'sonner'
 import { AirlineLogo } from '@/components/AirlineLogo'
+import { useLocalStorage } from '@/lib/use-local-storage'
 
-interface FlightSession {
-  id: string
-  flightId: string
-  startTime: number
-  pausedTime?: number
-  pausedMs: number
-  state: 'ready' | 'running' | 'paused' | 'ended'
-  elapsed: number
-  plannedDurationMin: number
+type Status = 'done' | 'skipped'
+
+// "at" = fraction of the flight time after takeoff when the step is expected (null = no estimate)
+const STEPS = [
+  { key: 'Boarding', icon: '🚪', at: null },
+  { key: 'Pushback', icon: '🔙', at: null },
+  { key: 'Taxi out', icon: '🛫', at: null },
+  { key: 'Takeoff', icon: '✈️', at: null },
+  { key: 'Climb', icon: '📈', at: 0 },
+  { key: 'Cruise', icon: '🧭', at: 0.1 },
+  { key: 'Descent', icon: '📉', at: 0.8 },
+  { key: 'Approach', icon: '🎯', at: 0.9 },
+  { key: 'Landing', icon: '🛬', at: 1 },
+  { key: 'Taxi in', icon: '🅿️', at: null },
+  { key: 'At gate', icon: '🎉', at: null },
+]
+
+type FlightInfo = {
+  airlineName: string
+  airlineIata: string
+  airlineIcao: string
+  flightNumber: string
+  orig: string
+  dest: string
+  fromCity: string
+  toCity: string
+  aircraft: string
+  durationMin: number
+  distanceNm: number
+}
+
+const SAMPLES: Record<string, FlightInfo> = {
+  'DT-653': { airlineName: 'TAAG Angola Airlines', airlineIata: 'DT', airlineIcao: 'DTA', flightNumber: '653', orig: 'LAD', dest: 'LIS', fromCity: 'Luanda', toCity: 'Lisbon', aircraft: 'Airbus A320', durationMin: 360, distanceNm: 2200 },
+  'EK-287': { airlineName: 'Emirates', airlineIata: 'EK', airlineIcao: 'UAE', flightNumber: '287', orig: 'DXB', dest: 'JFK', fromCity: 'Dubai', toCity: 'New York', aircraft: 'Boeing 777-300ER', durationMin: 765, distanceNm: 5124 },
+}
+
+const fmt = (ms: number) => {
+  const s = Math.max(0, Math.floor(ms / 1000))
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const sec = s % 60
+  return `${h ? h + ':' : ''}${String(m).padStart(h ? 2 : 2, '0')}:${String(sec).padStart(2, '0')}`
 }
 
 export default function FlyNowPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
-  
-  const [session, setSession] = useState<FlightSession | null>(null)
-  const [elapsed, setElapsed] = useState(0)
-  const [currentPhase, setCurrentPhase] = useState('Ready')
-  const [showEndMenu, setShowEndMenu] = useState(false)
+  const flightKey = id ? String(id).toUpperCase() : ''
 
-  const flightKey = id ? (id as string).toUpperCase() : ''
-  
-  const SAMPLE_DATA: Record<string, any> = {
-    'DT-653': {
-      airline: 'TAAG Angola Airlines',
-      airlineIata: 'DT',
-      airlineIcao: 'DTA',
-      flightNumber: '653',
-      from: 'Luanda (LAD)',
-      to: 'Lisbon (LIS)',
-      aircraft: 'Airbus A320',
-      distance: '2,200 nm',
-      durationMin: 360,
-      depTime: '22:45',
-    },
-    'EK-287': {
-      airline: 'Emirates',
-      airlineIata: 'EK',
-      airlineIcao: 'UAE',
-      flightNumber: '287',
-      from: 'Dubai (DXB)',
-      to: 'New York (JFK)',
-      aircraft: 'Boeing 777-300ER',
-      distance: '5,124 nm',
-      durationMin: 765,
-      depTime: '14:00',
-    },
-  }
+  const [info, setInfo] = useState<FlightInfo | null>(SAMPLES[flightKey] || null)
+  const [checked, setChecked] = useState(false)
+  const [statuses, setStatuses] = useState<Record<string, Status>>({})
+  const [takeoffAt, setTakeoffAt] = useState<number | null>(null)
+  const [now, setNow] = useState(0)
+  const [finished, setFinished] = useState(false)
+  const [rating, setRating] = useState(0)
+  const [logId, setLogId] = useState<string | null>(null)
+  const [logs, setLogs] = useLocalStorage<any[]>('myroster.logs', [])
+  const fired = useRef<Set<string>>(new Set())
+  const saved = useRef(false)
 
-  const flightData = SAMPLE_DATA[flightKey]
-
+  // Load the plan saved by the Flight Plan page (for flights that are not samples)
   useEffect(() => {
-    if (!session && flightData) {
-      const newSession: FlightSession = {
-        id: `session-${Date.now()}`,
-        flightId: flightKey,
-        startTime: Date.now(),
-        pausedMs: 0,
-        state: 'ready',
-        elapsed: 0,
-        plannedDurationMin: flightData.durationMin,
+    if (!info) {
+      try {
+        const raw = localStorage.getItem('myroster.activePlan')
+        if (raw) {
+          const p = JSON.parse(raw)
+          if (String(p.id).toUpperCase() === flightKey) {
+            setInfo({
+              airlineName: p.airlineName || p.airlineIata || 'Flight',
+              airlineIata: p.airlineIata || '',
+              airlineIcao: p.airlineIcao || '',
+              flightNumber: '',
+              orig: p.from || '',
+              dest: p.to || '',
+              fromCity: p.fromCity || p.from || '',
+              toCity: p.toCity || p.to || '',
+              aircraft: p.aircraft || '',
+              durationMin: p.durationMin || 60,
+              distanceNm: p.distanceNm || 0,
+            })
+          }
+        }
+      } catch {}
+    }
+    setChecked(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flightKey])
+
+  const notify = (title: string, body: string) => {
+    toast(title, { description: body })
+    try {
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        new Notification(`✈️ ${title}`, { body })
       }
-      setSession(newSession)
-    }
-  }, [flightData, flightKey, session])
+    } catch {}
+  }
 
+  // Clock only runs after takeoff
   useEffect(() => {
-    if (!session) return
-    let interval: NodeJS.Timeout | null = null
+    if (!takeoffAt || finished) return
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [takeoffAt, finished])
 
-    if (session.state === 'running') {
-      interval = setInterval(() => {
-        const now = Date.now()
-        const newElapsed = now - session.startTime - session.pausedMs
-        setElapsed(newElapsed)
+  const totalMs = (info?.durationMin || 0) * 60_000
+  const elapsed = takeoffAt ? Math.max(0, now - takeoffAt) : 0
+  const current = STEPS.find((s) => !statuses[s.key])
+  const currentIdx = current ? STEPS.indexOf(current) : STEPS.length
 
-        const elapsedMin = Math.floor(newElapsed / 1000 / 60)
-        if (elapsedMin < 5) setCurrentPhase('Boarding')
-        else if (elapsedMin < 10) setCurrentPhase('Pushback')
-        else if (elapsedMin < 15) setCurrentPhase('Taxi out')
-        else if (elapsedMin < 20) setCurrentPhase('Takeoff')
-        else if (elapsedMin < 30) setCurrentPhase('Climb')
-        else if (elapsedMin < session.plannedDurationMin - 30) setCurrentPhase('Cruise')
-        else if (elapsedMin < session.plannedDurationMin - 12) setCurrentPhase('Descent')
-        else if (elapsedMin < session.plannedDurationMin - 6) setCurrentPhase('Approach')
-        else if (elapsedMin < session.plannedDurationMin) setCurrentPhase('Landing')
-        else if (elapsedMin < session.plannedDurationMin + 5) setCurrentPhase('Taxi in')
-        else setCurrentPhase('At gate')
-      }, 100)
+  // Reminders at the estimated times
+  useEffect(() => {
+    if (!takeoffAt || !totalMs || finished) return
+    STEPS.forEach((s) => {
+      if (s.at === null || statuses[s.key] || fired.current.has(s.key)) return
+      if (elapsed >= s.at * totalMs) {
+        fired.current.add(s.key)
+        notify(`Time for ${s.key}`, 'Tick it off in the checklist when you get there.')
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [elapsed, takeoffAt, statuses])
+
+  // When every step is handled, save the flight to history
+  useEffect(() => {
+    if (!info || saved.current) return
+    if (!STEPS.every((s) => statuses[s.key])) return
+    saved.current = true
+    const entryId = `${flightKey}-${Date.now()}`
+    const entry = {
+      id: entryId,
+      airlineIata: info.airlineIata,
+      airlineName: info.airlineName,
+      orig: info.orig,
+      dest: info.dest,
+      flightNumber: info.flightNumber || flightKey,
+      aircraft: info.aircraft,
+      departure: new Date(takeoffAt || Date.now()).toISOString(),
+      distanceNm: info.distanceNm,
+      fromCity: info.fromCity,
+      toCity: info.toCity,
+      rating: 0,
     }
+    setLogs([entry, ...logs])
+    setLogId(entryId)
+    setFinished(true)
+    toast.success('Flight added to your history')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statuses])
 
-    return () => {
-      if (interval) clearInterval(interval)
-    }
-  }, [session])
-
-  const handleStart = () => {
-    if (!session) return
-    setSession({ ...session, state: 'running', startTime: Date.now() })
-    toast.success('Flight started. Prepare for departure!')
+  const askPermission = async () => {
+    try {
+      if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+        await Notification.requestPermission()
+      }
+    } catch {}
   }
 
-  const handlePause = () => {
-    if (!session) return
-    setSession({ ...session, state: 'paused', pausedTime: Date.now() })
-  }
-
-  const handleResume = () => {
-    if (!session) return
-    const pauseDuration = (session.pausedTime || 0) > 0 ? Date.now() - session.pausedTime : 0
-    setSession({ ...session, state: 'running', pausedMs: session.pausedMs + pauseDuration })
-  }
-
-  const handleNextPhase = () => {
-    const nextPhases = ['Boarding', 'Pushback', 'Taxi out', 'Takeoff', 'Climb', 'Cruise', 'Descent', 'Approach', 'Landing', 'Taxi in', 'At gate']
-    const currentIdx = nextPhases.indexOf(currentPhase)
-    if (currentIdx >= 0 && currentIdx < nextPhases.length - 1) {
-      setCurrentPhase(nextPhases[currentIdx + 1])
+  const mark = (key: string, status: Status) => {
+    askPermission()
+    setStatuses((prev) => ({ ...prev, [key]: status }))
+    if (key === 'Takeoff') {
+      const t = Date.now()
+      setTakeoffAt(t)
+      setNow(t)
+      toast.success('Takeoff! The clock is running.')
     }
   }
 
-  const handleEnd = (outcome: 'completed' | 'diverted' | 'gave_up') => {
-    if (!session) return
-    setSession({ ...session, state: 'ended' })
-    toast.success(`Flight ended: ${outcome}`)
-    setTimeout(() => {
-      router.push(`/logs`)
-    }, 1500)
+  const skipToTakeoff = () => {
+    setStatuses((prev) => {
+      const next = { ...prev }
+      STEPS.slice(0, 3).forEach((s) => {
+        if (!next[s.key]) next[s.key] = 'skipped'
+      })
+      return next
+    })
   }
 
-  if (!flightData || !session) {
+  const rate = (n: number) => {
+    const v = n === rating ? 0 : n
+    setRating(v)
+    setLogs(logs.map((l) => (l.id === logId ? { ...l, rating: v } : l)))
+  }
+
+  if (!checked) {
+    return <section className="min-h-screen p-5 sm:p-8 text-white/40">Loading flight...</section>
+  }
+
+  if (!info) {
     return (
       <section className="min-h-screen p-5 sm:p-8">
-        <Link href="/airlines" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55">
+        <Link href={`/flights/${id}/flight-plan`} className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55">
           <ArrowLeft className="size-4" /> Back
         </Link>
-        <div className="mt-10 text-white/40">Loading flight...</div>
+        <div className="mt-10 rounded-2xl border border-white/10 bg-black/40 p-5 text-white/60">
+          No flight plan found for "{id}". Create one first on the Flight Plan page.
+        </div>
       </section>
     )
   }
 
-  const elapsedMin = Math.floor(elapsed / 1000 / 60)
-  const elapsedSec = Math.floor((elapsed / 1000) % 60)
-  const progress = Math.min(100, (elapsedMin / flightData.durationMin) * 100)
-
-  const phases = {
-    'Boarding': { color: '#1f88ff', icon: '🚪', notification: 'Passengers boarding...' },
-    'Pushback': { color: '#facc15', icon: '🔙', notification: 'Pushback in progress' },
-    'Taxi out': { color: '#facc15', icon: '🛫', notification: 'Taxiing to runway' },
-    'Takeoff': { color: '#ff6b6b', icon: '✈️', notification: 'Taking off!' },
-    'Climb': { color: '#4caf50', icon: '📈', notification: 'Climbing to cruise altitude' },
-    'Cruise': { color: '#1f88ff', icon: '✈️', notification: 'Cruising...' },
-    'Descent': { color: '#facc15', icon: '📉', notification: 'Beginning descent' },
-    'Approach': { color: '#ff6b6b', icon: '🎯', notification: 'Approaching destination' },
-    'Landing': { color: '#ff6b6b', icon: '🛬', notification: 'Landing!' },
-    'Taxi in': { color: '#facc15', icon: '🛬', notification: 'Taxiing to gate' },
-    'At gate': { color: '#4caf50', icon: '🎉', notification: 'Flight complete!' },
-  }
-
-  const currentPhaseData = phases[currentPhase as keyof typeof phases] || phases['Ready']
+  const airborneProgress = totalMs ? Math.min(100, (elapsed / totalMs) * 100) : 0
+  const remainingMs = Math.max(0, totalMs - elapsed)
 
   return (
     <section className="min-h-screen p-5 sm:p-8">
-      <div className="flex items-center justify-between mb-8">
-        <Link href={`/flights/${id}`} className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
+      <div className="mb-6 flex items-center justify-between">
+        <Link href={`/flights/${id}/flight-plan`} className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
           <ArrowLeft className="size-4" /> Back
         </Link>
         <Link
           href={`/flights/${id}/simbrief`}
-          className="flex items-center gap-2 min-h-11 rounded-lg border border-white/10 bg-white/[.08] hover:bg-white/[.12] px-4 text-sm text-white/60 hover:text-white transition"
-          title="Import SimBrief flight plan"
+          className="flex min-h-11 items-center gap-2 rounded-lg border border-white/10 bg-white/[.08] px-4 text-sm text-white/60 transition hover:bg-white/[.12] hover:text-white"
         >
-          <FileUp className="size-4" />
-          Import Plan
+          <FileUp className="size-4" /> Import Plan
         </Link>
       </div>
 
-      <header className="mt-8 border-b border-white/10 pb-7">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex-1">
-            <AirlineLogo 
-              iata={flightData.airlineIata}
-              icao={flightData.airlineIcao}
-              name={flightData.airline}
-              size="md"
-            />
-            <h1 className="mt-4 text-3xl font-semibold">{flightData.airlineIata}{flightData.flightNumber}</h1>
-            <p className="mt-2 text-sm text-white/45">{flightData.from} → {flightData.to}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-xs font-semibold text-[#4caf50] uppercase">
-              {session.state === 'running' ? '🟢 IN PROGRESS' : '⏸ PAUSED'}
-            </p>
-          </div>
-        </div>
+      <header className="border-b border-white/10 pb-6">
+        <AirlineLogo iata={info.airlineIata} icao={info.airlineIcao} name={info.airlineName} size="md" />
+        <h1 className="mt-4 text-3xl font-semibold">
+          {info.flightNumber ? `${info.airlineIata}${info.flightNumber}` : flightKey}
+        </h1>
+        <p className="mt-2 text-sm text-white/45">
+          {info.orig} → {info.dest} · {info.aircraft} · {info.durationMin} min
+        </p>
       </header>
 
-      <div className="mt-8 rounded-2xl border border-white/10 bg-gradient-to-br from-[#111217cc] to-[#0a0a0acc] p-8 text-center">
-        <div className="text-6xl font-bold tabular-nums text-[#1f88ff]">
-          {String(elapsedMin).padStart(2, '0')}:{String(elapsedSec).padStart(2, '0')}
-        </div>
-        <p className="mt-4 text-sm text-white/45">
-          {flightData.durationMin - elapsedMin} min remaining • Planned: {flightData.durationMin} min
-        </p>
-      </div>
-
-      <div className="mt-8 rounded-2xl border border-white/10 bg-white/[.02] p-6">
-        <p className="text-xs font-semibold uppercase tracking-[.2em] text-white/60 mb-3">Current Phase</p>
-        <div className="flex items-center gap-4">
-          <div className="text-4xl">{currentPhaseData.icon}</div>
-          <div className="flex-1">
-            <p className="text-2xl font-bold" style={{ color: currentPhaseData.color }}>
-              {currentPhase}
-            </p>
-            <p className="text-sm text-white/40 mt-1">{currentPhaseData.notification}</p>
+      {finished ? (
+        <div className="mt-8 rounded-2xl border border-[#4caf50]/30 bg-[#4caf50]/10 p-6 text-center">
+          <div className="text-5xl">🎉</div>
+          <h2 className="mt-3 text-2xl font-semibold">Flight added to your history</h2>
+          <p className="mt-2 text-sm text-white/60">
+            {info.orig} → {info.dest}
+          </p>
+          <p className="mt-6 text-sm text-white/60">How was your flight?</p>
+          <div className="mt-3 flex justify-center gap-2">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button key={n} onClick={() => rate(n)} aria-label={`${n} stars`} className="p-1">
+                <Star className={`size-9 ${n <= rating ? 'fill-yellow-400 text-yellow-400' : 'text-white/30'}`} />
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-white/40">{rating}/5 · tap the same star again for 0</p>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <Link href="/logs" className="rounded-xl bg-[#1f88ff] px-6 py-3 text-sm font-semibold">
+              View my logs
+            </Link>
+            <Link href="/" className="rounded-xl border border-white/15 bg-white/10 px-6 py-3 text-sm font-medium">
+              Home
+            </Link>
           </div>
         </div>
-      </div>
+      ) : (
+        <>
+          <div className="mt-8 rounded-2xl border border-white/10 bg-gradient-to-br from-[#111217cc] to-[#0a0a0acc] p-8 text-center">
+            {takeoffAt ? (
+              <>
+                <div className="text-6xl font-bold tabular-nums text-[#1f88ff]">{fmt(elapsed)}</div>
+                <p className="mt-4 text-sm text-white/45">
+                  {Math.ceil(remainingMs / 60_000)} min remaining · Planned: {info.durationMin} min
+                </p>
+                <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
+                  <div className="h-full bg-[#1f88ff] transition-all" style={{ width: `${airborneProgress}%` }} />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-4xl font-bold text-white/30">--:--</div>
+                <p className="mt-4 text-sm text-white/45">The clock starts at Takeoff</p>
+              </>
+            )}
+          </div>
 
-      <div className="mt-8">
-        <div className="mb-2 flex items-center justify-between text-xs text-white/50">
-          <span>{currentPhase}</span>
-          <span>{progress.toFixed(0)}%</span>
-        </div>
-        <div className="h-3 rounded-full bg-white/10 overflow-hidden">
-          <div 
-            className="h-full transition-all rounded-full"
-            style={{ width: `${progress}%`, backgroundColor: currentPhaseData.color }}
-          />
-        </div>
-      </div>
-
-      <div className="mt-8 grid gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-white/10 bg-[#111217cc] p-4">
-          <p className="text-xs text-white/50">Departure</p>
-          <p className="mt-2 font-semibold">{flightData.depTime}</p>
-        </div>
-        <div className="rounded-xl border border-white/10 bg-[#111217cc] p-4">
-          <p className="text-xs text-white/50">Aircraft</p>
-          <p className="mt-2 font-semibold text-sm">{flightData.aircraft}</p>
-        </div>
-        <div className="rounded-xl border border-white/10 bg-[#111217cc] p-4">
-          <p className="text-xs text-white/50">Distance</p>
-          <p className="mt-2 font-semibold">{flightData.distance}</p>
-        </div>
-      </div>
-
-      <div className="mt-8 flex gap-3">
-        {session.state === 'ready' && (
-          <button
-            onClick={handleStart}
-            className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#4caf50] font-semibold text-white transition hover:bg-[#4caf50]/90"
-          >
-            <Play className="size-5" /> Start Flight
-          </button>
-        )}
-        {session.state === 'running' && (
-          <button
-            onClick={handlePause}
-            className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#facc15] font-semibold text-black transition hover:bg-[#facc15]/90"
-          >
-            <Pause className="size-5" /> Pause
-          </button>
-        )}
-        {session.state === 'paused' && (
-          <button
-            onClick={handleResume}
-            className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#4caf50] font-semibold text-white transition hover:bg-[#4caf50]/90"
-          >
-            <Play className="size-5" /> Resume
-          </button>
-        )}
-
-        {session.state !== 'ready' && (
-          <>
+          {currentIdx < 3 && (
             <button
-              onClick={handleNextPhase}
-              className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/20 px-4 font-semibold transition hover:bg-white/[.08]"
-              title="Skip to next phase"
+              onClick={skipToTakeoff}
+              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[.06] px-4 py-3 text-sm font-medium hover:bg-white/10"
             >
-              <SkipForward className="size-5" />
+              <SkipForward className="size-4" /> Skip to Takeoff
             </button>
-          </>
-        )}
-      </div>
+          )}
 
-      <div className="mt-4 relative">
-        <button
-          onClick={() => setShowEndMenu(!showEndMenu)}
-          className="w-full flex min-h-12 items-center justify-center rounded-xl border border-red-400/30 bg-red-400/10 font-semibold text-red-300 transition hover:bg-red-400/20"
-        >
-          End Flight
-        </button>
+          <ul className="mt-6 space-y-2">
+            {STEPS.map((s) => {
+              const st = statuses[s.key]
+              const isCurrent = current?.key === s.key
+              const eta = s.at !== null ? Math.round(s.at * info.durationMin) : null
+              const due = isCurrent && takeoffAt && s.at !== null && elapsed >= s.at * totalMs
+              return (
+                <li
+                  key={s.key}
+                  className={`rounded-xl border p-3 ${isCurrent ? 'border-[#1f88ff]/50 bg-[#1f88ff]/10' : 'border-white/10 bg-white/[.02]'} ${due ? 'ring-1 ring-yellow-400/60' : ''}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="flex size-6 shrink-0 items-center justify-center">
+                      {st === 'done' ? (
+                        <Check className="size-5 text-[#4caf50]" />
+                      ) : st === 'skipped' ? (
+                        <SkipForward className="size-4 text-white/30" />
+                      ) : (
+                        <span className="size-5 rounded-full border border-white/25" />
+                      )}
+                    </span>
+                    <span className={`flex-1 text-sm ${st ? 'text-white/45' : 'text-white'} ${st === 'skipped' ? 'line-through' : ''}`}>
+                      {s.icon} {s.key}
+                      {s.key === 'Takeoff' && !st && <span className="ml-2 text-xs text-white/40">starts the clock</span>}
+                    </span>
+                    {eta !== null && <span className="text-xs text-white/40">+{eta} min</span>}
+                  </div>
+                  {isCurrent && (
+                    <div className="mt-3 flex gap-2">
+                      <button onClick={() => mark(s.key, 'done')} className="flex-1 rounded-lg bg-[#4caf50] px-3 py-2 text-sm font-semibold">
+                        {s.key === 'Takeoff' ? 'Takeoff!' : 'Done'}
+                      </button>
+                      {s.key !== 'Takeoff' && (
+                        <button onClick={() => mark(s.key, 'skipped')} className="rounded-lg border border-white/15 bg-white/10 px-4 py-2 text-sm">
+                          Skip
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
 
-        {showEndMenu && (
-          <>
-            <div
-              className="fixed inset-0 z-40"
-              onClick={() => setShowEndMenu(false)}
-              aria-hidden="true"
-            />
-            <div className="absolute bottom-full mb-2 left-0 right-0 z-50 rounded-xl border border-white/10 bg-[#111217] p-2 shadow-lg">
-              <button
-                onClick={() => handleEnd('completed')}
-                className="w-full flex items-center gap-2 rounded-lg p-3 text-left hover:bg-white/[.08]"
-              >
-                <CheckCircle className="size-5 text-[#4caf50]" />
-                <div>
-                  <p className="font-semibold text-sm">Completed</p>
-                  <p className="text-xs text-white/40">Successful landing</p>
-                </div>
-              </button>
-              <button
-                onClick={() => handleEnd('diverted')}
-                className="w-full flex items-center gap-2 rounded-lg p-3 text-left hover:bg-white/[.08]"
-              >
-                <Clock className="size-5 text-[#facc15]" />
-                <div>
-                  <p className="font-semibold text-sm">Diverted</p>
-                  <p className="text-xs text-white/40">Went to alternate airport</p>
-                </div>
-              </button>
-              <button
-                onClick={() => handleEnd('gave_up')}
-                className="w-full flex items-center gap-2 rounded-lg p-3 text-left hover:bg-white/[.08]"
-              >
-                <ArrowLeft className="size-5 text-red-400" />
-                <div>
-                  <p className="font-semibold text-sm">Gave Up</p>
-                  <p className="text-xs text-white/40">Quit the flight</p>
-                </div>
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-
-      <div className="mt-6 rounded-2xl border border-white/10 bg-white/[.02] p-4 text-center">
-        <p className="text-xs text-white/50">
-          💡 Tip: Import a SimBrief flight plan for real data. Notifications will alert you at key flight phases.
-        </p>
-      </div>
+          <button onClick={() => router.push('/')} className="mt-6 w-full rounded-xl border border-red-400/30 px-4 py-2 text-sm text-red-300">
+            Cancel flight
+          </button>
+        </>
+      )}
     </section>
   )
 }

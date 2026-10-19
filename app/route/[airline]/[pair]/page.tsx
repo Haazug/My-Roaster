@@ -132,14 +132,32 @@ export default function RoutePage() {
       <p className="mt-3 text-xs text-white/35">Route and equipment from OpenFlights. Flight numbers and schedules are not part of this dataset.</p>
 
       <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-        <a
-          href={simbriefUrl(exportFlight)}
-          target="_blank"
-          rel="noopener noreferrer"
+        <Link
+          href={`/flights/${params.airline}-${params.pair}/flight-plan`}
+          onClick={() => {
+            try {
+              localStorage.setItem('myroster.routeSeed', JSON.stringify({
+                id: `${params.airline}-${params.pair}`,
+                airlineName: data?.airline.name,
+                airlineIata: data?.airline.iata,
+                airlineIcao: data?.airline.icao,
+                orig: data?.from.iata,
+                dest: data?.to.iata,
+                fromIcao: data?.from.icao,
+                toIcao: data?.to.icao,
+                fromCity: data?.from.city,
+                toCity: data?.to.city,
+                distanceNm: data?.distanceNm,
+                durationMin: exportFlight.durationMin,
+                aircraft: data?.aircraft?.[0]?.icao || '',
+              }))
+            } catch {}
+            window.open(simbriefUrl(exportFlight), '_blank', 'noopener,noreferrer')
+          }}
           className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#1f88ff] font-medium text-white hover:bg-[#1674db]"
         >
           <Plane className="size-4" />Fly Now
-        </a>
+        </Link>
         <button onClick={book} className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 font-medium hover:bg-white/15">
           <Check className="size-4" />Book Trip
         </button>

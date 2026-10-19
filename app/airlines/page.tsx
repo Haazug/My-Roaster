@@ -3,7 +3,8 @@
 import { useMemo, useState } from 'react'
 import useSWR from 'swr'
 import Link from 'next/link'
-import { ChevronRight, Plane, Search } from 'lucide-react'
+import { ChevronRight, Search } from 'lucide-react'
+import { AirlineLogo } from '@/components/AirlineLogo'
 
 type Airline = { id: string; name: string; iata: string; icao: string; country: string; active: boolean; numRoutes: number }
 const fetcher = (u: string) => fetch(u).then((r) => r.json())
@@ -41,7 +42,7 @@ export default function Airlines() {
         <div className="flex flex-col gap-2">
           {rows.map((a) => (
             <Link href={`/airlines/${a.id}`} key={a.id} className="flex min-h-[76px] items-center gap-4 rounded-2xl border border-white/10 bg-[#111217cc] p-3 transition hover:border-[#1f88ff]/60">
-              <div className="flex size-14 shrink-0 items-center justify-center rounded-full bg-white text-xs font-black text-black">{a.iata || <Plane className="size-5 text-[#1f88ff]" />}</div>
+              <AirlineLogo iata={a.iata} icao={a.icao} name={a.name} size="md" showText={false} />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold">{a.name}</p>
                 <p className="text-sm text-[#4caf50]">Available Routes: {a.numRoutes}{!a.active && <span className="ml-2 text-xs text-amber-300">Historical</span>}</p>

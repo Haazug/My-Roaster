@@ -1,71 +1,108 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import useSWR from 'swr'
 import { Plane } from 'lucide-react'
 
-export function AirlineLogo({ 
-  iata, 
-  icao, 
-  name, 
-  size = 'sm' 
-}: { 
+const BASE = 'https://cdn.jsdelivr.net/gh/Jxck-S/airline-logos@main'
+const FOLDERS = ['flightaware_logos', 'radarbox_logos', 'custom_logos']
+
+type A = { iata?: string; icao?: string; active?: boolean; numRoutes?: number }
+
+const fetcher = (u: string) => fetch(u).then((r) => r.json())
+
+// IATA -> ICAO lookup, built once from /api/airlines
+let builtFrom: unknown = null
+const iataToIcao = new Map<string, string>()
+
+function lookupIcao(data: unknown, iata?: string) {
+  if (!iata || !Array.isArray(data)) return ''
+  if (builtFrom !== data) {
+    const score = (x: A) => (x.active ? 1_000_000 : 0) + (x.numRoutes || 0)
+    const best = new Map<string, A>()
+    for (const a of data as A[]) {
+      if (!a.iata || !a.icao) continue
+      const k = a.iata.toUpperCase()
+      const cur = best.get(k)
+      if (!cur || score(a) > score(cur)) best.set(k, a)
+    }
+    iataToIcao.clear()
+    best.forEach((a, k) => iataToIcao.set(k, String(a.icao).toUpperCase()))
+    builtFrom = data
+  }
+  return iataToIcao.get(iata.toUpperCase()) || ''
+}
+
+export function AirlineLogo({
+  iata,
+  icao,
+  name,
+  size = 'sm',
+  showText = true,
+}: {
   iata?: string
   icao?: string
   name: string
   size?: 'sm' | 'md' | 'lg'
+  showText?: boolean
 }) {
-  const [logoLoaded, setLogoLoaded] = useState(false)
-  const [hasError, setHasError] = useState(false)
+  const [srcIndex, setSrcIndex] = useState(0)
+  const [loaded, setLoaded] = useState(false)
+  const imgRef = useRef<HTMLImageElement>(null)
 
-  const sizeClasses = {
-    sm: 'size-10',
-    md: 'size-14',
-    lg: 'size-20'
-  }
+  const needLookup = !icao && !!iata
+  const { data } = useSWR(needLookup ? '/api/airlines' : null, fetcher, { revalidateOnFocus: false })
 
-  const containerClasses = {
-    sm: 'gap-2',
-    md: 'gap-3',
-    lg: 'gap-4'
-  }
+  const sizeClasses = { sm: 'size-10', md: 'size-14', lg: 'size-20' }
+  const containerClasses = { sm: 'gap-2', md: 'gap-3', lg: 'gap-4' }
 
-  const code = (iata || icao || '').toUpperCase()
-  const logoUrl = code ? `https://cdn.jsdelivr.net/gh/Jxck-S/airline-logos@main/svgs/${code}.svg` : ''
+  const icaoCode = ((icao || '').trim() || lookupIcao(data, iata)).toUpperCase()
+  const label = (iata || icaoCode || name || '?').toUpperCase().slice(0, 2)
+  const sources = icaoCode ? FOLDERS.map((f) => `${BASE}/${f}/${icaoCode}.png`) : []
+  const src = sources[srcIndex]
+
+  useEffect(() => {
+    setSrcIndex(0)
+    setLoaded(false)
+  }, [icaoCode])
+
+  useEffect(() => {
+    const el = imgRef.current
+    if (!el || !el.complete) return
+    if (el.naturalWidth > 0) setLoaded(true)
+    else setSrcIndex((i) => i + 1)
+  }, [src])
 
   return (
     <div className={`flex items-center ${containerClasses[size]}`}>
-      {logoUrl && (
-        <div className={`flex shrink-0 items-center justify-center rounded-full bg-white/10 overflow-hidden ${sizeClasses[size]}`}>
-          {!hasError ? (
-            <img
-              src={logoUrl}
-              alt={`${name} logo`}
-              onLoad={() => setLogoLoaded(true)}
-              onError={() => setHasError(true)}
-              className={`w-full h-full object-cover transition-opacity ${logoLoaded ? 'opacity-100' : 'opacity-0'}`}
-            />
-          ) : null}
-          
-          {(!logoLoaded || hasError) && (
-            <div className="flex items-center justify-center w-full h-full bg-[#1f88ff]/20">
-              {size === 'lg' ? (
-                <Plane className="size-6 text-[#1f88ff]" />
-              ) : (
-                <span className={`font-black text-[#1f88ff] ${size === 'sm' ? 'text-xs' : 'text-sm'}`}>
-                  {code.slice(0, 2)}
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+      <div className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/10 ${sizeClasses[size]}`}>
+        {src && (
+          <img
+            key={src}
+            ref={imgRef}
+            src={src}
+            alt={`${name} logo`}
+            loading="lazy"
+            onLoad={() => setLoaded(true)}
+            onError={() => setSrcIndex((i) => i + 1)}
+            className={`absolute inset-0 h-full w-full bg-white object-contain p-1 transition-opacity ${loaded ? 'opacity-100' : 'opacity-0'}`}
+          />
+        )}
+        {!loaded && (
+          <div className="flex h-full w-full items-center justify-center bg-[#1f88ff]/20">
+            {size === 'lg' ? (
+              <Plane className="size-6 text-[#1f88ff]" />
+            ) : (
+              <span className={`font-black text-[#1f88ff] ${size === 'sm' ? 'text-xs' : 'text-sm'}`}>{label}</span>
+            )}
+          </div>
+        )}
+      </div>
 
-      <div className="min-w-0 flex-1">
-        <p className={`font-semibold truncate ${size === 'sm' ? 'text-sm' : size === 'md' ? 'text-base' : 'text-lg'}`}>
-          {name}
-        </p>
+      <div className={`min-w-0 flex-1 ${showText ? '' : 'hidden'}`}>
+        <p className={`truncate font-semibold ${size === 'sm' ? 'text-sm' : size === 'md' ? 'text-base' : 'text-lg'}`}>{name}</p>
         {(iata || icao) && (
-          <p className={`text-white/50 truncate ${size === 'sm' ? 'text-xs' : 'text-sm'}`}>
+          <p className={`truncate text-white/50 ${size === 'sm' ? 'text-xs' : 'text-sm'}`}>
             {iata && icao ? `${iata} · ${icao}` : iata || icao}
           </p>
         )}

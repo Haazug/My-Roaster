@@ -7,7 +7,7 @@ import { useEffect, useMemo } from 'react'
 import { useMapStore, type Point } from '@/lib/map-store'
 import { ExportMenu } from '@/components/ExportMenu'
 import { AirlineLogo } from '@/components/AirlineLogo'
-import { type ExportFlight } from '@/lib/export'
+import { simbriefUrl, type ExportFlight } from '@/lib/export'
 
 const SAMPLE_FLIGHTS: Record<string, any> = {
   'DT-653': {
@@ -170,7 +170,7 @@ export default function FlightDetailPage() {
 
       <div className="mt-8 flex flex-col gap-4 sm:flex-row">
         <Link
-          href={`/flights/${id}/fly`}
+          href={`/flights/${id}/flight-plan`} onClick={() => window.open(simbriefUrl(exportData), "_blank", "noopener,noreferrer")}
           className="flex min-h-12 items-center justify-center rounded-xl bg-[#1f88ff] px-6 font-semibold text-white transition hover:bg-[#1f88ff]/90"
         >
           <Plane className="mr-2 size-5" /> Fly Now
