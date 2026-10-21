@@ -36,7 +36,7 @@ export default function FlightPlanPage() {
   const [geo, setGeo] = useState<Geo | null>(null)
   const [ready, setReady] = useState(false)
   const [error, setError] = useState('')
-  const [form, setForm] = useState({ flight: '', dep: '', arr: '', aircraft: 'A320', time: '12:00', fl: 350, speed: '', duration: 60 })
+  const [form, setForm] = useState({ flight: '', dep: '', arr: '', aircraft: '', time: '12:00', fl: 350, speed: '', duration: 60 })
   const set = (k: string, v: any) => { setReady(false); setForm((f) => ({ ...f, [k]: v })) }
 
   useEffect(() => {
@@ -86,7 +86,7 @@ export default function FlightPlanPage() {
 
   // recalculate gate-to-gate time when distance, aircraft or speed change
   useEffect(() => {
-    if (geo?.distanceNm && acName) {
+    if (geo?.distanceNm && (acName || !form.aircraft.trim())) {
       const speedKt = parseSpeed(form.speed) || undefined
       setForm((f) => ({ ...f, duration: estimateBlockMinutes(geo.distanceNm, acName, { speedKt }) }))
     }
@@ -111,8 +111,8 @@ export default function FlightPlanPage() {
 
   const createPlan = () => {
     if (!form.dep.trim() || !form.arr.trim()) return setError('Enter origin and destination')
-    if (ac.status === 'none') return setError(`"${form.aircraft}" is not a known aircraft type.`)
-    if (!acName) return setError('Please confirm the aircraft type above.')
+    if (form.aircraft.trim() && ac.status === 'none') return setError(`"${form.aircraft}" is not a known aircraft type.`)
+    if (form.aircraft.trim() && !acName) return setError('Please confirm the aircraft type above (or clear the field).')
     if (!form.duration) return setError('Enter the block time')
     setError('')
     setReady(true)
@@ -168,11 +168,11 @@ export default function FlightPlanPage() {
       <div className="mt-4 rounded-2xl border border-white/10 bg-black/40 p-5">
         <h2 className="mb-3 text-sm font-medium text-white/70">Or enter manually</h2>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Flight number"><input className={inputCls} placeholder="e.g. DT653" value={form.flight} onChange={(e) => set('flight', e.target.value)} /></Field>
+          <Field label="Flight number (optional)"><input className={inputCls} placeholder="e.g. DT653" value={form.flight} onChange={(e) => set('flight', e.target.value)} /></Field>
           <Field label="Departure time"><input className={inputCls} type="time" value={form.time} onChange={(e) => set('time', e.target.value)} /></Field>
           <Field label="Origin (IATA, ICAO or city)"><AirportInput value={form.dep} onChange={(v) => set('dep', v)} onResolve={setFromAp} className={inputCls} /></Field>
           <Field label="Destination (IATA, ICAO or city)"><AirportInput value={form.arr} onChange={(v) => set('arr', v)} onResolve={setToAp} className={inputCls} /></Field>
-          <Field label="Aircraft" className="col-span-2">
+          <Field label="Aircraft (optional)" className="col-span-2">
             <input className={inputCls} placeholder="e.g. Airbus A380" value={form.aircraft} onChange={(e) => set('aircraft', e.target.value)} />
             {ac.status === 'exact' && ac.match && <p className="mt-1 text-xs text-[#4caf50]">✓ {ac.match.name} · {ac.match.icao}</p>}
             {ac.status === 'fuzzy' && ac.match && (

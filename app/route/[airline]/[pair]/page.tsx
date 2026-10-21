@@ -148,6 +148,7 @@ export default function RoutePage() {
           onClick={() => {
             try {
               localStorage.setItem('myroster.routeSeed', JSON.stringify({
+                free: new URLSearchParams(window.location.search).has('free'),
                 id: `${params.airline}-${params.pair}`,
                 airlineName: data?.airline.name,
                 airlineIata: data?.airline.iata,

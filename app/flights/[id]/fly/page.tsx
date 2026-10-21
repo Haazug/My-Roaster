@@ -27,6 +27,7 @@ const STEPS = [
 ]
 
 type FlightInfo = {
+  free?: boolean
   airlineName: string
   airlineIata: string
   airlineIcao: string
@@ -89,7 +90,7 @@ export default function FlyNowPage() {
               toCity: p.toCity || p.to || '',
               aircraft: p.aircraft || '',
               durationMin: p.durationMin || 60,
-              distanceNm: p.distanceNm || 0,
+              distanceNm: p.distanceNm || 0, free: !!p.free,
             })
           }
         }
@@ -152,7 +153,7 @@ export default function FlyNowPage() {
       distanceNm: info.distanceNm,
       fromCity: info.fromCity,
       toCity: info.toCity,
-      rating: 0,
+      rating: 0, free: !!info.free,
     }
     setLogs([entry, ...logs])
     setLogId(entryId)

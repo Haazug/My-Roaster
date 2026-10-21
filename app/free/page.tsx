@@ -39,7 +39,7 @@ export default function FreeFlightPage() {
         setBusy(false)
         return
       }
-      router.push(`/route/${key}/${a}-${b}`)
+      router.push(`/route/${key}/${a}-${b}?free=1`)
     } catch {
       setMsg('Could not check the airports. Try again.')
       setBusy(false)
