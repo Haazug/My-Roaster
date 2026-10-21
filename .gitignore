@@ -11,3 +11,7 @@ node_modules
 *.bak[0-9]
 *.old
 .env*.local
+
+build.txt
+info2.txt
+*.bak*
