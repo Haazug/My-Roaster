@@ -13,6 +13,7 @@ import type { RosterFlight } from '@/lib/roster-data'
 import { simbriefUrl, type ExportFlight } from '@/lib/export'
 import { ExportMenu } from '@/components/export-menu'
 import { AirlineLogo } from '@/components/AirlineLogo'
+import { fixName } from '@/lib/airline-names'
 import { AircraftSideView } from '@/components/AircraftSideView'
 import { estimateBlockMinutes } from '@/lib/flight-time'
 import { useNow } from '@/lib/use-now'
@@ -60,7 +61,7 @@ export default function RoutePage() {
   const flight: RosterFlight = {
     id: `${data.airline.iata || data.airline.id}-${data.from.iata}-${data.to.iata}`,
     airlineIata: data.airline.iata || data.airline.icao,
-    airlineName: data.airline.name,
+    airlineName: fixName(data.airline.name),
     orig: data.from.iata,
     dest: data.to.iata,
     flightNumber: data.airline.iata || data.airline.icao,
@@ -73,7 +74,7 @@ export default function RoutePage() {
   const exportFlight: ExportFlight = {
     airlineIcao: data.airline.icao || undefined,
     airlineIata: data.airline.iata,
-    airlineName: data.airline.name,
+    airlineName: fixName(data.airline.name),
     flightNumber: '',
     origin: data.from,
     dest: data.to,
@@ -97,7 +98,7 @@ export default function RoutePage() {
   return (
     <section className="min-h-screen p-5 sm:p-8">
       <Link href={`/airlines/${data.airline.id}`} className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
-        <ArrowLeft className="size-4" />{data.airline.name}
+        <ArrowLeft className="size-4" />{fixName(data.airline.name)}
       </Link>
       <header className="mt-6 flex items-start justify-between gap-4">
         <div className="min-w-0">
@@ -105,7 +106,7 @@ export default function RoutePage() {
             {data.operated ? (data.codeshare ? 'Codeshare route' : 'Operated route') : 'Route not listed for this airline'}
           </p>
           <h1 className="mt-2 text-balance text-3xl font-semibold sm:text-4xl">{data.from.city} to {data.to.city}</h1>
-          <p className="mt-2 text-sm text-white/45">{data.airline.name} · {data.airline.iata || data.airline.icao}</p>
+          <p className="mt-2 text-sm text-white/45">{fixName(data.airline.name)} · {data.airline.iata || data.airline.icao}</p>
         </div>
         <button
           aria-label={has(flight.id) ? 'Remove favourite' : 'Add favourite'}
@@ -119,7 +120,7 @@ export default function RoutePage() {
 
       <div className="mt-6 overflow-hidden rounded-3xl border border-white/10 bg-[#0d0e12f2]">
         <div className="flex items-center gap-3 border-b border-white/10 p-4">
-          <AirlineLogo iata={data.airline.iata} icao={data.airline.icao} name={data.airline.name} size="md" showText={false} />
+          <AirlineLogo iata={data.airline.iata} icao={data.airline.icao} name={fixName(data.airline.name)} size="md" showText={false} />
           <div className="min-w-0">
             <p className="text-sm text-white/50">{data.airline.iata || data.airline.icao} · {data.from.icao} → {data.to.icao}</p>
             <p className="truncate text-xl font-semibold">{data.from.city} to {data.to.city}</p>

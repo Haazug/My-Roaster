@@ -8,6 +8,7 @@ import { useMapStore, type Point } from '@/lib/map-store'
 import { ExportMenu } from '@/components/ExportMenu'
 import { AirlineLogo } from '@/components/AirlineLogo'
 import { simbriefUrl, type ExportFlight } from '@/lib/export'
+import { useNow } from '@/lib/use-now'
 
 const SAMPLE_FLIGHTS: Record<string, any> = {
   'DT-653': {
@@ -58,9 +59,15 @@ const SAMPLE_FLIGHTS: Record<string, any> = {
   },
 }
 
+const hhmm = (m: number) => {
+  const x = ((Math.round(m) % 1440) + 1440) % 1440
+  return `${String(Math.floor(x / 60)).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}`
+}
+
 export default function FlightDetailPage() {
   const { id } = useParams<{ id: string }>()
   const setView = useMapStore((s) => s.setView)
+  const now = useNow()
 
   const flight = useMemo(() => {
     const key = id ? (id as string).toUpperCase() : ''
@@ -88,6 +95,10 @@ export default function FlightDetailPage() {
     )
   }
 
+  // departure = current time, arrival = current time + duration
+  const depH = now ? now.getHours() : flight.depHour
+  const depM = now ? now.getMinutes() : flight.depMin
+
   const exportData: ExportFlight = {
     airlineIcao: flight.airlineIcao,
     airlineIata: flight.airlineIata,
@@ -109,8 +120,8 @@ export default function FlightDetailPage() {
     },
     aircraftIcao: flight.aircraftIcao,
     aircraftName: flight.aircraftType,
-    depHour: flight.depHour,
-    depMin: flight.depMin,
+    depHour: depH,
+    depMin: depM,
     durationMin: flight.durationMin,
     distanceNm: flight.distanceNm,
   }
@@ -135,7 +146,7 @@ export default function FlightDetailPage() {
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
         <div className="rounded-2xl border border-white/10 bg-[#111217cc] p-6">
           <p className="text-xs font-semibold uppercase tracking-[.2em] text-white/60">Departure</p>
-          <p className="mt-3 text-3xl font-bold">{flight.depTime}</p>
+          <p className="mt-3 text-3xl font-bold">{now ? hhmm(depH * 60 + depM) : '--:--'}</p>
           <p className="mt-2 text-sm text-white/45">{flight.fromCity} ({flight.from})</p>
           <p className="mt-1 text-xs text-white/40">{flight.fromIcao}</p>
         </div>
@@ -149,13 +160,8 @@ export default function FlightDetailPage() {
         <div className="rounded-2xl border border-white/10 bg-[#111217cc] p-6">
           <p className="text-xs font-semibold uppercase tracking-[.2em] text-white/60">Arrival</p>
           <p className="mt-3 text-3xl font-bold">
-            {(() => {
-              const depMinutes = flight.depHour * 60 + flight.depMin
-              const arrMinutes = depMinutes + flight.durationMin
-              const arrHour = Math.floor(arrMinutes / 60) % 24
-              const arrMin = arrMinutes % 60
-              return `${String(arrHour).padStart(2, '0')}:${String(arrMin).padStart(2, '0')}`
-            })()}
+            {now ? hhmm(depH * 60 + depM + flight.durationMin) : '--:--'}
+            {now && depH * 60 + depM + flight.durationMin >= 1440 && <sup className="ml-1 text-xs text-white/40">+1</sup>}
           </p>
           <p className="mt-2 text-sm text-white/45">{flight.toCity} ({flight.to})</p>
           <p className="mt-1 text-xs text-white/40">{flight.toIcao}</p>
