@@ -71,7 +71,7 @@ export default function FlyNowPage() {
 
   // Load the plan saved by the Flight Plan page (for flights that are not samples)
   useEffect(() => {
-    if (!info) {
+    {
       try {
         const raw = localStorage.getItem('myroster.activePlan')
         if (raw) {

@@ -1,75 +1,84 @@
 export interface ParsedFlightPlan {
-  departure: string;
-  arrival: string;
-  aircraft: string;
-  cruiseAltitude: number;
-  distance: number;
-  estimatedTime: number;
-  waypoints: Array<{id: string; latitude: number; longitude: number}>;
-  flightNumber?: string;
-  airline?: string;
+  departure: string
+  arrival: string
+  aircraft: string
+  cruiseAltitude: number
+  distance: number
+  estimatedTime: number
+  waypoints: Array<{ id: string; latitude: number; longitude: number }>
+  flightNumber?: string
+  airline?: string
+}
+
+type WP = ParsedFlightPlan['waypoints'][number]
+
+// MSFS/SimBrief positions look like: N38° 46' 52.00",W9° 8' 3.00",+000374.00
+function dms(str: string) {
+  const m = Array.from(str.matchAll(/([NSEW])\s*(\d+)°\s*(\d+)'\s*([\d.]+)"/g))
+  if (m.length < 2) return null
+  const conv = (x: RegExpMatchArray) => {
+    const v = Number(x[2]) + Number(x[3]) / 60 + Number(x[4]) / 3600
+    return x[1] === 'S' || x[1] === 'W' ? -v : v
+  }
+  return { lat: conv(m[0]), lon: conv(m[1]) }
+}
+
+function nm(a: WP, b: WP) {
+  const r = Math.PI / 180
+  const dLat = (b.latitude - a.latitude) * r
+  const dLon = (b.longitude - a.longitude) * r
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.latitude * r) * Math.cos(b.latitude * r) * Math.sin(dLon / 2) ** 2
+  return 2 * 3440.07 * Math.asin(Math.sqrt(h))
 }
 
 export function parsePLNFile(xmlContent: string): ParsedFlightPlan {
-  try {
-    const parser = new DOMParser();
-    const xmlDoc = parser.parseFromString(xmlContent, "text/xml");
-    const departure = xmlDoc.querySelector("Departure CallSign")?.textContent || "";
-    const arrival = xmlDoc.querySelector("Arrival CallSign")?.textContent || "";
-    const aircraft = xmlDoc.querySelector("Aircraft Type")?.textContent || "A320";
-    const cruiseAltitude = parseInt(xmlDoc.querySelector("CruisingAlt")?.textContent || "35000");
-    const waypoints: ParsedFlightPlan["waypoints"] = [];
-    const flightPlan = xmlDoc.querySelector("FlightPlan");
+  const doc = new DOMParser().parseFromString(xmlContent, 'text/xml')
+  if (doc.getElementsByTagName('parsererror').length) throw new Error('Invalid .pln file')
+  const first = (tag: string, root: Document | Element = doc) =>
+    root.getElementsByTagName(tag)[0]?.textContent?.trim() || ''
 
-    if (flightPlan) {
-      const wayPointsElements = flightPlan.querySelectorAll("ATCWaypoint");
-      wayPointsElements.forEach((wp, index) => {
-        const id = wp.querySelector("ATCWaypointID")?.textContent || `WP${index}`;
-        const lat = parseFloat(wp.querySelector("WorldPosition Latitude")?.textContent || "0");
-        const lon = parseFloat(wp.querySelector("WorldPosition Longitude")?.textContent || "0");
-        waypoints.push({id, latitude: lat, longitude: lon});
-      });
-    }
+  const waypoints: WP[] = []
+  Array.from(doc.getElementsByTagName('ATCWaypoint')).forEach((el, i) => {
+    const pos = dms(first('WorldPosition', el))
+    if (!pos) return
+    waypoints.push({ id: el.getAttribute('id') || `WP${i}`, latitude: pos.lat, longitude: pos.lon })
+  })
 
-    if (waypoints.length === 0 && departure && arrival) {
-      waypoints.push({id: departure, latitude: 0, longitude: 0});
-      waypoints.push({id: arrival, latitude: 0, longitude: 0});
-    }
+  const departure = first('DepartureID') || waypoints[0]?.id || ''
+  const arrival = first('DestinationID') || waypoints[waypoints.length - 1]?.id || ''
+  if (!departure || !arrival) throw new Error('Invalid .pln file')
 
-    const distance = calculateDistance(waypoints);
-    const estimatedTime = Math.round((distance / 450) * 60);
+  let distance = 0
+  for (let i = 0; i < waypoints.length - 1; i++) distance += nm(waypoints[i], waypoints[i + 1])
+  distance = Math.round(distance)
 
-    return {departure, arrival, aircraft, cruiseAltitude, distance, estimatedTime, waypoints};
-  } catch (error) {
-    console.error("Erro ao fazer parse do .pln:", error);
-    throw new Error("Ficheiro .pln inválido");
-  }
-}
-
-function calculateDistance(waypoints: Array<{latitude: number; longitude: number}>): number {
-  if (waypoints.length < 2) return 0;
-  let totalDistance = 0;
-  for (let i = 0; i < waypoints.length - 1; i++) {
-    const point1 = waypoints[i];
-    const point2 = waypoints[i + 1];
-    const dLat = (point2.latitude - point1.latitude) * (Math.PI / 180);
-    const dLon = (point2.longitude - point1.longitude) * (Math.PI / 180);
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(point1.latitude * (Math.PI / 180)) * Math.cos(point2.latitude * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.asin(Math.sqrt(a));
-    const R = 3440.07;
-    totalDistance += R * c;
-  }
-  return Math.round(totalDistance);
-}
-
-export function createManualFlightPlan(data: {departure: string; arrival: string; aircraft: string; altitude: number; passengers: number; blockTime: string; rules: "IFR" | "VFR"}): ParsedFlightPlan {
   return {
-    departure: data.departure.toUpperCase(),
-    arrival: data.arrival.toUpperCase(),
-    aircraft: data.aircraft.toUpperCase(),
+    departure,
+    arrival,
+    aircraft: '',
+    cruiseAltitude: Math.round(parseFloat(first('CruisingAlt'))) || 35000,
+    distance,
+    estimatedTime: distance ? Math.round((distance / 450) * 60) + 15 : 0,
+    waypoints,
+  }
+}
+
+export function createManualFlightPlan(data: {
+  departure: string
+  arrival: string
+  aircraft: string
+  altitude: number
+  passengers: number
+  blockTime: string
+  rules: 'IFR' | 'VFR'
+}): ParsedFlightPlan {
+  return {
+    departure: data.departure.trim().toUpperCase(),
+    arrival: data.arrival.trim().toUpperCase(),
+    aircraft: data.aircraft,
     cruiseAltitude: data.altitude,
     distance: 0,
     estimatedTime: 0,
-    waypoints: [{id: data.departure, latitude: 0, longitude: 0}, {id: data.arrival, latitude: 0, longitude: 0}],
-  };
+    waypoints: [],
+  }
 }
