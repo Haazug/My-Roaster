@@ -1,0 +1,934 @@
+=== ESTADO ===
+OK    lib/flight-time.ts
+OK    lib/aircraft-db.ts
+OK    app/random/page.tsx
+OK    app/favourites/page.tsx
+OK    app/login/page.tsx
+OK    components/BoardingPass.tsx
+OK    components/AirlineLogo.tsx
+=== PAGINAS ===
+app/aircraft/[type]/page.tsx
+app/airlines/[id]/page.tsx
+app/airlines/page.tsx
+app/airports/[code]/page.tsx
+app/airports/page.tsx
+app/bookings/page.tsx
+app/favourites/page.tsx
+app/flights/[id]/flight-plan/page.tsx
+app/flights/[id]/fly/page.tsx
+app/flights/[id]/page.tsx
+app/flights/[id]/simbrief/page.tsx
+app/live/[hex]/page.tsx
+app/login/page.tsx
+app/logs/page.tsx
+app/page.tsx
+app/profile/page.tsx
+app/random/page.tsx
+app/route/[airline]/[pair]/page.tsx
+app/routes/[pair]/page.tsx
+app/search/page.tsx
+app/trips/page.tsx
+=== APIS ===
+app/api/airlines/[id]/route.ts
+app/api/airlines/route.ts
+app/api/airports/[code]/route.ts
+app/api/airports/route.ts
+app/api/flights/[id]/route.ts
+app/api/live/callsign/[cs]/route.ts
+app/api/live/hex/[hex]/route.ts
+app/api/live/near/route.ts
+app/api/live/reg/[reg]/route.ts
+app/api/live/route/route.ts
+app/api/live/type/[t]/route.ts
+app/api/route/[airline]/[pair]/route.ts
+app/api/routes/[pair]/route.ts
+app/api/search/route.ts
+=== LIB / COMPONENTS ===
+components:
+AirlineLogo.tsx
+AirlineLogo.tsx.bak2
+AirlineLogo.tsx.bak3
+AirlineLogo.tsx.bak4
+AirlineLogo.tsx.old
+BackgroundMusic.tsx
+BackgroundMusic.tsx.old
+BoardingPass.tsx
+BottomNav.tsx
+BottomNav.tsx.bak
+export-menu.tsx
+ExportMenu.tsx
+GlobeBackground.tsx
+GlobeBackground.tsx.bak
+GlobeInner.tsx
+GlobeInner.tsx.bak
+GlobeInner.tsx.bak2
+GlobeInner.tsx.bak3
+LiveTraffic.tsx
+search-client.tsx
+ui
+
+lib:
+aircraft-db.ts
+aircraft-db.ts.old
+aircraft.ts
+data-cache.ts
+db.ts
+export.ts
+flight-plan-parser.ts
+flight-plan-parser.ts.old
+flight-session.ts
+flight-time.ts
+flight-utils.ts
+live-geo.ts
+live-traffic.ts
+live.ts
+map-store.ts
+openflights-parse.ts
+roster-data.ts
+supabase.ts
+use-favourites.ts
+use-local-storage.ts
+use-local-storage.ts.old
+utils.ts
+=== PASSOS APLICADOS (0 = falhou) ===
+2
+1
+2
+=== app/flights/[id]/flight-plan/page.tsx ===
+'use client'
+
+import { useParams, usePathname, useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { ArrowLeft, Upload } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import { parsePLNFile } from '@/lib/flight-plan-parser'
+import { matchAircraft } from '@/lib/aircraft-db'
+import { estimateBlockMinutes, parseSpeed } from '@/lib/flight-time'
+import { BoardingPass } from '@/components/BoardingPass'
+
+type Geo = { fromIata: string; toIata: string; fromCity: string; toCity: string; distanceNm: number }
+
+const hhmm = (m: number) => {
+  const x = ((Math.round(m) % 1440) + 1440) % 1440
+  return `${String(Math.floor(x / 60)).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}`
+}
+const inputCls = 'w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-[#1f88ff]'
+
+function Field({ label, children, className = '' }: { label: string; children: React.ReactNode; className?: string }) {
+  return (
+    <label className={`block text-xs text-white/50 ${className}`}>
+      {label}
+      <div className="mt-1">{children}</div>
+    </label>
+  )
+}
+
+export default function FlightPlanPage() {
+  const { id } = useParams<{ id: string }>()
+  const router = useRouter()
+  const pathname = usePathname()
+  const [authed, setAuthed] = useState(false)
+  const [seed, setSeed] = useState<any>(null)
+  const [geo, setGeo] = useState<Geo | null>(null)
+  const [ready, setReady] = useState(false)
+  const [error, setError] = useState('')
+  const [form, setForm] = useState({ flight: '', dep: '', arr: '', aircraft: 'A320', time: '12:00', fl: 350, speed: '', duration: 60 })
+  const set = (k: string, v: any) => { setReady(false); setForm((f) => ({ ...f, [k]: v })) }
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) setAuthed(true)
+      else router.replace(`/login?next=${encodeURIComponent(pathname)}`)
+    })
+  }, [pathname, router])
+
+  // pre-fill when coming from a route page
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('myroster.routeSeed')
+      if (!raw) return
+      const s = JSON.parse(raw)
+      if (String(s.id).toUpperCase() !== String(id).toUpperCase()) return
+      setSeed(s)
+      setForm((f) => ({
+        ...f,
+        flight: s.airlineIata || '',
+        dep: s.orig || '',
+        arr: s.dest || '',
+        aircraft: s.aircraft || f.aircraft,
+        duration: s.durationMin || f.duration,
+      }))
+    } catch {}
+  }, [id])
+
+  // distance and cities for whatever airports are in the form (IATA codes)
+  useEffect(() => {
+    const a = form.dep.trim().toUpperCase()
+    const b = form.arr.trim().toUpperCase()
+    if (seed && a === String(seed.orig).toUpperCase() && b === String(seed.dest).toUpperCase()) {
+      setGeo({ fromIata: seed.orig, toIata: seed.dest, fromCity: seed.fromCity, toCity: seed.toCity, distanceNm: seed.distanceNm })
+      return
+    }
+    if (!/^[A-Z]{3}$/.test(a) || !/^[A-Z]{3}$/.test(b) || a === b) { setGeo(null); return }
+    const air = seed?.airlineIata || String(id).split('-')[0]
+    const t = setTimeout(() => {
+      fetch(`/api/route/${air}/${a}-${b}`)
+        .then((r) => r.json())
+        .then((d) => {
+          if (d && !d.error && d.distanceNm) setGeo({ fromIata: d.from.iata, toIata: d.to.iata, fromCity: d.from.city, toCity: d.to.city, distanceNm: d.distanceNm })
+          else setGeo(null)
+        })
+        .catch(() => setGeo(null))
+    }, 500)
+    return () => clearTimeout(t)
+  }, [form.dep, form.arr, seed, id])
+
+  const ac = matchAircraft(form.aircraft)
+  const acName = ac.status === 'exact' && ac.match ? ac.match.name : ''
+
+  // recalculate gate-to-gate time when distance, aircraft or speed change
+  useEffect(() => {
+    if (geo?.distanceNm && acName) {
+      const speedKt = parseSpeed(form.speed) || undefined
+      setForm((f) => ({ ...f, duration: estimateBlockMinutes(geo.distanceNm, acName, { speedKt }) }))
+    }
+  }, [geo, acName, form.speed])
+
+  const launch = (o: { from: string; to: string; fromCity: string; toCity: string; aircraft: string; fl: number; distanceNm: number; durationMin: number }) => {
+    try {
+      localStorage.setItem(
+        'myroster.activePlan',
+        JSON.stringify({
+          ...(seed || {}),
+          id,
+          airlineIata: seed?.airlineIata || String(id).split('-')[0].toUpperCase(),
+          flightNumber: form.flight.replace(/^[A-Za-z]+/, ''),
+          from: o.from, to: o.to, fromCity: o.fromCity, toCity: o.toCity,
+          aircraft: o.aircraft, altitude: o.fl * 100, distanceNm: o.distanceNm, durationMin: o.durationMin,
+        })
+      )
+    } catch {}
+    router.push(`/flights/${id}/fly`)
+  }
+
+  const createPlan = () => {
+    if (!form.dep.trim() || !form.arr.trim()) return setError('Enter origin and destination')
+    if (ac.status === 'none') return setError(`"${form.aircraft}" is not a known aircraft type.`)
+    if (!acName) return setError('Please confirm the aircraft type above.')
+    if (!form.duration) return setError('Enter the block time')
+    setError('')
+    setReady(true)
+  }
+
+  const dep = form.dep.trim().toUpperCase()
+  const arr = form.arr.trim().toUpperCase()
+  const manualLaunch = () =>
+    launch({
+      from: geo?.fromIata || dep, to: geo?.toIata || arr,
+      fromCity: geo?.fromCity || dep, toCity: geo?.toCity || arr,
+      aircraft: acName, fl: form.fl, distanceNm: geo?.distanceNm || 0, durationMin: form.duration,
+    })
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      setError('')
+      const p = parsePLNFile(await file.text())
+      launch({
+        from: p.departure, to: p.arrival, fromCity: p.departure, toCity: p.arrival,
+        aircraft: acName, fl: Math.round(p.cruiseAltitude / 100), distanceNm: p.distance,
+        durationMin: p.distance ? estimateBlockMinutes(p.distance, acName, { routed: true, speedKt: parseSpeed(form.speed) || undefined }) : form.duration,
+      })
+    } catch {
+      setError('Could not read this .pln file')
+    }
+  }
+
+  if (!authed) return <section className="min-h-screen p-5 text-white/40 sm:p-8">Checking your account...</section>
+
+  const [h, mi] = form.time.split(':').map(Number)
+  const depMin = (h || 0) * 60 + (mi || 0)
+
+  return (
+    <section className="min-h-screen p-5 sm:p-8">
+      <button onClick={() => router.back()} className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
+        <ArrowLeft className="size-4" /> Back
+      </button>
+      <h1 className="mt-4 text-2xl font-semibold">Flight Plan</h1>
+      <p className="mt-1 text-sm text-white/50">Flight {id}</p>
+
+      <div className="mt-6 rounded-2xl border border-white/10 bg-black/40 p-5">
+        <h2 className="text-sm font-medium text-white/70">Upload .pln file</h2>
+        <p className="mb-3 mt-1 text-xs text-white/40">MSFS or SimBrief. Set the aircraft below first. You go straight to the flight clock.</p>
+        <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-[#1f88ff] px-4 py-2 text-sm font-medium">
+          <Upload className="size-4" /> Choose file
+          <input type="file" accept=".pln,.xml" onChange={handleFile} className="hidden" />
+        </label>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-white/10 bg-black/40 p-5">
+        <h2 className="mb-3 text-sm font-medium text-white/70">Or enter manually</h2>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Flight number"><input className={inputCls} placeholder="e.g. DT653" value={form.flight} onChange={(e) => set('flight', e.target.value)} /></Field>
+          <Field label="Departure time"><input className={inputCls} type="time" value={form.time} onChange={(e) => set('time', e.target.value)} /></Field>
+          <Field label="Origin (IATA, e.g. AMS)"><input className={inputCls} value={form.dep} onChange={(e) => set('dep', e.target.value)} /></Field>
+          <Field label="Destination (IATA, e.g. LIS)"><input className={inputCls} value={form.arr} onChange={(e) => set('arr', e.target.value)} /></Field>
+          <Field label="Aircraft" className="col-span-2">
+            <input className={inputCls} placeholder="e.g. Airbus A380" value={form.aircraft} onChange={(e) => set('aircraft', e.target.value)} />
+            {ac.status === 'exact' && ac.match && <p className="mt-1 text-xs text-[#4caf50]">✓ {ac.match.name} · {ac.match.icao}</p>}
+            {ac.status === 'fuzzy' && ac.match && (
+              <button type="button" onClick={() => set('aircraft', ac.match!.name)} className="mt-1 text-xs text-[#55a7ff]">Did you mean {ac.match.name}?</button>
+            )}
+            {ac.status === 'family' && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {ac.matches.map((m) => (
+                  <button key={m.icao + m.name} type="button" onClick={() => set('aircraft', m.name)} className="rounded-lg border border-white/15 bg-white/10 px-2 py-1 text-xs">{m.name}</button>
+                ))}
+              </div>
+            )}
+            {ac.status === 'none' && form.aircraft.trim() && <p className="mt-1 text-xs text-red-300">"{form.aircraft}" is not a known aircraft type.</p>}
+          </Field>
+          <Field label="Cruise level (FL)"><input className={inputCls} type="number" value={form.fl} onChange={(e) => set('fl', Number(e.target.value))} /></Field>
+          <Field label="Cruise speed (Mach or kt, optional)"><input className={inputCls} placeholder="M.82 or 450" value={form.speed} onChange={(e) => set('speed', e.target.value)} /></Field>
+        </div>
+
+        <div className="mt-4 grid grid-cols-4 rounded-2xl bg-white/[.04] p-3 text-center text-xs">
+          <div><p className="text-white/40">Distance</p><p className="mt-1 text-sm font-semibold">{geo ? `${geo.distanceNm.toLocaleString('en-US')} nm` : '—'}</p></div>
+          <div><p className="text-white/40">Departure</p><p className="mt-1 text-sm font-semibold">{form.time}</p></div>
+          <div>
+            <p className="text-white/40">Block time</p>
+            <input className="mt-1 w-14 rounded bg-transparent text-center text-sm font-semibold outline-none" type="number" value={form.duration} onChange={(e) => set('duration', Number(e.target.value))} />
+          </div>
+          <div><p className="text-white/40">Arrival</p><p className="mt-1 text-sm font-semibold">{hhmm(depMin + form.duration)}</p></div>
+        </div>
+        <p className="mt-2 text-xs text-white/40">
+          {geo ? 'Block time is calculated from distance, aircraft speed and route.' : 'Use 3-letter IATA codes to get distance and city names automatically. Otherwise type the block time (min).'}
+        </p>
+        <button onClick={createPlan} className="mt-3 rounded-xl bg-[#1f88ff] px-4 py-2 text-sm font-medium">Create plan</button>
+      </div>
+
+      {error && <p className="mt-4 text-sm text-red-300">{error}</p>}
+
+      {ready && (
+        <div className="mt-6">
+          <BoardingPass
+            tear
+            data={{
+              from: geo?.fromIata || dep, to: geo?.toIata || arr, fromCity: geo?.fromCity, toCity: geo?.toCity,
+              airline: seed?.airlineName, flight: form.flight || String(id).toUpperCase(), aircraft: acName,
+              distanceNm: geo?.distanceNm, date: new Date().toISOString().slice(0, 10),
+            }}
+            onBoard={manualLaunch}
+          />
+        </div>
+      )}
+    </section>
+  )
+}=== app/logs/page.tsx ===
+"use client"
+import Link from "next/link"
+import { BookOpen, Plane } from "lucide-react"
+import { useLocalStorage } from "@/lib/use-local-storage"
+import type { RosterFlight } from "@/lib/roster-data"
+import { AirlineLogo } from "@/components/AirlineLogo"
+export default function LogsPage(){const [logs]=useLocalStorage<RosterFlight[]>("myroster.logs",[]); const nm=logs.reduce((s,f)=>s+f.distanceNm,0); return <main className="min-h-screen bg-[#0a0a0a] px-5 py-8 text-white sm:px-8"><div className="mx-auto max-w-3xl"><Link href="/" className="text-sm text-white/50">← MyRoster</Link><div className="mt-10 flex items-end justify-between"><div><p className="flex items-center gap-2 text-sm text-[#55a7ff]"><BookOpen className="size-4"/>MyLogs</p><h1 className="mt-2 text-4xl font-semibold">Flights flown.</h1></div></div><div className="mt-8 grid grid-cols-3 gap-3"><Stat label="Flights" value={logs.length}/><Stat label="NM flown" value={nm.toLocaleString()}/><Stat label="Airlines" value={new Set(logs.map(f=>f.airlineIata)).size}/></div><div className="mt-8 flex flex-col gap-3">{logs.length ? logs.map(f=><div key={f.id} className="rounded-2xl border border-white/10 bg-[#151619] p-4"><p className="text-xs text-white/40">{new Date(f.departure).toLocaleDateString(undefined,{month:"long",year:"numeric"})}</p><p className="mt-2 flex items-center gap-3 font-semibold"><AirlineLogo iata={f.airlineIata} name={f.airlineName} size="sm" showText={false}/>{f.flightNumber} · {f.orig} → {f.dest}</p><p className="mt-1 text-sm text-white/50">{f.fromCity} to {f.toCity} · {f.distanceNm} nm</p></div>) : <Empty text="No flights logged yet."/>}</div></div></main>}
+function Stat({label,value}:{label:string;value:string|number}){return <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"><p className="text-2xl font-semibold">{value}</p><p className="mt-1 text-xs text-white/40">{label}</p></div>}
+function Empty({text}:{text:string}){return <div className="rounded-2xl border border-dashed border-white/15 p-10 text-center text-white/45">{text}</div>}
+=== app/profile/page.tsx ===
+"use client"
+import Link from "next/link"
+import { useLocalStorage } from "@/lib/use-local-storage"
+import type { RosterFlight } from "@/lib/roster-data"
+export default function ProfilePage(){const [profile,setProfile]=useLocalStorage("myroster.profile",{name:"Pilot",avatar:""}); const [logs]=useLocalStorage<RosterFlight[]>("myroster.logs",[]); const nm=logs.reduce((s,f)=>s+f.distanceNm,0); return <main className="min-h-screen bg-[#0a0a0a] px-5 py-8 text-white sm:px-8"><div className="mx-auto max-w-3xl"><Link href="/" className="text-sm text-white/50">← MyRoster</Link><h1 className="mt-10 text-4xl font-semibold">Profile</h1><div className="mt-8 rounded-[28px] border border-white/10 bg-[#151619] p-6"><div className="flex items-center gap-4"><div className="flex size-16 items-center justify-center rounded-full bg-[#1f88ff] text-2xl font-bold">{profile.avatar || profile.name.slice(0,1).toUpperCase()}</div><div><label className="text-xs text-white/40">Your name</label><input value={profile.name} onChange={e=>setProfile({...profile,name:e.target.value})} className="mt-1 block rounded-lg bg-white/10 px-3 py-2 outline-none"/></div></div><div className="mt-8 grid grid-cols-2 gap-3"><Stat label="Flights" value={logs.length}/><Stat label="NM flown" value={nm.toLocaleString()}/><Stat label="Airports" value={new Set(logs.flatMap(f=>[f.orig,f.dest])).size}/><Stat label="Airlines" value={new Set(logs.map(f=>f.airlineIata)).size}/></div></div><p className="mt-10 text-xs leading-5 text-white/35">Schedules and aircraft are indicative, for flight simulation only. Route data: OpenFlights (ODbL).</p></div></main>}
+function Stat({label,value}:{label:string;value:string|number}){return <div className="rounded-xl bg-white/[0.05] p-4"><p className="text-xl font-semibold">{value}</p><p className="text-xs text-white/40">{label}</p></div>}
+=== app/login/page.tsx ===
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
+
+const safeNext = () => {
+  try {
+    const n = new URLSearchParams(window.location.search).get('next') || '/'
+    return n.startsWith('/') && !n.startsWith('//') ? n : '/'
+  } catch {
+    return '/'
+  }
+}
+
+export default function LoginPage() {
+  const router = useRouter()
+  const [mode, setMode] = useState<'in' | 'up'>('in')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [msg, setMsg] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [user, setUser] = useState<string | null>(null)
+  const [needsLogin, setNeedsLogin] = useState(false)
+
+  useEffect(() => {
+    setNeedsLogin(new URLSearchParams(window.location.search).has('next'))
+    supabase.auth.getUser().then(({ data }) => setUser(data.user?.email ?? null))
+  }, [])
+
+  const submit = async () => {
+    setBusy(true)
+    setMsg('')
+    const { data, error } =
+      mode === 'in'
+        ? await supabase.auth.signInWithPassword({ email, password })
+        : await supabase.auth.signUp({ email, password })
+    setBusy(false)
+    if (error) return setMsg(error.message)
+    if (mode === 'up' && !data.session) return setMsg('Check your email to confirm your account, then sign in.')
+    router.push(safeNext())
+  }
+
+  const signOut = async () => {
+    await supabase.auth.signOut()
+    setUser(null)
+  }
+
+  const input = 'w-full rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-white outline-none focus:border-[#1f88ff]'
+
+  return (
+    <section className="min-h-screen p-5 sm:p-8">
+      <div className="mx-auto mt-10 max-w-sm rounded-2xl border border-white/10 bg-black/50 p-6">
+        {user ? (
+          <>
+            <h1 className="text-2xl font-semibold">Signed in</h1>
+            <p className="mt-2 text-sm text-white/60">{user}</p>
+            <button onClick={() => router.push(safeNext())} className="mt-6 w-full rounded-xl bg-[#1f88ff] px-4 py-3 text-sm font-semibold">
+              Continue
+            </button>
+            <button onClick={signOut} className="mt-3 w-full rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-medium">
+              Sign out
+            </button>
+          </>
+        ) : (
+          <>
+            <h1 className="text-2xl font-semibold">{mode === 'in' ? 'Sign in' : 'Create account'}</h1>
+            {needsLogin && <p className="mt-2 text-sm text-white/50">Sign in to plan and log your flights.</p>}
+            <div className="mt-6 space-y-3">
+              <input className={input} type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <input className={input} type="password" placeholder="Password (min. 6 characters)" value={password} onChange={(e) => setPassword(e.target.value)} />
+            </div>
+            {msg && <p className="mt-3 text-sm text-red-300">{msg}</p>}
+            <button onClick={submit} disabled={busy || !email || !password} className="mt-5 w-full rounded-xl bg-[#1f88ff] px-4 py-3 text-sm font-semibold disabled:opacity-40">
+              {busy ? '...' : mode === 'in' ? 'Sign in' : 'Sign up'}
+            </button>
+            <button onClick={() => setMode(mode === 'in' ? 'up' : 'in')} className="mt-4 w-full text-sm text-[#55a7ff]">
+              {mode === 'in' ? 'No account? Create one' : 'Already have an account? Sign in'}
+            </button>
+          </>
+        )}
+      </div>
+    </section>
+  )
+}=== components/BoardingPass.tsx ===
+'use client'
+
+import { Download, Share2 } from 'lucide-react'
+import { toast } from 'sonner'
+import html2canvas from 'html2canvas'
+import { useRef } from 'react'
+
+interface BoardingPassProps {
+  airline: string
+  airlineIata: string
+  flightNumber: string
+  from: string
+  to: string
+  fromCity: string
+  toCity: string
+  date: string
+  depTime: string
+  boardingTime: string
+  arrivalTime: string
+  passenger: string
+  aircraft: string
+  registration?: string
+  gate: string
+  seat: string
+  distance: number
+  duration: string
+}
+
+export function BoardingPass({
+  airline,
+  airlineIata,
+  flightNumber,
+  from,
+  to,
+  fromCity,
+  toCity,
+  date,
+  depTime,
+  boardingTime,
+  arrivalTime,
+  passenger,
+  aircraft,
+  registration,
+  gate,
+  seat,
+  distance,
+  duration,
+}: BoardingPassProps) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  const handleDownload = async () => {
+    if (!ref.current) return
+    try {
+      const canvas = await html2canvas(ref.current, {
+        backgroundColor: '#0a0a0a',
+        scale: 2,
+      })
+      const link = document.createElement('a')
+      link.href = canvas.toDataURL('image/png')
+      link.download = `${from}-${to}-boarding-pass.png`
+      link.click()
+      toast.success('Boarding pass saved as image')
+    } catch {
+      toast.error('Failed to save image')
+    }
+  }
+
+  const handleShare = async () => {
+    const text = `${airlineIata}${flightNumber} - ${fromCity} to ${toCity} on ${date}`
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Boarding Pass', text })
+      } catch {
+        // Dismissed
+      }
+    } else {
+      toast.success('Flight details copied')
+    }
+  }
+
+  const barcode = `${from}${to}${airlineIata}${flightNumber}`.substring(0, 20)
+
+  return (
+    <div className="space-y-4">
+      <div
+        ref={ref}
+        className="mx-auto max-w-md overflow-hidden rounded-xl border-2 border-white/20 bg-gradient-to-b from-[#1a1f2e] to-[#0f1419] p-0 shadow-2xl"
+      >
+        {/* Header */}
+        <div className="border-b border-white/10 bg-[#1f88ff] px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold text-white/80 uppercase tracking-widest">
+                BOARDING PASS
+              </p>
+              <p className="mt-1 text-xl font-bold text-white">{airline}</p>
+            </div>
+            <div className="text-right text-3xl font-black text-white opacity-20">
+              ✈️
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="px-6 py-6">
+          {/* Passenger */}
+          <div className="mb-6 border-b border-dashed border-white/20 pb-4">
+            <p className="text-xs text-white/50 uppercase tracking-widest">Passenger</p>
+            <p className="mt-2 font-bold text-white">{passenger}</p>
+          </div>
+
+          {/* Route */}
+          <div className="mb-6 space-y-3">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
+              <div>
+                <p className="text-xs text-white/50 uppercase">From</p>
+                <p className="mt-1 text-2xl font-black text-[#1f88ff]">{from}</p>
+                <p className="mt-0.5 text-xs text-white/60">{fromCity}</p>
+              </div>
+
+              <div className="text-center">
+                <svg
+                  className="h-6 w-6 text-white/40"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                </svg>
+                <p className="mt-2 text-xs font-semibold text-white/50">{distance} nm</p>
+              </div>
+
+              <div className="text-right">
+                <p className="text-xs text-white/50 uppercase">To</p>
+                <p className="mt-1 text-2xl font-black text-[#1f88ff]">{to}</p>
+                <p className="mt-0.5 text-xs text-white/60">{toCity}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Flight Info */}
+          <div className="mb-6 grid grid-cols-2 gap-4 border-y border-dashed border-white/20 py-4">
+            <div>
+              <p className="text-xs text-white/50 uppercase">Flight</p>
+              <p className="mt-1 font-bold text-lg text-white">
+                {airlineIata}
+                <span className="ml-1 text-[#1f88ff]">{flightNumber}</span>
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-white/50 uppercase">Date</p>
+              <p className="mt-1 font-bold text-white">{date}</p>
+            </div>
+          </div>
+
+          {/* Schedule */}
+          <div className="mb-6 grid grid-cols-3 gap-3 text-center">
+            <div>
+              <p className="text-xs text-white/50 uppercase">Boarding</p>
+              <p className="mt-1 font-bold text-white">{boardingTime}</p>
+            </div>
+            <div>
+              <p className="text-xs text-white/50 uppercase">Departure</p>
+              <p className="mt-1 font-bold text-white">{depTime}</p>
+            </div>
+            <div>
+              <p className="text-xs text-white/50 uppercase">Arrival</p>
+              <p className="mt-1 font-bold text-white">{arrivalTime}</p>
+            </div>
+          </div>
+
+          {/* Seat & Gate */}
+          <div className="mb-6 grid grid-cols-3 gap-4">
+            <div>
+              <p className="text-xs text-white/50 uppercase">Gate</p>
+              <p className="mt-1 text-2xl font-black text-[#1f88ff]">{gate}</p>
+            </div>
+            <div>
+              <p className="text-xs text-white/50 uppercase">Seat</p>
+              <p className="mt-1 text-2xl font-black text-[#1f88ff]">{seat}</p>
+            </div>
+            <div>
+              <p className="text-xs text-white/50 uppercase">Duration</p>
+              <p className="mt-1 font-bold text-white text-sm">{duration}</p>
+            </div>
+          </div>
+
+          {/* Aircraft */}
+          {aircraft && (
+            <div className="mb-6 border-t border-dashed border-white/20 pt-4">
+              <p className="text-xs text-white/50 uppercase">Aircraft</p>
+              <p className="mt-1 font-bold text-white">{aircraft}</p>
+              {registration && (
+                <p className="mt-1 text-xs text-white/60">Reg: {registration}</p>
+              )}
+            </div>
+          )}
+
+          {/* Barcode */}
+          <div className="flex flex-col items-center border-t border-dashed border-white/20 pt-4">
+            <svg
+              className="h-12 w-full text-white/30"
+              viewBox={`0 0 ${barcode.length * 10} 50`}
+            >
+              {barcode.split('').map((char, i) => (
+                <line
+                  key={i}
+                  x1={i * 10 + 5}
+                  y1="0"
+                  x2={i * 10 + 5}
+                  y2={char.charCodeAt(0) % 2 === 0 ? 40 : 20}
+                  stroke="currentColor"
+                  strokeWidth="2"
+                />
+              ))}
+            </svg>
+            <p className="mt-2 text-xs font-mono text-white/40">
+              {barcode}
+            </p>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="border-t border-white/10 bg-white/[.02] px-6 py-3 text-center">
+          <p className="text-xs text-white/40">
+            FOR FLIGHT SIMULATION ONLY • NOT A TRAVEL DOCUMENT
+          </p>
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="flex gap-3 justify-center">
+        <button
+          onClick={handleDownload}
+          className="flex min-h-10 items-center gap-2 rounded-lg border border-white/20 px-4 text-sm font-semibold transition hover:bg-white/[.08]"
+        >
+          <Download className="size-4" /> Save Image
+        </button>
+        <button
+          onClick={handleShare}
+          className="flex min-h-10 items-center gap-2 rounded-lg border border-white/20 px-4 text-sm font-semibold transition hover:bg-white/[.08]"
+        >
+          <Share2 className="size-4" /> Share
+        </button>
+      </div>
+    </div>
+  )
+}
+=== components/AirlineLogo.tsx ===
+'use client'
+
+import { useEffect, useRef, useState } from 'react'
+import useSWR from 'swr'
+import { Plane } from 'lucide-react'
+
+const BASE = 'https://cdn.jsdelivr.net/gh/Jxck-S/airline-logos@main'
+const FOLDERS = ['flightaware_logos', 'radarbox_logos', 'custom_logos']
+
+type A = { iata?: string; icao?: string; active?: boolean; numRoutes?: number }
+
+const fetcher = (u: string) => fetch(u).then((r) => r.json())
+
+// IATA -> ICAO lookup, built once from /api/airlines
+let builtFrom: unknown = null
+const iataToIcao = new Map<string, string>()
+
+function lookupIcao(data: unknown, iata?: string) {
+  if (!iata || !Array.isArray(data)) return ''
+  if (builtFrom !== data) {
+    const score = (x: A) => (x.active ? 1_000_000 : 0) + (x.numRoutes || 0)
+    const best = new Map<string, A>()
+    for (const a of data as A[]) {
+      if (!a.iata || !a.icao) continue
+      const k = a.iata.toUpperCase()
+      const cur = best.get(k)
+      if (!cur || score(a) > score(cur)) best.set(k, a)
+    }
+    iataToIcao.clear()
+    best.forEach((a, k) => iataToIcao.set(k, String(a.icao).toUpperCase()))
+    builtFrom = data
+  }
+  return iataToIcao.get(iata.toUpperCase()) || ''
+}
+
+export function AirlineLogo({
+  iata,
+  icao,
+  name,
+  size = 'sm',
+  showText = true,
+}: {
+  iata?: string
+  icao?: string
+  name: string
+  size?: 'sm' | 'md' | 'lg'
+  showText?: boolean
+}) {
+  const [srcIndex, setSrcIndex] = useState(0)
+  const [loaded, setLoaded] = useState(false)
+  const imgRef = useRef<HTMLImageElement>(null)
+
+  const needLookup = !icao && !!iata
+  const { data } = useSWR(needLookup ? '/api/airlines' : null, fetcher, { revalidateOnFocus: false })
+
+  const sizeClasses = { sm: 'size-10', md: 'size-14', lg: 'size-20' }
+  const containerClasses = { sm: 'gap-2', md: 'gap-3', lg: 'gap-4' }
+
+  const icaoCode = ((icao || '').trim() || lookupIcao(data, iata)).toUpperCase()
+  const label = (iata || icaoCode || name || '?').toUpperCase().slice(0, 2)
+  const sources = icaoCode ? FOLDERS.map((f) => `${BASE}/${f}/${icaoCode}.png`) : []
+  const src = sources[srcIndex]
+
+  useEffect(() => {
+    setSrcIndex(0)
+    setLoaded(false)
+  }, [icaoCode])
+
+  useEffect(() => {
+    const el = imgRef.current
+    if (!el || !el.complete) return
+    if (el.naturalWidth > 0) setLoaded(true)
+    else setSrcIndex((i) => i + 1)
+  }, [src])
+
+  return (
+    <div className={`flex items-center ${containerClasses[size]}`}>
+      <div className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/10 ${sizeClasses[size]}`}>
+        {src && (
+          <img
+            key={src}
+            ref={imgRef}
+            src={src}
+            alt={`${name} logo`}
+            loading="lazy"
+            onLoad={() => setLoaded(true)}
+            onError={() => setSrcIndex((i) => i + 1)}
+            className={`absolute inset-0 h-full w-full bg-white object-contain p-1 transition-opacity ${loaded ? 'opacity-100' : 'opacity-0'}`}
+          />
+        )}
+        {!loaded && (
+          <div className="flex h-full w-full items-center justify-center bg-[#1f88ff]/20">
+            {size === 'lg' ? (
+              <Plane className="size-6 text-[#1f88ff]" />
+            ) : (
+              <span className={`font-black text-[#1f88ff] ${size === 'sm' ? 'text-xs' : 'text-sm'}`}>{label}</span>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className={`min-w-0 flex-1 ${showText ? '' : 'hidden'}`}>
+        <p className={`truncate font-semibold ${size === 'sm' ? 'text-sm' : size === 'md' ? 'text-base' : 'text-lg'}`}>{name}</p>
+        {(iata || icao) && (
+          <p className={`truncate text-white/50 ${size === 'sm' ? 'text-xs' : 'text-sm'}`}>
+            {iata && icao ? `${iata} · ${icao}` : iata || icao}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}=== app/api/route/[airline]/[pair]/route.ts ===
+import { NextResponse } from 'next/server'
+import { getDb } from '@/lib/db'
+import { aircraft as aircraftTable } from '@/lib/aircraft'
+import { findAirline, findAirport, haversineKm, kmToNm } from '@/lib/openflights-parse'
+
+export async function GET(_: Request, { params }: { params: Promise<{ airline: string; pair: string }> }) {
+  try {
+    const { airline: code, pair } = await params
+    const [fromCode, toCode] = decodeURIComponent(pair).split('-')
+    const db = await getDb()
+    const airline = findAirline(db, code)
+    const from = fromCode ? findAirport(db, fromCode) : undefined
+    const to = toCode ? findAirport(db, toCode) : undefined
+    if (!airline || !from || !to) return NextResponse.json({ error: 'Route not found' }, { status: 404 })
+    const route = (db.routesByAirline.get(airline.id) ?? []).find((r) => r.from === from.iata && r.to === to.iata)
+    const km = haversineKm(from, to)
+    const aircraft = (route?.equip ?? []).map((e) => ({ code: e, name: aircraftTable[e]?.[0] ?? e, icao: aircraftTable[e]?.[1] ?? e }))
+    return NextResponse.json({ airline, from, to, operated: Boolean(route), codeshare: route?.codeshare ?? false, aircraft, distanceKm: Math.round(km), distanceNm: Math.round(kmToNm(km)) })
+  } catch {
+    return NextResponse.json({ error: 'Data unavailable' }, { status: 503 })
+  }
+}
+=== app/api/airports/route.ts ===
+import { NextResponse } from 'next/server'
+import { getDb } from '@/lib/db'
+
+export async function GET() {
+  try {
+    const db = await getDb()
+    const airports = [...db.airports.values()]
+      .map((a) => ({ ...a, routes: db.routesByAirport.get(a.iata)?.length ?? 0 }))
+      .filter((a) => a.routes > 0)
+      .sort((a, b) => b.routes - a.routes)
+    return NextResponse.json(airports)
+  } catch {
+    return NextResponse.json({ error: 'Data unavailable' }, { status: 503 })
+  }
+}
+=== lib/supabase.ts ===
+import { createClient } from '@supabase/supabase-js'
+
+export const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
+=== AIRCRAFT-DB (início) ===
+export type AircraftType = { name: string; icao: string; aliases?: string[] }
+export type AircraftMatch = {
+  status: 'exact' | 'family' | 'fuzzy' | 'none'
+  match?: AircraftType
+  matches: AircraftType[]
+}
+
+// [name, ICAO type code, aliases]
+const RAW: [string, string, string[]?][] = [
+  // Airbus
+  ['Airbus A220-100', 'BCS1'],
+  ['Airbus A220-300', 'BCS3'],
+  ['Airbus A300-600', 'A306'],
+  ['Airbus A310-300', 'A310'],
+  ['Airbus A318', 'A318'],
+  ['Airbus A319', 'A319'],
+  ['Airbus A319neo', 'A19N'],
+  ['Airbus A320', 'A320'],
+  ['Airbus A320neo', 'A20N'],
+  ['Airbus A321', 'A321'],
+  ['Airbus A321neo', 'A21N'],
+  ['Airbus A330-200', 'A332'],
+  ['Airbus A330-300', 'A333'],
+  ['Airbus A330-800neo', 'A338'],
+  ['Airbus A330-900neo', 'A339'],
+  ['Airbus A340-300', 'A343'],
+  ['Airbus A340-500', 'A345'],
+  ['Airbus A340-600', 'A346'],
+  ['Airbus A350-900', 'A359'],
+  ['Airbus A350-1000', 'A35K'],
+  ['Airbus A380-800', 'A388'],
+  // Boeing
+  ['Boeing 707-320', 'B703'],
+  ['Boeing 717-200', 'B712'],
+  ['Boeing 727-200', 'B722'],
+  ['Boeing 737-200', 'B732'],
+  ['Boeing 737-300', 'B733'],
+  ['Boeing 737-400', 'B734'],
+  ['Boeing 737-500', 'B735'],
+  ['Boeing 737-600', 'B736'],
+  ['Boeing 737-700', 'B737'],
+  ['Boeing 737-800', 'B738'],
+  ['Boeing 737-900', 'B739'],
+  ['Boeing 737 MAX 7', 'B37M'],
+  ['Boeing 737 MAX 8', 'B38M'],
+  ['Boeing 737 MAX 9', 'B39M'],
+  ['Boeing 737 MAX 10', 'B3XM'],
+  ['Boeing 747-200', 'B742'],
+  ['Boeing 747-400', 'B744'],
+  ['Boeing 747-8', 'B748'],
+  ['Boeing 757-200', 'B752'],
+  ['Boeing 757-300', 'B753'],
+  ['Boeing 767-200', 'B762'],
+  ['Boeing 767-300', 'B763'],
+  ['Boeing 767-400', 'B764'],
+  ['Boeing 777-200', 'B772'],
+  ['Boeing 777-200LR', 'B77L'],
+  ['Boeing 777-300', 'B773'],
+  ['Boeing 777-300ER', 'B77W'],
+  ['Boeing 787-8', 'B788'],
+=== ICAO NO CÓDIGO ===
+lib/flight-time.ts:17:  const icao = (m?.icao || q).toUpperCase()
+lib/flight-time.ts:18:  if (KT[icao]) return KT[icao]
+lib/live-traffic.ts:64:    hex: data.hex || data.icao || '',
+lib/live-traffic.ts:162:  icaoType: string
+lib/live-traffic.ts:164:  const key = `type:${icaoType}`
+lib/live-traffic.ts:171:  const url = `${BASE_URL}/type/${icaoType.toUpperCase()}`
+lib/aircraft-db.ts.old:1:export type AircraftType = { name: string; icao: string; aliases?: string[] }
+lib/aircraft-db.ts.old:41:const AIRCRAFT: AircraftType[] = RAW.map(([name, icao, aliases]) => ({ name, icao, aliases }))
+lib/aircraft-db.ts.old:52:      norm(type.icao),
+lib/map-store.ts:2:export type Point={iata:string;icao?:string;city:string;lat:number;lon:number};
+lib/export.ts:1:export type ExportAirport = { icao: string; iata: string; city: string; name?: string; lat: number; lon: number }
+lib/export.ts:18:    orig: f.origin.icao, dest: f.dest.icao, deph: pad(f.depHour), depm: pad(f.depMin),
+lib/export.ts:30:    `${f.origin.city} (${f.origin.icao}) → ${f.dest.city} (${f.dest.icao})`,
+lib/export.ts:43:  const wp = (a: ExportAirport) => `\n    <ATCWaypoint id="${a.icao}">\n      <ATCWaypointType>Airport</ATCWaypointType>\n      <WorldPosition>${lla(a.lat, a.lon)}</WorldPosition>\n      <ICAO><ICAOIdent>${a.icao}</ICAOIdent></ICAO>\n    </ATCWaypoint>`
+lib/export.ts:44:  return `<?xml version="1.0" encoding="UTF-8"?>\n<SimBase.Document Type="AceXML" version="1,0">\n  <Descr>AceXML Document</Descr>\n  <FlightPlan.FlightPlan>\n    <Title>${f.origin.icao} to ${f.dest.icao}</Title>\n    <FPType>IFR</FPType>\n    <RouteType>HighAlt</RouteType>\n    <CruisingAlt>${f.distanceNm > 800 ? 35000 : 24000}</CruisingAlt>\n    <DepartureID>${f.origin.icao}</DepartureID>\n    <DepartureLLA>${lla(f.origin.lat, f.origin.lon)}</DepartureLLA>\n    <DestinationID>${f.dest.icao}</DestinationID>\n    <DestinationLLA>${lla(f.dest.lat, f.dest.lon)}</DestinationLLA>\n    <Descr>${f.origin.icao}, ${f.dest.icao}</Descr>\n    <DepartureName>${f.origin.name ?? f.origin.city}</DepartureName>\n    <DestinationName>${f.dest.name ?? f.dest.city}</DestinationName>${wp(f.origin)}${wp(f.dest)}\n  </FlightPlan.FlightPlan>\n</SimBase.Document>`
+lib/export.ts:47:export function downloadPln(f: ExportFlight) { const blob = new Blob([buildPln(f)], { type: "application/xml" }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = `${f.origin.icao}-${f.dest.icao}.pln`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000) }
+lib/openflights-parse.ts:1:export type Airport = { iata: string; icao: string; name: string; city: string; country: string; lat: number; lon: number };
+lib/openflights-parse.ts:2:export type Airline = { id: string; iata: string; icao: string; name: string; country: string; active: boolean };
+lib/openflights-parse.ts:7:export function buildDb(routesTxt:string, airlinesTxt:string, airportsTxt:string):Db { const airports=new Map<string,Airport>(); for(const r of rows(airportsTxt)){if(r.length<8||r[4].length!==3)continue;const lat=parseFloat(r[6]),lon=parseFloat(r[7]);if(Number.isNaN(lat)||Number.isNaN(lon))continue;airports.set(r[4],{iata:r[4],icao:r[5],name:r[1],city:r[2],country:r[3],lat,lon});} const airlines=new Map<string,Airline>(); for(const r of rows(airlinesTxt)){if(r.length<8||!r[0]||r[0]==='-1')continue;airlines.set(r[0],{id:r[0],name:r[1],iata:r[3].length===2?r[3]:'',icao:r[4].length===3?r[4]:'',country:r[6],active:r[7]==='Y'});} const routesByAirline=new Map<string,Route[]>(),seen=new Map<string,Route>(); for(const r of rows(routesTxt)){if(r.length<9||!r[1]||!airlines.has(r[1]))continue;const from=r[2],to=r[4];if(from===to||!airports.has(from)||!airports.has(to))continue;const key=`${r[1]}|${from}|${to}`;let rt=seen.get(key);if(!rt){rt={airlineId:r[1],from,to,codeshare:r[6]==='Y',equip:[]};seen.set(key,rt);const list=routesByAirline.get(r[1])??[];list.push(rt);routesByAirline.set(r[1],list);}if(r[6]!=='Y')rt.codeshare=false;for(const e of r[8].split(' '))if(e&&!rt.equip.includes(e))rt.equip.push(e);} const routesByAirport=new Map<string,Route[]>();for(const list of routesByAirline.values())for(const rt of list)for(const a of [rt.from,rt.to]){const l=routesByAirport.get(a)??[];l.push(rt);routesByAirport.set(a,l);}return{airports,airlines,routesByAirline,routesByAirport}; }
+lib/openflights-parse.ts:16:export function searchAirports(db:Db,q:string,limit=8){const n=expand(q);if(!n)return[];const short=n.length<=3;const score=(a:Airport)=>{if(a.iata.toLowerCase()===n||a.icao.toLowerCase()===n)return 100;const city=norm(a.city),name=norm(a.name);if(city===n)return 90;if(short)return 0;if(city.startsWith(n))return 80;if(name.startsWith(n))return 70;if(city.includes(n)||name.includes(n))return 50;return 0};return[...db.airports.values()].map(a=>({a,s:score(a)+Math.min(9,(db.routesByAirport.get(a.iata)?.length??0)/100)})).filter(x=>x.s>=50).sort((x,y)=>y.s-x.s).slice(0,limit).map(x=>x.a);}
+lib/openflights-parse.ts:17:export function searchAirlines(db:Db,q:string,limit=8){const n=expand(q);if(!n)return[];const short=n.length<=3;return[...db.airlines.values()].map(a=>({...a,numRoutes:db.routesByAirline.get(a.id)?.length??0})).filter(a=>a.numRoutes>0&&(a.iata.toLowerCase()===n||a.icao.toLowerCase()===n||(!short&&norm(a.name).includes(n)))).sort((a,b)=>b.numRoutes-a.numRoutes).slice(0,limit);}
+lib/openflights-parse.ts:18:export function findAirline(db:Db,code:string){const c=code.toUpperCase();if(db.airlines.has(code))return db.airlines.get(code);let best:Airline|undefined,bestN=-1;for(const a of db.airlines.values()){if(a.iata!==c&&a.icao!==c)continue;const n=db.routesByAirline.get(a.id)?.length??0;if(n>bestN){best=a;bestN=n}}return best}
+lib/openflights-parse.ts:19:export function findAirport(db:Db,code:string){const c=code.toUpperCase();if(db.airports.has(c))return db.airports.get(c);for(const a of db.airports.values())if(a.icao===c)return a}
+lib/aircraft-db.ts:1:export type AircraftType = { name: string; icao: string; aliases?: string[] }
+lib/aircraft-db.ts:210:const AIRCRAFT: AircraftType[] = RAW.map(([name, icao, aliases]) => ({ name, icao, aliases }))
+lib/aircraft-db.ts:222:        norm(type.icao),
+app/api/flights/[id]/route.ts:64:        icao: airlineData.icao,
+app/api/route/[airline]/[pair]/route.ts:17:    const aircraft = (route?.equip ?? []).map((e) => ({ code: e, name: aircraftTable[e]?.[0] ?? e, icao: aircraftTable[e]?.[1] ?? e }))
+app/api/search/route.ts:31:      if (airline?.icao) flights = await timeout(live(`/callsign/${airline.icao}${code[2]}`), 6000, [])
+app/api/search/route.ts:34:      .filter(([name, icao]) => icao === upper || name.toUpperCase().replace(/\s/g, '').includes(upper.replace(/\s/g, '')))
+=== GIT ===
+?? info2.txt
+61e640d Account sync, flight time estimate, SimBrief-style plan form, route sheet, random, favourites nav
+a27aab0 Fix supabase client
+d1a8cb4 Flight plan, fly checklist, logos, aircraft validation, login, globe hub zoom, music fix
+e8b1c91 Flight plan, fly checklist, logos, aircraft validation, login, globe hub zoom, music fix
+4ec33f5 Remove backups

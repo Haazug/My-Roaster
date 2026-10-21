@@ -1,247 +1,112 @@
 'use client'
 
-import { Download, Share2 } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { Download, Share2, Scissors } from 'lucide-react'
 import { toast } from 'sonner'
-import html2canvas from 'html2canvas'
-import { useRef } from 'react'
+import html2canvas from 'html2canvas-pro'
 
-interface BoardingPassProps {
-  airline: string
-  airlineIata: string
-  flightNumber: string
-  from: string
-  to: string
-  fromCity: string
-  toCity: string
-  date: string
-  depTime: string
-  boardingTime: string
-  arrivalTime: string
-  passenger: string
-  aircraft: string
-  registration?: string
-  gate: string
-  seat: string
-  distance: number
-  duration: string
-}
+type Data = { from: string; to: string; fromCity?: string; toCity?: string; airline?: string; flight?: string; aircraft?: string; distanceNm?: number; date?: string }
+type Legacy = Partial<{ airline: string; airlineIata: string; flightNumber: string; from: string; to: string; fromCity: string; toCity: string; date: string; depTime: string; boardingTime: string; arrivalTime: string; passenger: string; aircraft: string; registration: string; gate: string; seat: string; distance: number; duration: string }>
+type Props = Legacy & { data?: Partial<Data>; tear?: boolean; onBoard?: () => void }
 
-export function BoardingPass({
-  airline,
-  airlineIata,
-  flightNumber,
-  from,
-  to,
-  fromCity,
-  toCity,
-  date,
-  depTime,
-  boardingTime,
-  arrivalTime,
-  passenger,
-  aircraft,
-  registration,
-  gate,
-  seat,
-  distance,
-  duration,
-}: BoardingPassProps) {
+export function BoardingPass(props: Props) {
+  const d = props.data ?? {}
+  const from = d.from ?? props.from ?? '---'
+  const to = d.to ?? props.to ?? '---'
+  const fromCity = d.fromCity ?? props.fromCity ?? ''
+  const toCity = d.toCity ?? props.toCity ?? ''
+  const airline = d.airline ?? props.airline ?? ''
+  const flight = d.flight ?? `${props.airlineIata ?? ''}${props.flightNumber ?? ''}`
+  const aircraft = d.aircraft ?? props.aircraft ?? ''
+  const nm = d.distanceNm ?? props.distance
+  const date = d.date ?? props.date ?? ''
   const ref = useRef<HTMLDivElement>(null)
+  const [torn, setTorn] = useState(false)
 
-  const handleDownload = async () => {
+  const cells: [string, string | undefined][] = [
+    ['Flight', flight], ['Date', date], ['Aircraft', aircraft], ['Distance', nm ? `${nm.toLocaleString('en-US')} nm` : ''],
+    ['Passenger', props.passenger], ['Boarding', props.boardingTime], ['Departure', props.depTime], ['Arrival', props.arrivalTime],
+    ['Gate', props.gate], ['Seat', props.seat], ['Duration', props.duration], ['Reg', props.registration],
+  ]
+  const shown = cells.filter(([, v]) => v)
+  const code = `${from}${to}${flight}`.toUpperCase()
+
+  const save = async () => {
     if (!ref.current) return
     try {
-      const canvas = await html2canvas(ref.current, {
-        backgroundColor: '#0a0a0a',
-        scale: 2,
-      })
-      const link = document.createElement('a')
-      link.href = canvas.toDataURL('image/png')
-      link.download = `${from}-${to}-boarding-pass.png`
-      link.click()
-      toast.success('Boarding pass saved as image')
+      const canvas = await html2canvas(ref.current, { backgroundColor: '#0a0a0a', scale: 2 })
+      const a = document.createElement('a')
+      a.href = canvas.toDataURL('image/png')
+      a.download = `${from}-${to}-boarding-pass.png`
+      a.click()
+      toast.success('Boarding pass saved')
     } catch {
-      toast.error('Failed to save image')
+      toast.error('Could not save the image')
     }
   }
 
-  const handleShare = async () => {
-    const text = `${airlineIata}${flightNumber} - ${fromCity} to ${toCity} on ${date}`
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: 'Boarding Pass', text })
-      } catch {
-        // Dismissed
-      }
-    } else {
-      toast.success('Flight details copied')
-    }
+  const share = async () => {
+    const text = `${flight} · ${fromCity || from} to ${toCity || to}${date ? ` · ${date}` : ''}`
+    try {
+      if (navigator.share) await navigator.share({ title: 'Boarding pass', text })
+      else { await navigator.clipboard.writeText(text); toast.success('Flight details copied') }
+    } catch {}
   }
-
-  const barcode = `${from}${to}${airlineIata}${flightNumber}`.substring(0, 20)
 
   return (
     <div className="space-y-4">
-      <div
-        ref={ref}
-        className="mx-auto max-w-md overflow-hidden rounded-xl border-2 border-white/20 bg-gradient-to-b from-[#1a1f2e] to-[#0f1419] p-0 shadow-2xl"
-      >
-        {/* Header */}
-        <div className="border-b border-white/10 bg-[#1f88ff] px-6 py-4">
-          <div className="flex items-center justify-between">
+      <div className="mx-auto max-w-md">
+        <div ref={ref} className={`overflow-hidden border-2 border-white/20 bg-[#10151d] ${tearCls(props.tear)}`}>
+          <div className="flex items-center justify-between bg-[#1f88ff] px-5 py-3">
             <div>
-              <p className="text-xs font-bold text-white/80 uppercase tracking-widest">
-                BOARDING PASS
-              </p>
-              <p className="mt-1 text-xl font-bold text-white">{airline}</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-white/80">Boarding pass</p>
+              <p className="text-lg font-bold text-white">{airline || flight}</p>
             </div>
-            <div className="text-right text-3xl font-black text-white opacity-20">
-              ✈️
-            </div>
+            <span className="text-2xl">✈️</span>
           </div>
-        </div>
-
-        {/* Main Content */}
-        <div className="px-6 py-6">
-          {/* Passenger */}
-          <div className="mb-6 border-b border-dashed border-white/20 pb-4">
-            <p className="text-xs text-white/50 uppercase tracking-widest">Passenger</p>
-            <p className="mt-2 font-bold text-white">{passenger}</p>
-          </div>
-
-          {/* Route */}
-          <div className="mb-6 space-y-3">
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
-              <div>
-                <p className="text-xs text-white/50 uppercase">From</p>
-                <p className="mt-1 text-2xl font-black text-[#1f88ff]">{from}</p>
-                <p className="mt-0.5 text-xs text-white/60">{fromCity}</p>
-              </div>
-
-              <div className="text-center">
-                <svg
-                  className="h-6 w-6 text-white/40"
-                  fill="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
-                </svg>
-                <p className="mt-2 text-xs font-semibold text-white/50">{distance} nm</p>
-              </div>
-
-              <div className="text-right">
-                <p className="text-xs text-white/50 uppercase">To</p>
-                <p className="mt-1 text-2xl font-black text-[#1f88ff]">{to}</p>
-                <p className="mt-0.5 text-xs text-white/60">{toCity}</p>
-              </div>
+          <div className="p-5">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+              <div><p className="text-3xl font-black text-[#55a7ff]">{from}</p><p className="text-xs text-white/60">{fromCity}</p></div>
+              <span className="text-white/40">→</span>
+              <div className="text-right"><p className="text-3xl font-black text-[#55a7ff]">{to}</p><p className="text-xs text-white/60">{toCity}</p></div>
             </div>
-          </div>
-
-          {/* Flight Info */}
-          <div className="mb-6 grid grid-cols-2 gap-4 border-y border-dashed border-white/20 py-4">
-            <div>
-              <p className="text-xs text-white/50 uppercase">Flight</p>
-              <p className="mt-1 font-bold text-lg text-white">
-                {airlineIata}
-                <span className="ml-1 text-[#1f88ff]">{flightNumber}</span>
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-white/50 uppercase">Date</p>
-              <p className="mt-1 font-bold text-white">{date}</p>
-            </div>
-          </div>
-
-          {/* Schedule */}
-          <div className="mb-6 grid grid-cols-3 gap-3 text-center">
-            <div>
-              <p className="text-xs text-white/50 uppercase">Boarding</p>
-              <p className="mt-1 font-bold text-white">{boardingTime}</p>
-            </div>
-            <div>
-              <p className="text-xs text-white/50 uppercase">Departure</p>
-              <p className="mt-1 font-bold text-white">{depTime}</p>
-            </div>
-            <div>
-              <p className="text-xs text-white/50 uppercase">Arrival</p>
-              <p className="mt-1 font-bold text-white">{arrivalTime}</p>
-            </div>
-          </div>
-
-          {/* Seat & Gate */}
-          <div className="mb-6 grid grid-cols-3 gap-4">
-            <div>
-              <p className="text-xs text-white/50 uppercase">Gate</p>
-              <p className="mt-1 text-2xl font-black text-[#1f88ff]">{gate}</p>
-            </div>
-            <div>
-              <p className="text-xs text-white/50 uppercase">Seat</p>
-              <p className="mt-1 text-2xl font-black text-[#1f88ff]">{seat}</p>
-            </div>
-            <div>
-              <p className="text-xs text-white/50 uppercase">Duration</p>
-              <p className="mt-1 font-bold text-white text-sm">{duration}</p>
-            </div>
-          </div>
-
-          {/* Aircraft */}
-          {aircraft && (
-            <div className="mb-6 border-t border-dashed border-white/20 pt-4">
-              <p className="text-xs text-white/50 uppercase">Aircraft</p>
-              <p className="mt-1 font-bold text-white">{aircraft}</p>
-              {registration && (
-                <p className="mt-1 text-xs text-white/60">Reg: {registration}</p>
-              )}
-            </div>
-          )}
-
-          {/* Barcode */}
-          <div className="flex flex-col items-center border-t border-dashed border-white/20 pt-4">
-            <svg
-              className="h-12 w-full text-white/30"
-              viewBox={`0 0 ${barcode.length * 10} 50`}
-            >
-              {barcode.split('').map((char, i) => (
-                <line
-                  key={i}
-                  x1={i * 10 + 5}
-                  y1="0"
-                  x2={i * 10 + 5}
-                  y2={char.charCodeAt(0) % 2 === 0 ? 40 : 20}
-                  stroke="currentColor"
-                  strokeWidth="2"
-                />
+            <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-dashed border-white/20 pt-4">
+              {shown.map(([k, v]) => (
+                <div key={k}><p className="text-[10px] uppercase tracking-wider text-white/45">{k}</p><p className="mt-0.5 text-sm font-semibold">{v}</p></div>
               ))}
-            </svg>
-            <p className="mt-2 text-xs font-mono text-white/40">
-              {barcode}
-            </p>
+            </div>
+            <div className="mt-5 flex h-10 items-end justify-center gap-[2px] border-t border-dashed border-white/20 pt-4">
+              {code.split('').flatMap((c, i) => [c.charCodeAt(0) % 4 + 1, (i % 3) + 1]).map((w, i) => (
+                <span key={i} className={i % 2 ? 'bg-transparent' : 'bg-white/70'} style={{ width: w, height: 32 }} />
+              ))}
+            </div>
+            <p className="mt-2 text-center text-[10px] text-white/40">FOR FLIGHT SIMULATION ONLY</p>
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="border-t border-white/10 bg-white/[.02] px-6 py-3 text-center">
-          <p className="text-xs text-white/40">
-            FOR FLIGHT SIMULATION ONLY • NOT A TRAVEL DOCUMENT
-          </p>
-        </div>
+        {props.tear && props.onBoard && (
+          <div className={`transition-all duration-500 ${torn ? 'translate-x-full rotate-6 opacity-0' : ''}`}>
+            <div className="rounded-b-xl border-2 border-t-0 border-dashed border-white/25 bg-[#0c1117] p-4">
+              <button
+                disabled={torn}
+                onClick={() => { setTorn(true); setTimeout(() => props.onBoard?.(), 500) }}
+                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#4caf50] font-semibold text-black disabled:opacity-60"
+              >
+                <Scissors className="size-4" /> Tear off to board
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Actions */}
-      <div className="flex gap-3 justify-center">
-        <button
-          onClick={handleDownload}
-          className="flex min-h-10 items-center gap-2 rounded-lg border border-white/20 px-4 text-sm font-semibold transition hover:bg-white/[.08]"
-        >
-          <Download className="size-4" /> Save Image
-        </button>
-        <button
-          onClick={handleShare}
-          className="flex min-h-10 items-center gap-2 rounded-lg border border-white/20 px-4 text-sm font-semibold transition hover:bg-white/[.08]"
-        >
-          <Share2 className="size-4" /> Share
-        </button>
+      <div className="flex justify-center gap-3">
+        <button onClick={save} className="flex min-h-11 items-center gap-2 rounded-lg border border-white/20 px-4 text-sm font-semibold hover:bg-white/10"><Download className="size-4" /> Save image</button>
+        <button onClick={share} className="flex min-h-11 items-center gap-2 rounded-lg border border-white/20 px-4 text-sm font-semibold hover:bg-white/10"><Share2 className="size-4" /> Share</button>
       </div>
     </div>
   )
+}
+
+function tearCls(tear?: boolean) {
+  return tear ? 'rounded-t-xl' : 'rounded-xl'
 }

@@ -8,6 +8,7 @@ import { parsePLNFile } from '@/lib/flight-plan-parser'
 import { matchAircraft } from '@/lib/aircraft-db'
 import { estimateBlockMinutes, parseSpeed } from '@/lib/flight-time'
 import { BoardingPass } from '@/components/BoardingPass'
+import { AirportInput, nmBetween, type Ap } from '@/components/AirportInput'
 
 type Geo = { fromIata: string; toIata: string; fromCity: string; toCity: string; distanceNm: number }
 
@@ -64,27 +65,14 @@ export default function FlightPlanPage() {
     } catch {}
   }, [id])
 
-  // distance and cities for whatever airports are in the form (IATA codes)
+  // airports typed as IATA, ICAO or city; distance comes from their coordinates
+  const [fromAp, setFromAp] = useState<Ap | null>(null)
+  const [toAp, setToAp] = useState<Ap | null>(null)
   useEffect(() => {
-    const a = form.dep.trim().toUpperCase()
-    const b = form.arr.trim().toUpperCase()
-    if (seed && a === String(seed.orig).toUpperCase() && b === String(seed.dest).toUpperCase()) {
-      setGeo({ fromIata: seed.orig, toIata: seed.dest, fromCity: seed.fromCity, toCity: seed.toCity, distanceNm: seed.distanceNm })
-      return
-    }
-    if (!/^[A-Z]{3}$/.test(a) || !/^[A-Z]{3}$/.test(b) || a === b) { setGeo(null); return }
-    const air = seed?.airlineIata || String(id).split('-')[0]
-    const t = setTimeout(() => {
-      fetch(`/api/route/${air}/${a}-${b}`)
-        .then((r) => r.json())
-        .then((d) => {
-          if (d && !d.error && d.distanceNm) setGeo({ fromIata: d.from.iata, toIata: d.to.iata, fromCity: d.from.city, toCity: d.to.city, distanceNm: d.distanceNm })
-          else setGeo(null)
-        })
-        .catch(() => setGeo(null))
-    }, 500)
-    return () => clearTimeout(t)
-  }, [form.dep, form.arr, seed, id])
+    if (fromAp && toAp && fromAp.iata !== toAp.iata)
+      setGeo({ fromIata: fromAp.iata, toIata: toAp.iata, fromCity: fromAp.city, toCity: toAp.city, distanceNm: nmBetween(fromAp, toAp) })
+    else setGeo(null)
+  }, [fromAp, toAp])
 
   const ac = matchAircraft(form.aircraft)
   const acName = ac.status === 'exact' && ac.match ? ac.match.name : ''
@@ -175,8 +163,8 @@ export default function FlightPlanPage() {
         <div className="grid grid-cols-2 gap-3">
           <Field label="Flight number"><input className={inputCls} placeholder="e.g. DT653" value={form.flight} onChange={(e) => set('flight', e.target.value)} /></Field>
           <Field label="Departure time"><input className={inputCls} type="time" value={form.time} onChange={(e) => set('time', e.target.value)} /></Field>
-          <Field label="Origin (IATA, e.g. AMS)"><input className={inputCls} value={form.dep} onChange={(e) => set('dep', e.target.value)} /></Field>
-          <Field label="Destination (IATA, e.g. LIS)"><input className={inputCls} value={form.arr} onChange={(e) => set('arr', e.target.value)} /></Field>
+          <Field label="Origin (IATA, ICAO or city)"><AirportInput value={form.dep} onChange={(v) => set('dep', v)} onResolve={setFromAp} className={inputCls} /></Field>
+          <Field label="Destination (IATA, ICAO or city)"><AirportInput value={form.arr} onChange={(v) => set('arr', v)} onResolve={setToAp} className={inputCls} /></Field>
           <Field label="Aircraft" className="col-span-2">
             <input className={inputCls} placeholder="e.g. Airbus A380" value={form.aircraft} onChange={(e) => set('aircraft', e.target.value)} />
             {ac.status === 'exact' && ac.match && <p className="mt-1 text-xs text-[#4caf50]">✓ {ac.match.name} · {ac.match.icao}</p>}
@@ -206,7 +194,7 @@ export default function FlightPlanPage() {
           <div><p className="text-white/40">Arrival</p><p className="mt-1 text-sm font-semibold">{hhmm(depMin + form.duration)}</p></div>
         </div>
         <p className="mt-2 text-xs text-white/40">
-          {geo ? 'Block time is calculated from distance, aircraft speed and route.' : 'Use 3-letter IATA codes to get distance and city names automatically. Otherwise type the block time (min).'}
+          {geo ? 'Block time is calculated from distance, aircraft speed and route.' : 'Pick both airports (IATA, ICAO or city) to get distance and block time automatically. Otherwise type the block time (min).'}
         </p>
         <button onClick={createPlan} className="mt-3 rounded-xl bg-[#1f88ff] px-4 py-2 text-sm font-medium">Create plan</button>
       </div>
