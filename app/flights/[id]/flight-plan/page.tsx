@@ -1,6 +1,7 @@
 'use client'
 
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, usePathname, useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
 import { useEffect, useState } from 'react'
 import { ArrowLeft, Plane, Upload } from 'lucide-react'
 import { parsePLNFile, createManualFlightPlan, type ParsedFlightPlan } from '@/lib/flight-plan-parser'
@@ -11,6 +12,14 @@ const same = (a?: string, b?: string) => !!a && !!b && a.trim().toUpperCase() ==
 export default function FlightPlanPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
+  const pathname = usePathname()
+  const [authed, setAuthed] = useState(false)
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) setAuthed(true)
+      else router.replace(`/login?next=${encodeURIComponent(pathname)}`)
+    })
+  }, [pathname, router])
   const [seed, setSeed] = useState<any>(null)
   const [plan, setPlan] = useState<ParsedFlightPlan | null>(null)
   const [error, setError] = useState('')
@@ -88,6 +97,8 @@ export default function FlightPlanPage() {
 
   const input =
     'w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-[#1f88ff]'
+
+  if (!authed) return <section className="min-h-screen p-5 text-white/40 sm:p-8">Checking your account...</section>
 
   return (
     <section className="min-h-screen p-5 sm:p-8">

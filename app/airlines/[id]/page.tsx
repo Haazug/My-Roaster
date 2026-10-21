@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import useSWR from 'swr'
 import { ArrowLeft, ChevronRight, Plane } from 'lucide-react'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useMapStore, type Point } from '@/lib/map-store'
 import { AirlineLogo } from '@/components/AirlineLogo'
 
@@ -18,6 +18,7 @@ export default function AirlineDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { data, error } = useSWR(id ? `/api/airlines/${id}` : null, fetcher)
   const setView = useMapStore((s) => s.setView)
+  const [q, setQ] = useState('')
 
   useEffect(() => {
     if (!data?.routes) return
@@ -46,7 +47,14 @@ export default function AirlineDetailPage() {
   }
 
   const airline = data.airline as Airline
-  const routes = data.routes as Route[]
+  const allRoutes = data.routes as Route[]
+  const nq = q.trim().toLowerCase()
+  const routes = nq
+    ? allRoutes.filter((r) =>
+        [r.from, r.to, r.fromAirport?.city, r.toAirport?.city, r.fromAirport?.name, r.toAirport?.name, r.fromAirport?.country, r.toAirport?.country]
+          .filter(Boolean).join(' ').toLowerCase().includes(nq)
+      )
+    : allRoutes
 
   return (
     <section className="min-h-screen p-5 sm:p-8">
@@ -59,11 +67,13 @@ export default function AirlineDetailPage() {
           <div>
             <p className="text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">Airline route network</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight">{airline.name}</h1>
-            <p className="mt-2 text-sm text-white/45">{airline.country || 'International'} · {routes.length} routes · {airline.icao || 'ICAO unavailable'}</p>
+            <p className="mt-2 text-sm text-white/45">{airline.country || 'International'} · {allRoutes.length} routes · {airline.icao || 'ICAO unavailable'}</p>
           </div>
         </div>
       </header>
-      <div className="mt-7 flex flex-col gap-2">
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search routes (city, airport or code)" className="mt-7 min-h-12 w-full rounded-2xl border border-white/10 bg-white/[.06] px-4 outline-none placeholder:text-white/35 focus:border-[#1f88ff]" />
+      {nq && <p className="mt-3 text-xs text-white/40">{routes.length} of {allRoutes.length} routes</p>}
+      <div className="mt-4 flex flex-col gap-2">
         {routes.map((route, index) => {
           const from = route.fromAirport
           const to = route.toAirport
