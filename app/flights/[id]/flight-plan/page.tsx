@@ -46,6 +46,13 @@ export default function FlightPlanPage() {
     })
   }, [pathname, router])
 
+  // default departure time = current time (you can still change it)
+  useEffect(() => {
+    const d = new Date()
+    const t = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+    setForm((x) => ({ ...x, time: t }))
+  }, [])
+
   // pre-fill when coming from a route page
   useEffect(() => {
     try {

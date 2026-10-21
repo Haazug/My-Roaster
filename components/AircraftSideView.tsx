@@ -86,6 +86,19 @@ type Model = 'b737' | 'a320' | 'a220' | 'b747' | 'a380' | 'b777' | 'b787' | 'a35
 
 export function aircraftModel(input: string): Model {
   const s = (input || '').toLowerCase()
+  const t = s.trim()
+  if (/^388$/.test(t)) return 'a380'
+  if (/^74[0-9a-z]$/.test(t)) return 'b747'
+  if (/^(359|351|35k)$/.test(t)) return 'a350'
+  if (/^78[0-9a-z]$/.test(t)) return 'b787'
+  if (/^77[0-9a-z]$/.test(t)) return 'b777'
+  if (/^(33|34)[0-9a-z]$/.test(t)) return 'a330'
+  if (/^76[0-9a-z]$/.test(t)) return 'b767'
+  if (/^75[0-9a-z]$/.test(t)) return 'b757'
+  if (/^(221|223)$/.test(t)) return 'a220'
+  if (/^e[79][0-9a-z]$/.test(t)) return 'ejet'
+  if (/^(73[0-9a-z]|7m[0-9a-z])$/.test(t)) return 'b737'
+  if (/^(31|32)[0-9a-z]$/.test(t)) return 'a320'
   if (/a380|a388/.test(s)) return 'a380'
   if (/747|b74\d/.test(s)) return 'b747'
   if (/a350|a359|a35k/.test(s)) return 'a350'
@@ -103,6 +116,9 @@ export function aircraftModel(input: string): Model {
 
 function lengthAdj(input: string) {
   const s = (input || '').toLowerCase()
+  const t = s.trim()
+  if (/^(739|73j|321|32q|32b|7m9|7m10|753)$/.test(t)) return -10
+  if (/^(318|319|31n|736|73g|73w|7m7)$/.test(t)) return 22
   if (/a321|a21n|b739|737-?9|max ?(9|10)|b39m|b3xm|757-?3|b753/.test(s)) return -10
   if (/a318|a319|a19n|737-?[67]|max ?7|b37m|b73[67]/.test(s)) return 22
   return 0

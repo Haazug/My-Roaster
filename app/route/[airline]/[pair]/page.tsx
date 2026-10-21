@@ -15,6 +15,7 @@ import { ExportMenu } from '@/components/export-menu'
 import { AirlineLogo } from '@/components/AirlineLogo'
 import { AircraftSideView } from '@/components/AircraftSideView'
 import { estimateBlockMinutes } from '@/lib/flight-time'
+import { useNow } from '@/lib/use-now'
 
 type Airport = { iata: string; icao: string; name: string; city: string; country: string; lat: number; lon: number }
 type RouteData = {
@@ -38,6 +39,7 @@ export default function RoutePage() {
   const [bookings, setBookings] = useLocalStorage<RosterFlight[]>('myroster.bookings', [])
   const { has, toggle } = useFavourites()
   const setView = useMapStore((s) => s.setView)
+  const now = useNow()
 
   useEffect(() => {
     if (data && !data.error) setView({ mode: 'route', from: data.from, to: data.to })
@@ -77,8 +79,8 @@ export default function RoutePage() {
     dest: data.to,
     aircraftIcao: type?.icao ?? '',
     aircraftName: type?.name ?? 'Not listed',
-    depHour: 12,
-    depMin: 0,
+    depHour: now ? now.getHours() : 12,
+    depMin: now ? now.getMinutes() : 0,
     durationMin: estimateBlockMinutes(data.distanceNm, type?.name ?? ''),
     distanceNm: data.distanceNm,
   }
@@ -130,9 +132,9 @@ export default function RoutePage() {
           <div className="mt-2 flex items-center gap-2"><span className="size-2 rounded-full bg-white/30" /><span className="h-px flex-1 bg-white/15" /><span className="size-2 rounded-full bg-white/30" /></div>
           <p className="mt-3 text-sm text-white/60">{data.distanceNm.toLocaleString('en-US')} nm</p>
           <div className="mt-4 grid grid-cols-3 rounded-2xl bg-white/[.04] p-4 text-center">
-            <div><p className="text-[11px] uppercase text-white/40">Departure</p><p className="mt-1 text-xl font-semibold">{hhmm(exportFlight.depHour * 60 + exportFlight.depMin)}</p></div>
+            <div><p className="text-[11px] uppercase text-white/40">Departure</p><p className="mt-1 text-xl font-semibold">{now ? hhmm(exportFlight.depHour * 60 + exportFlight.depMin) : '--:--'}</p></div>
             <div><p className="text-[11px] uppercase text-white/40">Duration</p><p className="mt-1 text-xl font-semibold">{Math.floor(exportFlight.durationMin / 60)}h {String(exportFlight.durationMin % 60).padStart(2, '0')}m</p></div>
-            <div><p className="text-[11px] uppercase text-white/40">Arrival</p><p className="mt-1 text-xl font-semibold">{hhmm(exportFlight.depHour * 60 + exportFlight.depMin + exportFlight.durationMin)}</p></div>
+            <div><p className="text-[11px] uppercase text-white/40">Arrival</p><p className="mt-1 text-xl font-semibold">{now ? hhmm(exportFlight.depHour * 60 + exportFlight.depMin + exportFlight.durationMin) : '--:--'}{now && exportFlight.depHour * 60 + exportFlight.depMin + exportFlight.durationMin >= 1440 && <sup className="ml-1 text-xs text-white/40">+1</sup>}</p></div>
           </div>
           <a href={`https://www.flightaware.com/live/findflight?origin=${data.from.icao}&destination=${data.to.icao}`} target="_blank" rel="noopener noreferrer" className="mt-4 inline-block text-xs text-[#55a7ff]">Verify on FlightAware</a>
         </div>
