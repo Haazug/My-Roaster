@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, Check, FileUp, SkipForward, Star } from 'lucide-react'
 import { toast } from 'sonner'
 import { AirlineLogo } from '@/components/AirlineLogo'
+import { taxiMinutes } from '@/lib/flight-time'
 import { useLocalStorage } from '@/lib/use-local-storage'
 
 type Status = 'done' | 'skipped'
@@ -81,7 +82,7 @@ export default function FlyNowPage() {
               airlineName: p.airlineName || p.airlineIata || 'Flight',
               airlineIata: p.airlineIata || '',
               airlineIcao: p.airlineIcao || '',
-              flightNumber: '',
+              flightNumber: p.flightNumber || '',
               orig: p.from || '',
               dest: p.to || '',
               fromCity: p.fromCity || p.from || '',
@@ -114,7 +115,8 @@ export default function FlyNowPage() {
     return () => clearInterval(t)
   }, [takeoffAt, finished])
 
-  const totalMs = (info?.durationMin || 0) * 60_000
+  const airborneMin = Math.max(5, (info?.durationMin || 0) - taxiMinutes(info?.aircraft || ''))
+  const totalMs = airborneMin * 60_000
   const elapsed = takeoffAt ? Math.max(0, now - takeoffAt) : 0
   const current = STEPS.find((s) => !statuses[s.key])
   const currentIdx = current ? STEPS.indexOf(current) : STEPS.length
@@ -270,7 +272,7 @@ export default function FlyNowPage() {
               <>
                 <div className="text-6xl font-bold tabular-nums text-[#1f88ff]">{fmt(elapsed)}</div>
                 <p className="mt-4 text-sm text-white/45">
-                  {Math.ceil(remainingMs / 60_000)} min remaining · Planned: {info.durationMin} min
+                  {Math.ceil(remainingMs / 60_000)} min remaining · Block time: {info.durationMin} min
                 </p>
                 <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
                   <div className="h-full bg-[#1f88ff] transition-all" style={{ width: `${airborneProgress}%` }} />
@@ -297,7 +299,7 @@ export default function FlyNowPage() {
             {STEPS.map((s) => {
               const st = statuses[s.key]
               const isCurrent = current?.key === s.key
-              const eta = s.at !== null ? Math.round(s.at * info.durationMin) : null
+              const eta = s.at !== null ? Math.round(s.at * airborneMin) : null
               const due = isCurrent && takeoffAt && s.at !== null && elapsed >= s.at * totalMs
               return (
                 <li

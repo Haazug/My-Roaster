@@ -12,6 +12,8 @@ import { useMapStore } from '@/lib/map-store'
 import type { RosterFlight } from '@/lib/roster-data'
 import { simbriefUrl, type ExportFlight } from '@/lib/export'
 import { ExportMenu } from '@/components/export-menu'
+import { AirlineLogo } from '@/components/AirlineLogo'
+import { estimateBlockMinutes } from '@/lib/flight-time'
 
 type Airport = { iata: string; icao: string; name: string; city: string; country: string; lat: number; lon: number }
 type RouteData = {
@@ -27,6 +29,7 @@ type RouteData = {
 }
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
+const hhmm = (m: number) => { const x = ((Math.round(m) % 1440) + 1440) % 1440; return `${String(Math.floor(x / 60)).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}` }
 
 export default function RoutePage() {
   const params = useParams<{ airline: string; pair: string }>()
@@ -75,7 +78,7 @@ export default function RoutePage() {
     aircraftName: type?.name ?? 'Not listed',
     depHour: 12,
     depMin: 0,
-    durationMin: Math.round((data.distanceKm / 800) * 60 + 30),
+    durationMin: estimateBlockMinutes(data.distanceNm, type?.name ?? ''),
     distanceNm: data.distanceNm,
   }
 
@@ -111,23 +114,26 @@ export default function RoutePage() {
         </button>
       </header>
 
-      <div className="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-[#111217cc]">
-        <div className="flex items-center justify-between gap-4 p-5">
+      <div className="mt-6 overflow-hidden rounded-3xl border border-white/10 bg-[#0d0e12f2]">
+        <div className="flex items-center gap-3 border-b border-white/10 p-4">
+          <AirlineLogo iata={data.airline.iata} icao={data.airline.icao} name={data.airline.name} size="md" showText={false} />
           <div className="min-w-0">
-            <p className="text-3xl font-semibold">{data.from.iata}</p>
-            <p className="mt-1 truncate text-sm text-white/45">{data.from.icao} · {data.from.name}</p>
-          </div>
-          <Plane className="size-5 shrink-0 text-[#1f88ff]" aria-hidden="true" />
-          <div className="min-w-0 text-right">
-            <p className="text-3xl font-semibold">{data.to.iata}</p>
-            <p className="mt-1 truncate text-sm text-white/45">{data.to.icao} · {data.to.name}</p>
+            <p className="text-sm text-white/50">{data.airline.iata || data.airline.icao} · {data.from.icao} → {data.to.icao}</p>
+            <p className="truncate text-xl font-semibold">{data.from.city} to {data.to.city}</p>
           </div>
         </div>
-        <dl className="grid grid-cols-2 border-t border-white/10 sm:grid-cols-3">
-          <Info label="Distance" value={`${data.distanceKm.toLocaleString('en-US')} km · ${data.distanceNm.toLocaleString('en-US')} nm`} />
-          <Info label="Est. block time" value={`${Math.floor(exportFlight.durationMin / 60)}h ${String(exportFlight.durationMin % 60).padStart(2, '0')}m`} />
-          <Info label="Aircraft" value={data.aircraft.length ? data.aircraft.map((a) => a.name).join(', ') : 'Not listed'} />
-        </dl>
+        <div className="p-5 text-center">
+          <p className="text-sm text-white/70">{type?.name ?? 'Aircraft not listed'}</p>
+          <div className="mt-6 flex items-center justify-between text-lg font-semibold"><span>{data.from.icao}</span><span>{data.to.icao}</span></div>
+          <div className="mt-2 flex items-center gap-2"><span className="size-2 rounded-full bg-white/30" /><span className="h-px flex-1 bg-white/15" /><span className="size-2 rounded-full bg-white/30" /></div>
+          <p className="mt-3 text-sm text-white/60">{data.distanceNm.toLocaleString('en-US')} nm</p>
+          <div className="mt-4 grid grid-cols-3 rounded-2xl bg-white/[.04] p-4 text-center">
+            <div><p className="text-[11px] uppercase text-white/40">Departure</p><p className="mt-1 text-xl font-semibold">{hhmm(exportFlight.depHour * 60 + exportFlight.depMin)}</p></div>
+            <div><p className="text-[11px] uppercase text-white/40">Duration</p><p className="mt-1 text-xl font-semibold">{Math.floor(exportFlight.durationMin / 60)}h {String(exportFlight.durationMin % 60).padStart(2, '0')}m</p></div>
+            <div><p className="text-[11px] uppercase text-white/40">Arrival</p><p className="mt-1 text-xl font-semibold">{hhmm(exportFlight.depHour * 60 + exportFlight.depMin + exportFlight.durationMin)}</p></div>
+          </div>
+          <a href={`https://www.flightaware.com/live/findflight?origin=${data.from.icao}&destination=${data.to.icao}`} target="_blank" rel="noopener noreferrer" className="mt-4 inline-block text-xs text-[#55a7ff]">Verify on FlightAware</a>
+        </div>
       </div>
       <p className="mt-3 text-xs text-white/35">Route and equipment from OpenFlights. Flight numbers and schedules are not part of this dataset.</p>
 
