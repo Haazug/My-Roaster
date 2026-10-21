@@ -5,3 +5,9 @@ node_modules
 .DS_Store
 *.bak*
 *.old
+
+# backups
+*.bak
+*.bak[0-9]
+*.old
+.env*.local
