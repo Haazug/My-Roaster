@@ -25,7 +25,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ pair: st
       const airline = db.airlines.get(airlineId)
       if (!airline) continue
 
-      const routeFound = routes.find((r) => r.from === from && r.to === to)
+      // LAD-LIS e LIS-LAD são a mesma rota: aceita os dois sentidos
+      const routeFound = routes.find((r) => r.from === from && r.to === to) ?? routes.find((r) => r.from === to && r.to === from)
       if (!routeFound) continue
 
       // Create 2-3 flights per airline on this route

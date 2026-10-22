@@ -27,6 +27,7 @@ type RouteData = {
   aircraft: { code: string; name: string; icao: string }[]
   distanceKm: number
   distanceNm: number
+  legs?: { label: string; pair: string; from: string; to: string; active: boolean }[]
   error?: string
 }
 
@@ -116,6 +117,23 @@ export default function RoutePage() {
           <Star className={`size-5 ${has(flight.id) ? 'fill-[#facc15] text-[#facc15]' : 'text-white/70'}`} />
         </button>
       </header>
+
+      {data.legs && data.legs.length === 2 && (
+        <div className="mt-5 flex gap-2">
+          {data.legs.map((l) => (
+            <Link
+              key={l.label}
+              href={`/route/${params.airline}/${l.pair}`}
+              replace
+              aria-current={l.active ? 'page' : undefined}
+              className={`flex-1 rounded-xl border px-4 py-2 text-center text-sm font-semibold transition ${l.active ? 'border-[#1f88ff] bg-[#1f88ff]/15 text-white' : 'border-white/10 bg-white/5 text-white/60 hover:bg-white/10'}`}
+            >
+              <span className="block text-[11px] font-medium uppercase tracking-wider text-white/45">{l.label}</span>
+              {l.from} → {l.to}
+            </Link>
+          ))}
+        </div>
+      )}
 
       <div className="mt-6 overflow-hidden rounded-3xl border border-white/10 bg-[#0d0e12f2]">
         <div className="flex items-center gap-3 border-b border-white/10 p-4">

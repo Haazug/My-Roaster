@@ -1,2 +1,25 @@
-import { NextResponse } from 'next/server'; import { getDb } from '@/lib/db'; import { aircraftName } from '@/lib/aircraft';
-export async function GET(_:Request,{params}:{params:Promise<{id:string}>}){try{const {id}=await params,db=await getDb(),a=db.airlines.get(id),routes=(db.routesByAirline.get(id)??[]).map(r=>({...r,fromAirport:db.airports.get(r.from),toAirport:db.airports.get(r.to),aircraft:r.equip.map(aircraftName)}));if(!a)return NextResponse.json({error:'Not found'},{status:404});return NextResponse.json({airline:a,numRoutes:routes.length,routes})}catch(e){return NextResponse.json({error:'Data unavailable'},{status:503})}}
+import { NextResponse } from 'next/server'
+import { getDb } from '@/lib/db'
+import { aircraftName } from '@/lib/aircraft'
+import { mergeRoutes } from '@/lib/route-merge'
+
+export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params
+    const db = await getDb()
+    const a = db.airlines.get(id)
+    if (!a) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    const routes = mergeRoutes(db.routesByAirline.get(id) ?? []).map((r) => ({
+      from: r.from,
+      to: r.to,
+      fromAirport: db.airports.get(r.from),
+      toAirport: db.airports.get(r.to),
+      aircraft: r.equip.map((e) => aircraftName(e)),
+      codeshare: r.codeshare,
+      roundTrip: r.roundTrip,
+    }))
+    return NextResponse.json({ airline: a, numRoutes: routes.length, routes })
+  } catch {
+    return NextResponse.json({ error: 'Data unavailable' }, { status: 503 })
+  }
+}

@@ -1,13 +1,14 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Volume2, Volume1, VolumeX } from "lucide-react";
+import { canStorePreferences } from "@/lib/consent";
 
 export default function BackgroundMusic() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const mutedRef = useRef(false);
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
-  const [volume, setVolume] = useState(0.15);
+  const [volume, setVolume] = useState(0.05);
 
   useEffect(() => {
     try {
@@ -22,7 +23,7 @@ export default function BackgroundMusic() {
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = volume;
-    try { localStorage.setItem("myroster.music.volume", String(volume)); } catch {}
+    try { if (canStorePreferences()) localStorage.setItem("myroster.music.volume", String(volume)); } catch {}
   }, [volume]);
 
   const start = useCallback(async () => {
@@ -52,7 +53,7 @@ export default function BackgroundMusic() {
     const next = !muted;
     mutedRef.current = next;
     setMuted(next);
-    try { localStorage.setItem("myroster.music.muted", next ? "1" : "0"); } catch {}
+    try { if (canStorePreferences()) localStorage.setItem("myroster.music.muted", next ? "1" : "0"); } catch {}
     const a = audioRef.current;
     if (!a) return;
     if (next) a.pause();
@@ -83,7 +84,7 @@ export default function BackgroundMusic() {
         <div className="rounded-lg border border-[#333] bg-[#1a1a1a] p-3 shadow-lg backdrop-blur">
           <div className="mb-2 flex items-center gap-3">
             {muted ? <VolumeX className="h-4 w-4 text-gray-400" /> : volume < 0.3 ? <Volume1 className="h-4 w-4 text-[#4caf50]" /> : <Volume2 className="h-4 w-4 text-[#1f88ff]" />}
-            <input type="range" min="0" max="1" step="0.05" value={volume} onChange={(e) => setVolume(parseFloat(e.target.value))} className="h-1 w-20 cursor-pointer appearance-none rounded-lg bg-[#333] accent-[#1f88ff]" disabled={muted} />
+            <input type="range" min="0" max="1" step="0.01" value={volume} onChange={(e) => setVolume(parseFloat(e.target.value))} className="h-1 w-20 cursor-pointer appearance-none rounded-lg bg-[#333] accent-[#1f88ff]" disabled={muted} />
           </div>
           <button onClick={onButton} className={`w-full rounded px-3 py-2 text-xs font-medium transition-all ${muted ? "bg-red-600 text-white hover:bg-red-700" : "bg-[#1f88ff] text-white hover:bg-blue-600"}`}>
             {label}

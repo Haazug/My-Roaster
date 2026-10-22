@@ -13,7 +13,7 @@ import { fixName } from '@/lib/airline-names'
 const fetcher = (url: string) => fetch(url).then((response) => response.json())
 
 type Airport = { iata?: string; name?: string; city?: string; country?: string; lat?: number; lon?: number }
-type Route = { from: string; to: string; fromAirport?: Airport; toAirport?: Airport; aircraft?: string[] }
+type Route = { from: string; to: string; fromAirport?: Airport; toAirport?: Airport; aircraft?: string[]; roundTrip?: boolean }
 type Airline = { name: string; iata?: string; icao?: string; country?: string; active?: boolean }
 
 export default function AirlineDetailPage() {
@@ -84,7 +84,7 @@ export default function AirlineDetailPage() {
             <Link key={`${route.from}-${route.to}-${index}`} href={`/route/${airline.iata || id}/${route.from}-${route.to}`} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#111217cc] p-4 transition hover:border-[#1f88ff]/60">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-3 font-semibold">
-                  <span>{route.from}</span><span className="text-[#1f88ff]">→</span><span>{route.to}</span>
+                  <span>{route.from}</span><span className="text-[#1f88ff]">{route.roundTrip ? '⇄' : '→'}</span><span>{route.to}</span>
                 </div>
                 <p className="mt-1 truncate text-sm text-white/45">{from?.city || from?.name || 'Origin'} → {to?.city || to?.name || 'Destination'}</p>
                 {route.aircraft?.length ? <p className="mt-2 text-xs text-white/30">{route.aircraft.join(', ')}</p> : null}

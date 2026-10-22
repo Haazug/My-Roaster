@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
 const safeNext = () => {
@@ -51,6 +52,7 @@ export default function LoginPage() {
   return (
     <section className="min-h-screen p-5 sm:p-8">
       <div className="mx-auto mt-10 max-w-sm rounded-2xl border border-white/10 bg-black/50 p-6">
+        <img src="/logo.png" alt="MyRoster" className="mb-5 h-12 w-auto" />
         {user ? (
           <>
             <h1 className="text-2xl font-semibold">Signed in</h1>
@@ -77,6 +79,12 @@ export default function LoginPage() {
             <button onClick={() => setMode(mode === 'in' ? 'up' : 'in')} className="mt-4 w-full text-sm text-[#55a7ff]">
               {mode === 'in' ? 'No account? Create one' : 'Already have an account? Sign in'}
             </button>
+            <p className="mt-5 text-center text-xs leading-relaxed text-white/45">
+              By {mode === 'in' ? 'signing in' : 'creating an account'}, you agree to our{' '}
+              <Link href="/terms" className="text-[#55a7ff] underline">Terms &amp; Conditions</Link> and{' '}
+              <Link href="/privacy" className="text-[#55a7ff] underline">Privacy Policy</Link>. See also our{' '}
+              <Link href="/cookies" className="text-[#55a7ff] underline">Cookie Policy</Link>.
+            </p>
           </>
         )}
       </div>
