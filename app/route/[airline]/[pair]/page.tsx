@@ -14,7 +14,6 @@ import { simbriefUrl, type ExportFlight } from '@/lib/export'
 import { ExportMenu } from '@/components/export-menu'
 import { AirlineLogo } from '@/components/AirlineLogo'
 import { fixName } from '@/lib/airline-names'
-import { AircraftSideView } from '@/components/AircraftSideView'
 import { estimateBlockMinutes } from '@/lib/flight-time'
 import { useNow } from '@/lib/use-now'
 
@@ -127,7 +126,7 @@ export default function RoutePage() {
           </div>
         </div>
         <div className="p-5 text-center">
-          <div className="mx-auto mb-3 max-w-sm"><AircraftSideView aircraft={type?.name ?? ''} airlineIcao={data.airline.icao} /></div>
+          <div className="mx-auto mb-3 max-w-sm"></div>
           <p className="text-sm text-white/70">{type?.name ?? 'Aircraft not listed'}</p>
           <div className="mt-6 flex items-center justify-between text-lg font-semibold"><span>{data.from.icao}</span><span>{data.to.icao}</span></div>
           <div className="mt-2 flex items-center gap-2"><span className="size-2 rounded-full bg-white/30" /><span className="h-px flex-1 bg-white/15" /><span className="size-2 rounded-full bg-white/30" /></div>
