@@ -1,112 +1,186 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { Download, Share2, Scissors } from 'lucide-react'
-import { toast } from 'sonner'
-import html2canvas from 'html2canvas-pro'
 
-type Data = { from: string; to: string; fromCity?: string; toCity?: string; airline?: string; flight?: string; aircraft?: string; distanceNm?: number; date?: string }
-type Legacy = Partial<{ airline: string; airlineIata: string; flightNumber: string; from: string; to: string; fromCity: string; toCity: string; date: string; depTime: string; boardingTime: string; arrivalTime: string; passenger: string; aircraft: string; registration: string; gate: string; seat: string; distance: number; duration: string }>
-type Props = Legacy & { data?: Partial<Data>; tear?: boolean; onBoard?: () => void }
+export type PassData = {
+  from: string
+  to: string
+  fromCity?: string
+  toCity?: string
+  airline?: string
+  flight?: string
+  aircraft?: string
+  distanceNm?: number
+  durationMin?: number
+  seat?: string
+  date?: string
+}
 
-export function BoardingPass(props: Props) {
-  const d = props.data ?? {}
-  const from = d.from ?? props.from ?? '---'
-  const to = d.to ?? props.to ?? '---'
-  const fromCity = d.fromCity ?? props.fromCity ?? ''
-  const toCity = d.toCity ?? props.toCity ?? ''
-  const airline = d.airline ?? props.airline ?? ''
-  const flight = d.flight ?? `${props.airlineIata ?? ''}${props.flightNumber ?? ''}`
-  const aircraft = d.aircraft ?? props.aircraft ?? ''
-  const nm = d.distanceNm ?? props.distance
-  const date = d.date ?? props.date ?? ''
-  const ref = useRef<HTMLDivElement>(null)
-  const [torn, setTorn] = useState(false)
+const hash = (s: string) => {
+  let h = 2166136261
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  return h >>> 0
+}
+const rng = (seed: number) => () => {
+  seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0
+  return seed / 4294967296
+}
 
-  const cells: [string, string | undefined][] = [
-    ['Flight', flight], ['Date', date], ['Aircraft', aircraft], ['Distance', nm ? `${nm.toLocaleString('en-US')} nm` : ''],
-    ['Passenger', props.passenger], ['Boarding', props.boardingTime], ['Departure', props.depTime], ['Arrival', props.arrivalTime],
-    ['Gate', props.gate], ['Seat', props.seat], ['Duration', props.duration], ['Reg', props.registration],
-  ]
-  const shown = cells.filter(([, v]) => v)
-  const code = `${from}${to}${flight}`.toUpperCase()
-
-  const save = async () => {
-    if (!ref.current) return
-    try {
-      const canvas = await html2canvas(ref.current, { backgroundColor: '#0a0a0a', scale: 2 })
-      const a = document.createElement('a')
-      a.href = canvas.toDataURL('image/png')
-      a.download = `${from}-${to}-boarding-pass.png`
-      a.click()
-      toast.success('Boarding pass saved')
-    } catch {
-      toast.error('Could not save the image')
+function Barcode({ seed }: { seed: string }) {
+  const r = rng(hash(seed))
+  const W = 140, H = 36, rows = 6, rh = H / rows
+  const out: React.ReactElement[] = []
+  const bars = (x0: number, x1: number, k: string) => {
+    let x = x0, on = true, i = 0
+    while (x < x1) {
+      const w = Math.min(1 + Math.floor(r() * 3), x1 - x)
+      if (on) out.push(<rect key={`${k}${i++}`} x={x} y={0} width={w} height={H} />)
+      x += w
+      on = !on
     }
   }
-
-  const share = async () => {
-    const text = `${flight} · ${fromCity || from} to ${toCity || to}${date ? ` · ${date}` : ''}`
-    try {
-      if (navigator.share) await navigator.share({ title: 'Boarding pass', text })
-      else { await navigator.clipboard.writeText(text); toast.success('Flight details copied') }
-    } catch {}
+  bars(0, 16, 'l')
+  bars(W - 16, W, 'r')
+  for (let row = 0; row < rows; row++) {
+    let x = 20, on = r() > 0.5, i = 0
+    while (x < W - 20) {
+      const w = Math.min(1 + Math.floor(r() * 4), W - 20 - x)
+      if (on) out.push(<rect key={`m${row}-${i++}`} x={x} y={row * rh} width={w} height={rh} />)
+      x += w
+      on = !on
+    }
   }
-
   return (
-    <div className="space-y-4">
-      <div className="mx-auto max-w-md">
-        <div ref={ref} className={`overflow-hidden border-2 border-white/20 bg-[#10151d] ${tearCls(props.tear)}`}>
-          <div className="flex items-center justify-between bg-[#1f88ff] px-5 py-3">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-white/80">Boarding pass</p>
-              <p className="text-lg font-bold text-white">{airline || flight}</p>
-            </div>
-            <span className="text-2xl">✈️</span>
-          </div>
-          <div className="p-5">
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-              <div><p className="text-3xl font-black text-[#55a7ff]">{from}</p><p className="text-xs text-white/60">{fromCity}</p></div>
-              <span className="text-white/40">→</span>
-              <div className="text-right"><p className="text-3xl font-black text-[#55a7ff]">{to}</p><p className="text-xs text-white/60">{toCity}</p></div>
-            </div>
-            <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-dashed border-white/20 pt-4">
-              {shown.map(([k, v]) => (
-                <div key={k}><p className="text-[10px] uppercase tracking-wider text-white/45">{k}</p><p className="mt-0.5 text-sm font-semibold">{v}</p></div>
-              ))}
-            </div>
-            <div className="mt-5 flex h-10 items-end justify-center gap-[2px] border-t border-dashed border-white/20 pt-4">
-              {code.split('').flatMap((c, i) => [c.charCodeAt(0) % 4 + 1, (i % 3) + 1]).map((w, i) => (
-                <span key={i} className={i % 2 ? 'bg-transparent' : 'bg-white/70'} style={{ width: w, height: 32 }} />
-              ))}
-            </div>
-            <p className="mt-2 text-center text-[10px] text-white/40">FOR FLIGHT SIMULATION ONLY</p>
-          </div>
-        </div>
-
-        {props.tear && props.onBoard && (
-          <div className={`transition-all duration-500 ${torn ? 'translate-x-full rotate-6 opacity-0' : ''}`}>
-            <div className="rounded-b-xl border-2 border-t-0 border-dashed border-white/25 bg-[#0c1117] p-4">
-              <button
-                disabled={torn}
-                onClick={() => { setTorn(true); setTimeout(() => props.onBoard?.(), 500) }}
-                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#4caf50] font-semibold text-black disabled:opacity-60"
-              >
-                <Scissors className="size-4" /> Tear off to board
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="flex justify-center gap-3">
-        <button onClick={save} className="flex min-h-11 items-center gap-2 rounded-lg border border-white/20 px-4 text-sm font-semibold hover:bg-white/10"><Download className="size-4" /> Save image</button>
-        <button onClick={share} className="flex min-h-11 items-center gap-2 rounded-lg border border-white/20 px-4 text-sm font-semibold hover:bg-white/10"><Share2 className="size-4" /> Share</button>
-      </div>
-    </div>
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="h-20 w-full text-white" fill="currentColor" aria-hidden="true">
+      {out}
+    </svg>
   )
 }
 
-function tearCls(tear?: boolean) {
-  return tear ? 'rounded-t-xl' : 'rounded-xl'
+const notchTop = 'radial-gradient(circle 10px at 0 100%, transparent 97%, #000), radial-gradient(circle 10px at 100% 100%, transparent 97%, #000)'
+const notchBottom = 'radial-gradient(circle 10px at 0 0, transparent 97%, #000), radial-gradient(circle 10px at 100% 0, transparent 97%, #000)'
+const mask = (img: string) =>
+  ({ WebkitMaskImage: img, maskImage: img, WebkitMaskComposite: 'source-in', maskComposite: 'intersect' }) as React.CSSProperties
+
+export function BoardingPass({
+  data,
+  tear = false,
+  compact = false,
+  onTorn,
+  onBoard,
+}: {
+  data: PassData
+  tear?: boolean
+  compact?: boolean
+  onTorn?: () => void
+  onBoard?: () => void
+}) {
+  const [drag, setDrag] = useState(0)
+  const [dragging, setDragging] = useState(false)
+  const [torn, setTorn] = useState(false)
+  const startX = useRef<number | null>(null)
+  const dragRef = useRef(0)
+  const box = useRef<HTMLDivElement>(null)
+
+  const seed = `${data.from}${data.to}${data.flight || ''}${data.date || ''}`
+  const h = hash(seed)
+  const seat = data.seat || `${String(1 + (h % 32)).padStart(2, '0')}${'ABCDEF'[(h >>> 5) % 6]}`
+  const mins = data.durationMin || 0
+  const dur = mins ? (mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`) : ''
+  const km = data.distanceNm ? `${Math.round(data.distanceNm * 1.852).toLocaleString('en-US')} km` : '—'
+  const date = data.date ? data.date.replace(/-/g, '/') : '—'
+
+  const set = (v: number) => {
+    dragRef.current = v
+    setDrag(v)
+  }
+  const down = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!tear || torn) return
+    startX.current = e.clientX
+    setDragging(true)
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+  const move = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (startX.current === null) return
+    const w = box.current?.offsetWidth || 300
+    set(Math.max(0, Math.min(1, Math.abs(e.clientX - startX.current) / (w * 0.45))))
+  }
+  const up = () => {
+    if (startX.current === null) return
+    startX.current = null
+    setDragging(false)
+    if (dragRef.current > 0.6) {
+      setTorn(true)
+      onTorn?.()
+    } else set(0)
+  }
+
+  const p = drag
+  const stubTransform = torn ? 'translate(14px, 170px) rotate(11deg)' : `translate(${p * 26}px, ${p * 30}px) rotate(${p * 7}deg)`
+  const code = compact ? 'text-4xl' : 'text-5xl'
+
+  return (
+    <div ref={box} className="w-full select-none text-white">
+      <div className="relative overflow-hidden rounded-t-3xl bg-[#232325] px-6 pb-6 pt-6 shadow-xl" style={mask(notchTop)}>
+        <div
+          className="pointer-events-none absolute inset-0 opacity-70"
+          style={{
+            backgroundImage: 'radial-gradient(circle, rgba(255,255,255,.14) 1px, transparent 1.6px)',
+            backgroundSize: '9px 9px',
+            WebkitMaskImage: 'radial-gradient(ellipse at 50% 45%, #000 25%, transparent 72%)',
+            maskImage: 'radial-gradient(ellipse at 50% 45%, #000 25%, transparent 72%)',
+          }}
+        />
+        <div className="relative flex items-start justify-between">
+          <div className="min-w-0">
+            <p className={`font-mono ${code} font-extrabold leading-none tracking-tight`}>{data.from}</p>
+            {data.fromCity && <p className="mt-2 truncate text-sm text-white/45">{data.fromCity}</p>}
+          </div>
+          <div className="px-2 pt-2 text-center text-white/35">
+            <p className="text-base">✈</p>
+            {dur && <p className="mt-1 font-mono text-xs">{dur}</p>}
+          </div>
+          <div className="min-w-0 text-right">
+            <p className={`font-mono ${code} font-extrabold leading-none tracking-tight`}>{data.to}</p>
+            {data.toCity && <p className="mt-2 truncate text-sm text-white/45">{data.toCity}</p>}
+          </div>
+        </div>
+        {!compact && (
+          <dl className="relative mt-7 grid grid-cols-2 gap-y-4 text-sm">
+            <div><dt className="text-white/40">Seat</dt><dd className="font-mono font-bold">{seat}</dd></div>
+            <div className="text-right"><dt className="text-white/40">Distance</dt><dd className="font-mono font-bold">{km}</dd></div>
+            <div><dt className="text-white/40">Boarding</dt><dd className="font-mono font-bold">Now</dd></div>
+            <div className="text-right"><dt className="text-white/40">Date</dt><dd className="font-mono font-bold">{date}</dd></div>
+          </dl>
+        )}
+        <div className="absolute inset-x-6 bottom-0 border-t border-dashed border-white/20" />
+      </div>
+
+      <div
+        onPointerDown={down}
+        onPointerMove={move}
+        onPointerUp={up}
+        onPointerCancel={up}
+        className={`relative rounded-b-3xl bg-[#232325] px-6 pb-5 pt-5 shadow-xl ${tear && !torn ? 'cursor-grab' : ''} ${torn ? 'pointer-events-none' : ''}`}
+        style={{
+          ...mask(notchBottom),
+          transform: stubTransform,
+          transition: dragging ? 'none' : 'transform .7s cubic-bezier(.3,.8,.3,1)',
+          touchAction: 'none',
+        }}
+      >
+        <Barcode seed={seed} />
+        {tear && !torn && <p className="mt-3 text-center text-[11px] uppercase tracking-[.25em] text-white/40">Drag to tear</p>}
+      </div>
+
+      {torn && (
+        <button onClick={onBoard} className="mt-44 w-full rounded-full bg-white py-4 text-base font-semibold text-black shadow-lg">
+          Boarding
+        </button>
+      )}
+    </div>
+  )
 }

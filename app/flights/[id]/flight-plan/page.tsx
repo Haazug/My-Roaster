@@ -215,7 +215,7 @@ export default function FlightPlanPage() {
             data={{
               from: geo?.fromIata || dep, to: geo?.toIata || arr, fromCity: geo?.fromCity, toCity: geo?.toCity,
               airline: seed?.airlineName, flight: form.flight || String(id).toUpperCase(), aircraft: acName,
-              distanceNm: geo?.distanceNm, date: new Date().toISOString().slice(0, 10),
+              distanceNm: geo?.distanceNm, durationMin: form.duration, date: new Date().toISOString().slice(0, 10),
             }}
             onBoard={manualLaunch}
           />
