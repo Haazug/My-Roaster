@@ -99,8 +99,8 @@ export default function AirportDetailPage() {
         <div className="mt-8">
           <h2 className="text-xl font-semibold mb-4">Departures & Arrivals</h2>
           <div className="flex flex-col gap-2">
-            {routes.slice(0, 40).map((route, idx) => (
-              <Link key={idx} href={route.airlines?.length ? `/route/${route.airlines[0].iata || route.airlines[0].id}/${route.from}-${route.to}` : `/routes/${route.from}-${route.to}`} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#111217cc] p-4 transition hover:border-[#1f88ff]/60">
+            {routes.map((route, idx) => (
+              <Link key={idx} style={{ contentVisibility: 'auto', containIntrinsicSize: '0 110px' }} href={route.airlines?.length ? `/route/${route.airlines[0].iata || route.airlines[0].id}/${route.from}-${route.to}` : `/routes/${route.from}-${route.to}`} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#111217cc] p-4 transition hover:border-[#1f88ff]/60">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-3 font-semibold">
                     <span>{route.from}</span><span className="text-[#1f88ff]">→</span><span>{route.to}</span>
@@ -112,7 +112,7 @@ export default function AirportDetailPage() {
               </Link>
             ))}
           </div>
-          {routes.length > 40 && <p className="mt-4 text-sm text-white/40">+{routes.length - 40} more routes</p>}
+          
         </div>
       )}
 
