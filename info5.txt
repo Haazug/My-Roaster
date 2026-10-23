@@ -1,0 +1,1258 @@
+=== app/airlines/page.tsx ===
+'use client'
+
+import { useMemo, useState } from 'react'
+import useSWR from 'swr'
+import { fixName } from '@/lib/airline-names'
+import Link from 'next/link'
+import { ChevronRight, Search } from 'lucide-react'
+import { AirlineLogo } from '@/components/AirlineLogo'
+
+type Airline = { id: string; name: string; iata: string; icao: string; country: string; active: boolean; numRoutes: number }
+const fetcher = (u: string) => fetch(u).then((r) => r.json())
+const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+
+export default function Airlines() {
+  const { data, error, mutate } = useSWR<Airline[] | { error: string }>('/api/airlines', fetcher)
+  const [q, setQ] = useState('')
+  const list = Array.isArray(data) ? data : []
+  const rows = useMemo(() => {
+    const n = norm(q.trim())
+    return n ? list.filter((a) => norm(`${fixName(a.name)} ${a.name} ${a.iata} ${a.icao} ${a.country}`).includes(n)) : list
+  }, [list, q])
+
+  return (
+    <section className="min-h-screen p-5 sm:p-8">
+      <header className="mb-8">
+        <p className="text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">Network directory</p>
+        <h1 className="mt-2 text-4xl font-semibold tracking-tight">Airline Rosters</h1>
+        <p className="mt-2 text-white/45">Every carrier with a route in OpenFlights.</p>
+        <Link href="/free" className="mt-4 inline-flex min-h-11 items-center rounded-xl border border-white/15 bg-white/10 px-4 text-sm font-medium">Free flight: any route</Link>
+      </header>
+      <label className="mb-5 flex min-h-12 items-center gap-3 rounded-2xl border border-white/10 bg-white/[.06] px-4">
+        <Search className="size-4 text-white/40" aria-hidden="true" />
+        <span className="sr-only">Filter airlines</span>
+        <input value={q} onChange={(e) => setQ(e.target.value)} className="min-h-11 w-full min-w-0 bg-transparent outline-none placeholder:text-white/35" placeholder="Filter airlines" />
+      </label>
+      {error || (data && !Array.isArray(data)) ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-red-400/20 bg-red-400/10 p-5">
+          Could not load OpenFlights data.
+          <button onClick={() => mutate()} className="min-h-11 rounded-lg bg-white px-4 text-sm text-black">Retry</button>
+        </div>
+      ) : !data ? (
+        <p className="text-white/40" aria-busy="true">Loading airline rosters…</p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {rows.map((a) => (
+            <Link href={`/airlines/${a.id}`} key={a.id} className="flex min-h-[76px] items-center gap-4 rounded-2xl border border-white/10 bg-[#111217cc] p-3 transition hover:border-[#1f88ff]/60">
+              <AirlineLogo iata={a.iata} icao={a.icao} name={fixName(a.name)} size="md" showText={false} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold">{fixName(a.name)}</p>
+                <p className="text-sm text-[#4caf50]">Available Routes: {a.numRoutes}{!a.active && <span className="ml-2 text-xs text-amber-300">Historical</span>}</p>
+              </div>
+              <ChevronRight className="size-5 shrink-0 text-white/30" aria-hidden="true" />
+            </Link>
+          ))}
+          {!rows.length && <p className="rounded-2xl border border-dashed border-white/10 p-5 text-sm text-white/40">No airlines match “{q}”.</p>}
+        </div>
+      )}
+    </section>
+  )
+}
+
+=== app/airlines/[id]/page.tsx ===
+'use client'
+
+import Link from 'next/link'
+import { useParams } from 'next/navigation'
+import useSWR from 'swr'
+import { ArrowLeft, ChevronRight, Plane } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useMapStore, type Point } from '@/lib/map-store'
+import { AirlineLogo } from '@/components/AirlineLogo'
+import { CustomRoutes } from '@/components/CustomRoutes'
+import { fixName } from '@/lib/airline-names'
+
+const fetcher = (url: string) => fetch(url).then((response) => response.json())
+
+type Airport = { iata?: string; name?: string; city?: string; country?: string; lat?: number; lon?: number }
+type Route = { from: string; to: string; fromAirport?: Airport; toAirport?: Airport; aircraft?: string[]; roundTrip?: boolean }
+type Airline = { name: string; iata?: string; icao?: string; country?: string; active?: boolean }
+
+export default function AirlineDetailPage() {
+  const { id } = useParams<{ id: string }>()
+  const { data, error } = useSWR(id ? `/api/airlines/${id}` : null, fetcher)
+  const setView = useMapStore((s) => s.setView)
+  const [q, setQ] = useState('')
+
+  useEffect(() => {
+    if (!data?.routes) return
+    const routes = (data.routes as Route[])
+      .filter((r) => r.fromAirport?.lat != null && r.toAirport?.lat != null)
+      .map((r) => ({ from: r.fromAirport as Point, to: r.toAirport as Point }))
+    setView({ mode: 'airline', routes })
+    return () => setView({ mode: 'idle' })
+  }, [data, setView])
+
+  if (error || data?.error) {
+    return (
+      <section className="min-h-screen p-5 sm:p-8">
+        <Link href="/airlines" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
+          <ArrowLeft className="size-4" /> Back to airlines
+        </Link>
+        <div className="mt-10 rounded-2xl border border-red-400/20 bg-red-400/10 p-5 text-red-100">
+          This airline could not be loaded.
+        </div>
+      </section>
+    )
+  }
+
+  if (!data) {
+    return <section className="min-h-screen p-5 text-white/45 sm:p-8">Loading airline routes…</section>
+  }
+
+  const airline = data.airline as Airline
+  const allRoutes = data.routes as Route[]
+  const nq = q.trim().toLowerCase()
+  const routes = nq
+    ? allRoutes.filter((r) =>
+        [r.from, r.to, r.fromAirport?.city, r.toAirport?.city, r.fromAirport?.name, r.toAirport?.name, r.fromAirport?.country, r.toAirport?.country]
+          .filter(Boolean).join(' ').toLowerCase().includes(nq)
+      )
+    : allRoutes
+
+  return (
+    <section className="min-h-screen p-5 sm:p-8">
+      <Link href="/airlines" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
+        <ArrowLeft className="size-4" /> Back to airlines
+      </Link>
+      <header className="mt-8 border-b border-white/10 pb-7">
+        <div className="flex items-start gap-4">
+          <AirlineLogo iata={airline.iata} icao={airline.icao} name={airline.name} size="lg" showText={false} />
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">Airline route network</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight">{fixName(airline.name)}</h1>
+            <p className="mt-2 text-sm text-white/45">{airline.country || 'International'} · {allRoutes.length} routes · {airline.icao || 'ICAO unavailable'}</p>
+          </div>
+        </div>
+      </header>
+      <CustomRoutes airlineKey={airline.iata || id} />
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search routes (city, airport or code)" className="mt-7 min-h-12 w-full rounded-2xl border border-white/10 bg-white/[.06] px-4 outline-none placeholder:text-white/35 focus:border-[#1f88ff]" />
+      {nq && <p className="mt-3 text-xs text-white/40">{routes.length} of {allRoutes.length} routes</p>}
+      <div className="mt-4 flex flex-col gap-2">
+        {routes.map((route, index) => {
+          const from = route.fromAirport
+          const to = route.toAirport
+          return (
+            <Link key={`${route.from}-${route.to}-${index}`} href={`/route/${airline.iata || id}/${route.from}-${route.to}`} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#111217cc] p-4 transition hover:border-[#1f88ff]/60">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-3 font-semibold">
+                  <span>{route.from}</span><span className="text-[#1f88ff]">{route.roundTrip ? '⇄' : '→'}</span><span>{route.to}</span>
+                </div>
+                <p className="mt-1 truncate text-sm text-white/45">{from?.city || from?.name || 'Origin'} → {to?.city || to?.name || 'Destination'}</p>
+                {route.aircraft?.length ? <p className="mt-2 text-xs text-white/30">{route.aircraft.join(', ')}</p> : null}
+              </div>
+              <ChevronRight className="size-5 shrink-0 text-white/30" />
+            </Link>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+=== app/airports/page.tsx ===
+'use client'
+
+import Link from 'next/link'
+import { useEffect, useMemo, useState } from 'react'
+import useSWR from 'swr'
+import { ArrowLeft, ChevronRight, RadioTower, Search } from 'lucide-react'
+import { useMapStore } from '@/lib/map-store'
+
+type Airport = { iata: string; icao: string; name: string; city: string; country: string; lat: number; lon: number; routes: number }
+const fetcher = (url: string) => fetch(url).then((r) => r.json())
+const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+
+export default function AirportsPage() {
+  const { data, error } = useSWR<Airport[] | { error: string }>('/api/airports', fetcher)
+  const [q, setQ] = useState('')
+  const setView = useMapStore((s) => s.setView)
+  const list = Array.isArray(data) ? data : []
+  const rows = useMemo(() => {
+    const n = norm(q.trim())
+    return (n ? list.filter((a) => norm(`${a.iata} ${a.icao} ${a.city} ${a.name} ${a.country}`).includes(n)) : list).slice(0, 100)
+  }, [list, q])
+
+  useEffect(() => {
+    if (rows.length) setView({ mode: 'airports', airports: rows })
+  }, [rows, setView])
+  useEffect(() => () => setView({ mode: 'idle' }), [setView])
+
+  return (
+    <section className="min-h-screen p-5 sm:p-8">
+      <Link href="/" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/50"><ArrowLeft className="size-4" />MyRoster</Link>
+      <div className="mt-4 flex items-center gap-3">
+        <RadioTower className="size-5 text-[#facc15]" aria-hidden="true" />
+        <div>
+          <h1 className="text-4xl font-semibold">Airports</h1>
+          <p className="mt-2 text-white/45">{list.length ? `${list.length.toLocaleString('en-US')} airports with scheduled routes` : 'Browse worldwide airports'}</p>
+        </div>
+      </div>
+      <label className="mt-8 flex min-h-14 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4">
+        <Search className="size-5 text-white/40" aria-hidden="true" />
+        <span className="sr-only">Filter airports</span>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search IATA / ICAO / city / country" className="min-h-12 w-full min-w-0 bg-transparent outline-none placeholder:text-white/35" />
+      </label>
+      {error || (data && !Array.isArray(data)) ? (
+        <div className="mt-6 rounded-2xl border border-red-400/20 bg-red-400/10 p-5">Airport data is unavailable right now.</div>
+      ) : !data ? (
+        <p className="mt-6 text-white/40" aria-busy="true">Loading airports…</p>
+      ) : (
+        <div className="mt-6 flex flex-col gap-2">
+          {rows.map((a) => (
+            <Link href={`/airports/${a.iata}`} key={a.iata} className="flex min-h-14 items-center gap-4 rounded-2xl border border-white/10 bg-[#151619cc] p-4 hover:border-[#facc15]/50">
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[#facc15]/15 text-xs font-bold text-[#facc15]">{a.iata}</span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold">{a.city} · {a.name}</p>
+                <p className="mt-1 text-sm text-white/45">{a.icao} · {a.country} · <span className="text-[#4caf50]">{a.routes} routes</span></p>
+              </div>
+              <ChevronRight className="size-5 shrink-0 text-white/30" aria-hidden="true" />
+            </Link>
+          ))}
+          {!rows.length && <p className="rounded-2xl border border-dashed border-white/10 p-5 text-sm text-white/40">No airports match “{q}”.</p>}
+        </div>
+      )}
+    </section>
+  )
+}
+
+=== app/airports/[code]/page.tsx ===
+'use client'
+
+import Link from 'next/link'
+import { useParams } from 'next/navigation'
+import useSWR from 'swr'
+import { ArrowLeft, ChevronRight, RadioTower, ExternalLink } from 'lucide-react'
+import { useEffect } from 'react'
+import { useMapStore, type Point } from '@/lib/map-store'
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json())
+
+type Airport = { iata: string; icao: string; name: string; city: string; country: string; lat: number; lon: number; routes?: number }
+type Route = { from: string; to: string; fromAirport?: Airport; toAirport?: Airport }
+type AirportDetail = { airport: Airport; routes: Route[]; nearby?: Airport[] }
+
+export default function AirportDetailPage() {
+  const { code } = useParams<{ code: string }>()
+  const decoded = code ? decodeURIComponent(code).toUpperCase() : ''
+  const { data, error } = useSWR(decoded ? `/api/airports/${decoded}` : null, fetcher)
+  const setView = useMapStore((s) => s.setView)
+
+  useEffect(() => {
+    if (!data?.airport) return
+    const airport = data.airport as Airport
+    const routes = (data.routes as Route[] || [])
+      .filter((r) => r.fromAirport?.lat != null && r.toAirport?.lat != null)
+      .map((r) => ({ from: r.fromAirport as Point, to: r.toAirport as Point }))
+    
+    setView({ 
+      mode: 'point', 
+      point: airport as Point,
+      nearby: data.nearby as Airport[] || []
+    })
+    return () => setView({ mode: 'idle' })
+  }, [data, setView])
+
+  if (error || data?.error) {
+    return (
+      <section className="min-h-screen p-5 sm:p-8">
+        <Link href="/airports" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
+          <ArrowLeft className="size-4" /> Back to airports
+        </Link>
+        <div className="mt-10 rounded-2xl border border-red-400/20 bg-red-400/10 p-5 text-red-100">
+          Airport "{decoded}" could not be found.
+        </div>
+      </section>
+    )
+  }
+
+  if (!data) {
+    return <section className="min-h-screen p-5 text-white/45 sm:p-8">Loading airport…</section>
+  }
+
+  const airport = data.airport as Airport
+  const routes = (data.routes as Route[]) || []
+  const nearby = (data.nearby as Airport[]) || []
+
+  return (
+    <section className="min-h-screen p-5 sm:p-8">
+      <Link href="/airports" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
+        <ArrowLeft className="size-4" /> Back to airports
+      </Link>
+      <header className="mt-8 border-b border-white/10 pb-7">
+        <div className="flex items-start gap-4">
+          <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-[#facc15]/15 text-sm font-black text-[#facc15]">
+            {airport.iata}
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">Airport</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight">{airport.city}</h1>
+            <p className="mt-2 text-sm text-white/45">{airport.name} · {airport.icao} · {airport.country}</p>
+            <p className="mt-1 text-xs text-white/40">{routes.length} routes</p>
+          </div>
+        </div>
+      </header>
+
+      {routes.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-xl font-semibold mb-4">Departures & Arrivals</h2>
+          <div className="flex flex-col gap-2">
+            {routes.slice(0, 20).map((route, idx) => (
+              <Link key={idx} href={`/routes/${route.from}-${route.to}`} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#111217cc] p-4 transition hover:border-[#1f88ff]/60">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-3 font-semibold">
+                    <span>{route.from}</span><span className="text-[#1f88ff]">→</span><span>{route.to}</span>
+                  </div>
+                  <p className="mt-1 text-sm text-white/45">{route.fromAirport?.city} → {route.toAirport?.city}</p>
+                </div>
+                <ChevronRight className="size-5 shrink-0 text-white/30" />
+              </Link>
+            ))}
+          </div>
+          {routes.length > 20 && <p className="mt-4 text-sm text-white/40">+{routes.length - 20} more routes</p>}
+        </div>
+      )}
+
+      {nearby.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-xl font-semibold mb-4">Nearby Airports</h2>
+          <div className="flex flex-col gap-2">
+            {nearby.slice(0, 8).map((a) => (
+              <Link key={a.iata} href={`/airports/${a.iata}`} className="flex items-center gap-4 rounded-2xl border border-white/10 bg-[#111217cc] p-4 hover:border-white/20">
+                <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[#facc15]/15 text-xs font-bold text-[#facc15]">{a.iata}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-semibold">{a.city} · {a.name}</p>
+                  <p className="mt-1 text-sm text-white/45">{a.icao}</p>
+                </div>
+                <ChevronRight className="size-5 shrink-0 text-white/30" />
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="mt-8 flex gap-2">
+        <Link href={`https://www.flightradar24.com/data/airports/${airport.iata}`} target="_blank" rel="noopener noreferrer" className="flex min-h-11 items-center gap-2 rounded-xl border border-white/20 bg-white/[.06] px-3 text-sm hover:bg-white/[.1]">
+          Live traffic <ExternalLink className="size-4" />
+        </Link>
+      </div>
+    </section>
+  )
+}
+
+=== components/search-client.tsx ===
+'use client'
+
+import { useEffect, useState } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import useSWR from 'swr'
+import Link from 'next/link'
+import { ArrowLeft, ChevronRight, ExternalLink, Loader2, Plane, Radio, Search } from 'lucide-react'
+
+type Airport = { iata: string; icao: string; name: string; city: string; country: string; lat: number; lon: number }
+type Airline = { id: string; name: string; iata: string; icao: string; country: string; numRoutes: number }
+type RouteHit = { airline: Airline; from: Airport; to: Airport; distanceKm: number; route: { codeshare: boolean } }
+type LiveHit = { hex: string; callsign: string; reg?: string; type?: string; altFt: number | null; onGround: boolean }
+type Result = {
+  airlines: Airline[]
+  airports: Airport[]
+  routes: RouteHit[]
+  flights: LiveHit[]
+  aircraftTypes: { name: string; icao: string }[]
+  sources: Record<string, string>
+  degraded?: boolean
+}
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json())
+const tabs = ['All', 'Routes', 'Airlines', 'Flights', 'Airports'] as const
+type Tab = (typeof tabs)[number]
+const sourceLabels: Record<string, string> = { flightConnections: 'FlightConnections', flightradar24: 'Flightradar24', openSky: 'OpenSky' }
+
+export default function SearchClient() {
+  const params = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
+  const [input, setInput] = useState(params.get('q') ?? '')
+  const [query, setQuery] = useState(params.get('q') ?? '')
+  const [tab, setTab] = useState<Tab>('All')
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const q = input.trim()
+      setQuery(q)
+      router.replace(q ? `${pathname}?q=${encodeURIComponent(q)}` : pathname, { scroll: false })
+    }, 300)
+    return () => clearTimeout(t)
+  }, [input, pathname, router])
+
+  const { data, isLoading, error } = useSWR<Result>(query ? `/api/search?q=${encodeURIComponent(query)}` : null, fetcher, { keepPreviousData: true })
+
+  const counts = { Routes: data?.routes.length ?? 0, Airlines: data?.airlines.length ?? 0, Flights: data?.flights.length ?? 0, Airports: data?.airports.length ?? 0 }
+  const show = (t: Exclude<Tab, 'All'>) => tab === 'All' || tab === t
+
+  return (
+    <section className="min-h-screen p-5 sm:p-8">
+      <Link href="/" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/50"><ArrowLeft className="size-4" />Back</Link>
+      <header className="mt-4">
+        <p className="text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">Discovery</p>
+        <h1 className="mt-2 text-4xl font-semibold">Search the world</h1>
+        <p className="mt-2 text-sm text-white/45">Routes, flight codes, airlines, airports, aircraft types and registrations.</p>
+      </header>
+      <form role="search" onSubmit={(e) => { e.preventDefault(); setQuery(input.trim()) }} className="mt-6 flex min-h-14 items-center gap-3 rounded-2xl border border-[#1f88ff]/40 bg-white/[.08] px-4">
+        <Search className="size-5 shrink-0 text-[#1f88ff]" aria-hidden="true" />
+        <label htmlFor="q" className="sr-only">Search</label>
+        <input id="q" autoFocus value={input} onChange={(e) => setInput(e.target.value)} className="min-h-12 w-full min-w-0 bg-transparent outline-none placeholder:text-white/35" placeholder="Try DT 653, LAD LIS, TAAG or Lisboa" />
+        {isLoading && <Loader2 className="size-5 shrink-0 animate-spin text-white/50" aria-label="Searching" />}
+      </form>
+
+      <div className="mt-4 flex gap-2 overflow-x-auto pb-1" role="tablist">
+        {tabs.map((t) => (
+          <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={`min-h-11 shrink-0 rounded-full px-4 text-sm ${tab === t ? 'bg-[#1f88ff] text-white' : 'bg-white/10 text-white/70'}`}>
+            {t}{t !== 'All' && data ? ` ${counts[t]}` : ''}
+          </button>
+        ))}
+      </div>
+
+      {!query && <p className="mt-8 text-sm text-white/40">Type at least two characters to search.</p>}
+      {query && isLoading && !data && (
+        <div className="mt-8 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[.05] p-6 text-white/60" aria-live="polite">
+          <Loader2 className="size-5 animate-spin" />Searching OpenFlights routes and live traffic…
+        </div>
+      )}
+      {(error || data?.degraded) && <div className="mt-8 rounded-2xl border border-amber-400/20 bg-amber-400/10 p-5 text-sm text-amber-100">Route data is temporarily unavailable. Try again in a moment.</div>}
+
+      {query && data && (
+        <div className={`mt-6 flex flex-col gap-8 ${isLoading ? 'opacity-60' : ''}`}>
+          {show('Routes') && (
+            <Group title="Routes" count={data.routes.length}>
+              {data.routes.map((r) => (
+                <Row key={`${r.airline.id}-${r.from.iata}-${r.to.iata}`} href={`/route/${r.airline.iata || r.airline.id}/${r.from.iata}-${r.to.iata}`}>
+                  <p className="font-semibold">{r.airline.iata || r.airline.icao} · {r.airline.name} · {r.from.city} - {r.to.city}</p>
+                  <p className="mt-1 text-sm text-white/45">{r.from.iata} → {r.to.iata} · {r.distanceKm.toLocaleString('en-US')} km{r.route.codeshare ? ' · codeshare' : ''}</p>
+                </Row>
+              ))}
+            </Group>
+          )}
+          {show('Airlines') && (
+            <Group title="Airlines" count={data.airlines.length}>
+              {data.airlines.map((a) => (
+                <Row key={a.id} href={`/airlines/${a.id}`}>
+                  <p className="font-semibold">{a.name}</p>
+                  <p className="mt-1 text-sm text-white/45">{[a.iata, a.icao, a.country].filter(Boolean).join(' · ')} · <span className="text-[#4caf50]">{a.numRoutes} routes</span></p>
+                </Row>
+              ))}
+            </Group>
+          )}
+          {show('Flights') && (
+            <Group title="Live flights" count={data.flights.length} empty={data.aircraftTypes.length ? `No live ${data.aircraftTypes[0].name} found right now.` : 'No live aircraft match. Flight numbers resolve to live callsigns while airborne.'}>
+              {data.flights.map((f) => (
+                <Row key={f.hex} href={`/live/${f.hex}`}>
+                  <p className="flex items-center gap-2 font-semibold"><Radio className="size-4 text-cyan-300" aria-hidden="true" />{f.callsign || f.hex}</p>
+                  <p className="mt-1 text-sm text-white/45">{[f.type, f.reg].filter(Boolean).join(' · ') || 'Unknown type'} · {f.onGround || f.altFt == null ? 'On ground' : `${f.altFt.toLocaleString('en-US')} ft`}</p>
+                </Row>
+              ))}
+            </Group>
+          )}
+          {show('Airports') && (
+            <Group title="Airports" count={data.airports.length}>
+              {data.airports.map((a) => (
+                <Row key={a.iata} href={`/search?q=${a.iata}`} onClick={() => setInput(a.iata)}>
+                  <p className="font-semibold">{a.city} · {a.iata}</p>
+                  <p className="mt-1 text-sm text-white/45">{a.icao} · {a.name} · {a.country}</p>
+                </Row>
+              ))}
+            </Group>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(data.sources).map(([k, url]) => (
+              <a key={k} href={url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/10 px-4 text-sm text-white/65 hover:bg-white/5">
+                {sourceLabels[k] ?? k}<ExternalLink className="size-3.5" />
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function Group({ title, count, empty, children }: { title: string; count: number; empty?: string; children: React.ReactNode }) {
+  return (
+    <section>
+      <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-white/80"><Plane className="size-4 text-[#1f88ff]" aria-hidden="true" />{title}<span className="text-white/30">{count}</span></h2>
+      {count ? <div className="flex flex-col gap-2">{children}</div> : <p className="rounded-2xl border border-dashed border-white/10 p-5 text-sm text-white/40">{empty ?? `No ${title.toLowerCase()} matched this search.`}</p>}
+    </section>
+  )
+}
+
+function Row({ href, onClick, children }: { href: string; onClick?: () => void; children: React.ReactNode }) {
+  return (
+    <Link href={href} onClick={onClick} className="flex min-h-14 items-center gap-3 rounded-2xl border border-white/10 bg-[#111217cc] p-4 transition hover:border-[#1f88ff]/60">
+      <div className="min-w-0 flex-1 break-words">{children}</div>
+      <ChevronRight className="size-5 shrink-0 text-white/30" aria-hidden="true" />
+    </Link>
+  )
+}
+
+=== app/logs/page.tsx ===
+"use client"
+import Link from "next/link"
+import { BookOpen, Plane } from "lucide-react"
+import { useLocalStorage } from "@/lib/use-local-storage"
+import type { RosterFlight } from "@/lib/roster-data"
+import { AirlineLogo } from "@/components/AirlineLogo"
+export default function LogsPage(){const [logs]=useLocalStorage<RosterFlight[]>("myroster.logs",[]); const nm=logs.reduce((s,f)=>s+f.distanceNm,0); return <main className="min-h-screen bg-[#0a0a0a] px-5 py-8 text-white sm:px-8"><div className="mx-auto max-w-3xl"><Link href="/" className="text-sm text-white/50">← MyRoster</Link><div className="mt-10 flex items-end justify-between"><div><p className="flex items-center gap-2 text-sm text-[#55a7ff]"><BookOpen className="size-4"/>MyLogs</p><h1 className="mt-2 text-4xl font-semibold">Flights flown.</h1></div></div><div className="mt-8 grid grid-cols-3 gap-3"><Stat label="Flights" value={logs.length}/><Stat label="NM flown" value={nm.toLocaleString()}/><Stat label="Airlines" value={new Set(logs.map(f=>f.airlineIata)).size}/></div><div className="mt-8 flex flex-col gap-3">{logs.length ? logs.map(f=><div key={f.id} className="rounded-2xl border border-white/10 bg-[#151619] p-4"><p className="text-xs text-white/40">{new Date(f.departure).toLocaleDateString(undefined,{month:"long",year:"numeric"})}</p><p className="mt-2 flex items-center gap-3 font-semibold"><AirlineLogo iata={f.airlineIata} name={f.airlineName} size="sm" showText={false}/>{f.flightNumber} · {f.orig} → {f.dest}</p><p className="mt-1 text-sm text-white/50">{f.fromCity} to {f.toCity} · {f.distanceNm} nm{(f as any).free && <span className="ml-2 rounded bg-[#1f88ff]/20 px-1.5 py-0.5 text-[10px] text-[#55a7ff]">Free flight</span>}</p>{(f as any).rating ? <p className="mt-1 text-sm text-yellow-400">{"★".repeat((f as any).rating)}{"☆".repeat(5 - (f as any).rating)}</p> : null}</div>) : <Empty text="No flights logged yet."/>}</div></div></main>}
+function Stat({label,value}:{label:string;value:string|number}){return <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"><p className="text-2xl font-semibold">{value}</p><p className="mt-1 text-xs text-white/40">{label}</p></div>}
+function Empty({text}:{text:string}){return <div className="rounded-2xl border border-dashed border-white/15 p-10 text-center text-white/45">{text}</div>}
+
+=== app/trips/page.tsx ===
+'use client'
+
+import Link from 'next/link'
+import { ArrowLeft, Plane, X } from 'lucide-react'
+import { useLocalStorage } from '@/lib/use-local-storage'
+import type { RosterFlight } from '@/lib/roster-data'
+import { distanceFromNm, flightTitle } from '@/lib/flight-utils'
+
+export default function TripsPage() {
+  const [bookings, setBookings] = useLocalStorage<RosterFlight[]>('myroster.bookings', [])
+
+  return (
+    <section className="min-h-screen p-5 sm:p-8">
+      <Link href="/" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/50"><ArrowLeft className="size-4" />MyRoster</Link>
+      <h1 className="mt-4 text-4xl font-semibold">Booked Trips</h1>
+      <p className="mt-2 text-sm text-white/45">Your saved routes, ready when you are.</p>
+      {bookings.length ? (
+        <div className="mt-8 flex flex-col gap-3">
+          {bookings.map((flight) => {
+            const d = distanceFromNm(flight.distanceNm)
+            return (
+              <article key={flight.id} className="rounded-2xl border border-white/10 bg-[#111217cc] p-5">
+                <Link href={`/route/${flight.airlineIata}/${flight.orig}-${flight.dest}`} className="flex min-h-11 items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="font-medium">{flightTitle(flight)}</p>
+                    <p className="mt-1 text-sm text-white/45">{flight.orig} → {flight.dest} · {flight.airlineName} · {flight.aircraft}</p>
+                  </div>
+                  <Plane className="size-5 shrink-0 text-[#1f88ff]" aria-hidden="true" />
+                </Link>
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm">
+                  <span className="text-white/45">{d.km.toLocaleString('en-US')} km / {d.nm.toLocaleString('en-US')} nm</span>
+                  <div className="flex gap-2">
+                    <Link href={`/route/${flight.airlineIata}/${flight.orig}-${flight.dest}`} className="flex min-h-11 items-center rounded-xl bg-[#1f88ff] px-4 font-medium">Fly Now</Link>
+                    <button aria-label="Cancel booking" onClick={() => setBookings(bookings.filter((b) => b.id !== flight.id))} className="flex size-11 items-center justify-center rounded-xl border border-white/10 text-white/60 hover:bg-white/5">
+                      <X className="size-4" />
+                    </button>
+                  </div>
+                </div>
+              </article>
+            )
+          })}
+        </div>
+      ) : (
+        <div className="mt-8 rounded-2xl border border-dashed border-white/10 p-8 text-center text-white/40">
+          No booked trips yet. Open a route and choose Book Trip.
+          <Link href="/airlines" className="mx-auto mt-4 flex min-h-11 w-fit items-center rounded-xl bg-white px-4 text-sm font-medium text-black">Browse airlines</Link>
+        </div>
+      )}
+    </section>
+  )
+}
+
+=== app/bookings/page.tsx ===
+import { redirect } from 'next/navigation'
+
+export default function BookingsPage() {
+  redirect('/trips')
+}
+
+=== app/favourites/page.tsx ===
+'use client'
+
+import Link from 'next/link'
+import { ArrowLeft, Plane, Star } from 'lucide-react'
+import { useFavourites } from '@/lib/use-favourites'
+import { distanceFromNm, flightTitle } from '@/lib/flight-utils'
+
+export default function FavouritesPage() {
+  const { items, toggle } = useFavourites()
+
+  return (
+    <section className="min-h-screen p-5 sm:p-8">
+      <Link href="/" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/50"><ArrowLeft className="size-4" />MyRoster</Link>
+      <header className="mt-4">
+        <p className="text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">Saved routes</p>
+        <h1 className="mt-2 text-4xl font-semibold">My Favourites</h1>
+      </header>
+      {items.length ? (
+        <div className="mt-8 flex flex-col gap-3">
+          {items.map((flight) => (
+            <article key={flight.id} className="flex items-start gap-3 rounded-2xl border border-white/10 bg-[#111217cc] p-5">
+              <Link href={`/route/${flight.airlineIata}/${flight.orig}-${flight.dest}`} className="min-h-11 min-w-0 flex-1">
+                <p className="font-medium">{flightTitle(flight)}</p>
+                <p className="mt-1 text-sm text-white/45">{flight.orig} → {flight.dest} · {flight.airlineName}</p>
+                <p className="mt-3 flex items-center gap-2 text-xs text-white/45"><Plane className="size-4 text-[#1f88ff]" aria-hidden="true" />{flight.aircraft} · {distanceFromNm(flight.distanceNm).km.toLocaleString('en-US')} km</p>
+              </Link>
+              <button aria-label="Remove favourite" onClick={() => toggle(flight)} className="flex size-11 shrink-0 items-center justify-center rounded-xl hover:bg-white/5">
+                <Star className="size-5 fill-[#facc15] text-[#facc15]" />
+              </button>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="mt-8 rounded-2xl border border-dashed border-white/10 p-8 text-center text-white/40">Tap the star on any route to save it here.</div>
+      )}
+    </section>
+  )
+}
+
+=== app/aircraft/[type]/page.tsx ===
+'use client'
+
+import Link from 'next/link'
+import { useParams } from 'next/navigation'
+import { ArrowLeft, Plane } from 'lucide-react'
+import { useEffect } from 'react'
+import { useMapStore } from '@/lib/map-store'
+
+type AircraftType = {
+  code: string
+  name: string
+  manufacturer: string
+  engines: number
+  maxPassengers: number
+  range: number
+  cruiseSpeed: number
+  maxAltitude: number
+  inProduction: boolean
+}
+
+const AIRCRAFT_DATA: Record<string, AircraftType> = {
+  'A320': {
+    code: 'A320',
+    name: 'Airbus A320',
+    manufacturer: 'Airbus',
+    engines: 2,
+    maxPassengers: 194,
+    range: 3100,
+    cruiseSpeed: 460,
+    maxAltitude: 43000,
+    inProduction: true,
+  },
+  'A321': {
+    code: 'A321',
+    name: 'Airbus A321',
+    manufacturer: 'Airbus',
+    engines: 2,
+    maxPassengers: 244,
+    range: 2700,
+    cruiseSpeed: 460,
+    maxAltitude: 43000,
+    inProduction: true,
+  },
+  'A350': {
+    code: 'A359',
+    name: 'Airbus A350-900',
+    manufacturer: 'Airbus',
+    engines: 2,
+    maxPassengers: 315,
+    range: 8000,
+    cruiseSpeed: 490,
+    maxAltitude: 43000,
+    inProduction: true,
+  },
+  'B737': {
+    code: 'B738',
+    name: 'Boeing 737-800',
+    manufacturer: 'Boeing',
+    engines: 2,
+    maxPassengers: 189,
+    range: 3060,
+    cruiseSpeed: 450,
+    maxAltitude: 41000,
+    inProduction: false,
+  },
+  'B777': {
+    code: 'B77W',
+    name: 'Boeing 777-300ER',
+    manufacturer: 'Boeing',
+    engines: 2,
+    maxPassengers: 396,
+    range: 7370,
+    cruiseSpeed: 490,
+    maxAltitude: 43000,
+    inProduction: true,
+  },
+  'B787': {
+    code: 'B789',
+    name: 'Boeing 787-9 Dreamliner',
+    manufacturer: 'Boeing',
+    engines: 2,
+    maxPassengers: 296,
+    range: 7635,
+    cruiseSpeed: 490,
+    maxAltitude: 43000,
+    inProduction: true,
+  },
+}
+
+export default function AircraftDetailPage() {
+  const { type } = useParams<{ type: string }>()
+  const typeCode = type ? (type as string).toUpperCase() : ''
+  const aircraft = AIRCRAFT_DATA[typeCode]
+  const setView = useMapStore((s) => s.setView)
+
+  useEffect(() => {
+    setView({ mode: 'idle' })
+    return () => setView({ mode: 'idle' })
+  }, [setView])
+
+  if (!aircraft) {
+    return (
+      <section className="min-h-screen p-5 sm:p-8">
+        <Link href="/airlines" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55">
+          <ArrowLeft className="size-4" /> Back
+        </Link>
+        <div className="mt-10 rounded-2xl border border-red-400/20 bg-red-400/10 p-5 text-red-100">
+          Aircraft type "{typeCode}" not found in our database.
+        </div>
+      </section>
+    )
+  }
+
+  return (
+    <section className="min-h-screen p-5 sm:p-8">
+      <Link href="/airlines" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
+        <ArrowLeft className="size-4" /> Back
+      </Link>
+
+      <header className="mt-8 border-b border-white/10 pb-7">
+        <div className="flex items-start gap-4">
+          <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-[#1f88ff]/15 text-sm font-bold text-[#1f88ff]">
+            <Plane className="size-8" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">Aircraft</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight">{aircraft.name}</h1>
+            <p className="mt-2 text-sm text-white/45">{aircraft.manufacturer} · {aircraft.code}</p>
+          </div>
+        </div>
+      </header>
+
+      {/* Specifications Grid */}
+      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="rounded-2xl border border-white/10 bg-[#111217cc] p-6">
+          <p className="text-xs font-semibold uppercase tracking-[.2em] text-white/60">Engines</p>
+          <p className="mt-3 text-3xl font-bold">{aircraft.engines}</p>
+          <p className="mt-1 text-sm text-white/45">turbofan engines</p>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-[#111217cc] p-6">
+          <p className="text-xs font-semibold uppercase tracking-[.2em] text-white/60">Capacity</p>
+          <p className="mt-3 text-3xl font-bold">{aircraft.maxPassengers}</p>
+          <p className="mt-1 text-sm text-white/45">maximum passengers</p>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-[#111217cc] p-6">
+          <p className="text-xs font-semibold uppercase tracking-[.2em] text-white/60">Range</p>
+          <p className="mt-3 text-3xl font-bold">{aircraft.range}</p>
+          <p className="mt-1 text-sm text-white/45">nautical miles</p>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-[#111217cc] p-6">
+          <p className="text-xs font-semibold uppercase tracking-[.2em] text-white/60">Cruise Speed</p>
+          <p className="mt-3 text-3xl font-bold">{aircraft.cruiseSpeed}</p>
+          <p className="mt-1 text-sm text-white/45">knots</p>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-[#111217cc] p-6">
+          <p className="text-xs font-semibold uppercase tracking-[.2em] text-white/60">Service Ceiling</p>
+          <p className="mt-3 text-3xl font-bold">FL{Math.round(aircraft.maxAltitude / 100)}</p>
+          <p className="mt-1 text-sm text-white/45">{aircraft.maxAltitude.toLocaleString()} feet</p>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-[#111217cc] p-6">
+          <p className="text-xs font-semibold uppercase tracking-[.2em] text-white/60">Production</p>
+          <p className="mt-3 text-2xl font-bold">
+            {aircraft.inProduction ? (
+              <span className="text-[#4caf50]">Active</span>
+            ) : (
+              <span className="text-[#facc15]">Legacy</span>
+            )}
+          </p>
+          <p className="mt-1 text-sm text-white/45">
+            {aircraft.inProduction ? 'In production' : 'Out of production'}
+          </p>
+        </div>
+      </div>
+
+      {/* Performance Data */}
+      <div className="mt-8 rounded-2xl border border-white/10 bg-[#111217cc] p-6">
+        <h2 className="text-xl font-semibold mb-4">Performance Data</h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="border-l-4 border-[#1f88ff] pl-4">
+            <p className="text-sm text-white/60">Maximum Takeoff Weight</p>
+            <p className="mt-1 font-semibold text-white">
+              {aircraft.code === 'A320' && '73,500 kg'}
+              {aircraft.code === 'A321' && '93,500 kg'}
+              {aircraft.code === 'A359' && '280,000 kg'}
+              {aircraft.code === 'B738' && '79,000 kg'}
+              {aircraft.code === 'B77W' && '348,800 kg'}
+              {aircraft.code === 'B789' && '242,450 kg'}
+            </p>
+          </div>
+          <div className="border-l-4 border-[#4caf50] pl-4">
+            <p className="text-sm text-white/60">Fuel Capacity</p>
+            <p className="mt-1 font-semibold text-white">
+              {aircraft.code === 'A320' && '27,200 L'}
+              {aircraft.code === 'A321' && '32,850 L'}
+              {aircraft.code === 'A359' && '138,000 L'}
+              {aircraft.code === 'B738' && '26,730 L'}
+              {aircraft.code === 'B77W' && '181,300 L'}
+              {aircraft.code === 'B789' && '126,400 L'}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Usage Info */}
+      <div className="mt-8 rounded-2xl border border-white/10 bg-white/[.02] p-6">
+        <p className="text-sm text-white/60">
+          {aircraft.code === 'A320' && 'The most widely used commercial aircraft in the world. Short to medium-range airliner used by most airlines globally.'}
+          {aircraft.code === 'A321' && 'Stretched version of the A320 with increased capacity and range. Popular for both short and medium-haul routes.'}
+          {aircraft.code === 'A359' && 'Ultra-modern long-range wide-body aircraft. Known for efficiency and passenger comfort on long international routes.'}
+          {aircraft.code === 'B738' && 'One of the most successful commercial aircraft ever built. Short to medium-range workhorse of global aviation.'}
+          {aircraft.code === 'B77W' && 'Long-range wide-body twin-engine jet. Flagship aircraft for many premium international carriers.'}
+          {aircraft.code === 'B789' && 'State-of-the-art aircraft with advanced materials and composite construction. Ideal for long-haul operations with improved efficiency.'}
+        </p>
+      </div>
+    </section>
+  )
+}
+
+=== app/flights/[id]/simbrief/page.tsx ===
+'use client'
+
+import Link from 'next/link'
+import { useParams, useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { ArrowLeft, Upload, AlertCircle, CheckCircle } from 'lucide-react'
+import { toast } from 'sonner'
+
+interface SimBriefData {
+  origin: string
+  destination: string
+  airline: string
+  flightNumber: string
+  aircraft: string
+  flightTime: number
+}
+
+export default function SimBriefPage() {
+  const { id } = useParams<{ id: string }>()
+  const router = useRouter()
+  const [plnContent, setPlnContent] = useState('')
+  const [simBriefData, setSimBriefData] = useState<SimBriefData | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+
+  const parsePlnContent = (content: string): SimBriefData | null => {
+    try {
+      const lines = content.split('\n')
+      const data: any = {}
+
+      for (const line of lines) {
+        const [key, ...valueParts] = line.split('=')
+        if (key && valueParts.length > 0) {
+          data[key.trim()] = valueParts.join('=').trim()
+        }
+      }
+
+      return {
+        origin: data['DEP'] || data['ORIGIN'] || 'UNKNOWN',
+        destination: data['ARR'] || data['DESTINATION'] || 'UNKNOWN',
+        airline: data['AIRLINE'] || 'UNKNOWN',
+        flightNumber: data['FLIGHT'] || 'UNKNOWN',
+        aircraft: data['AIRCRAFT'] || 'UNKNOWN',
+        flightTime: parseInt(data['FLIGHTTIME'] || '0') || 0,
+      }
+    } catch (e) {
+      return null
+    }
+  }
+
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    e.preventDefault()
+    try {
+      const text = await navigator.clipboard.readText()
+      setPlnContent(text)
+    } catch (err) {
+      toast.error('Failed to read clipboard')
+    }
+  }
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const content = event.target?.result as string
+      setPlnContent(content)
+    }
+    reader.readAsText(file)
+  }
+
+  const handleImport = () => {
+    if (!plnContent.trim()) {
+      toast.error('Please paste or upload a flight plan')
+      return
+    }
+
+    setIsLoading(true)
+    const parsed = parsePlnContent(plnContent)
+
+    if (parsed) {
+      setSimBriefData(parsed)
+      toast.success('Flight plan imported successfully!')
+      setTimeout(() => {
+        router.push(`/flights/${id}/fly?simbrief=true`)
+      }, 1500)
+    } else {
+      toast.error('Invalid flight plan format')
+    }
+    setIsLoading(false)
+  }
+
+  return (
+    <section className="min-h-screen p-5 sm:p-8">
+      <Link href={`/flights/${id}`} className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
+        <ArrowLeft className="size-4" /> Back
+      </Link>
+
+      <header className="mt-8 mb-8">
+        <h1 className="text-3xl font-semibold">Import SimBrief Flight Plan</h1>
+        <p className="mt-2 text-white/45">Paste your flight plan or upload the .pln file to monitor your flight with real data.</p>
+      </header>
+
+      <div className="grid gap-8 lg:grid-cols-2">
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-dashed border-white/20 bg-white/5 p-8 text-center">
+            <Upload className="mx-auto mb-3 size-8 text-white/40" />
+            <p className="font-semibold">Drag and drop your .pln file</p>
+            <p className="mt-1 text-sm text-white/40">or click to browse</p>
+            <input
+              type="file"
+              accept=".pln,.txt"
+              onChange={handleFileUpload}
+              className="mt-4 block w-full text-sm text-white/60 file:mr-4 file:rounded-lg file:border-0 file:bg-[#1f88ff] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-[#1f88ff]/90"
+            />
+          </div>
+
+          <div className="text-center text-xs text-white/40">
+            or
+          </div>
+
+          <textarea
+            value={plnContent}
+            onChange={(e) => setPlnContent(e.target.value)}
+            onPaste={handlePaste}
+            placeholder="Paste your flight plan here or use Cmd+V after uploading..."
+            className="w-full h-48 rounded-2xl border border-white/10 bg-[#111217cc] p-4 text-sm text-white placeholder:text-white/40 outline-none focus:border-[#1f88ff]/60"
+          />
+
+          <button
+            onClick={handleImport}
+            disabled={isLoading}
+            className="w-full flex items-center justify-center gap-2 min-h-12 rounded-xl bg-[#1f88ff] font-semibold text-white transition hover:bg-[#1f88ff]/90 disabled:opacity-50"
+          >
+            {isLoading ? 'Importing...' : 'Import Flight Plan'}
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          {simBriefData ? (
+            <div className="rounded-2xl border border-[#4caf50]/20 bg-[#4caf50]/5 p-6 space-y-4">
+              <div className="flex items-center gap-2 text-[#4caf50]">
+                <CheckCircle className="size-5" />
+                <p className="font-semibold">Flight plan imported</p>
+              </div>
+
+              <div className="grid gap-3 text-sm">
+                <div>
+                  <p className="text-white/50">Origin</p>
+                  <p className="text-lg font-semibold">{simBriefData.origin}</p>
+                </div>
+                <div>
+                  <p className="text-white/50">Destination</p>
+                  <p className="text-lg font-semibold">{simBriefData.destination}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-white/50 text-xs">Flight</p>
+                    <p className="font-semibold">{simBriefData.airline}{simBriefData.flightNumber}</p>
+                  </div>
+                  <div>
+                    <p className="text-white/50 text-xs">Aircraft</p>
+                    <p className="font-semibold">{simBriefData.aircraft}</p>
+                  </div>
+                </div>
+                {simBriefData.flightTime > 0 && (
+                  <div>
+                    <p className="text-white/50 text-xs">Flight Time</p>
+                    <p className="font-semibold">{Math.floor(simBriefData.flightTime / 60)}h {simBriefData.flightTime % 60}m</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-white/10 bg-white/[.02] p-6 text-center text-white/40">
+              <AlertCircle className="mx-auto mb-3 size-8" />
+              <p className="text-sm">Flight plan preview will appear here</p>
+            </div>
+          )}
+
+          <div className="rounded-2xl border border-white/10 bg-white/[.02] p-4 text-xs text-white/60 space-y-2">
+            <p className="font-semibold text-white/80">Supported Formats:</p>
+            <ul className="list-disc list-inside space-y-1">
+              <li>SimBrief (.pln files)</li>
+              <li>Text files with KEY=VALUE format</li>
+              <li>Any flight plan with route information</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-8 rounded-2xl border border-white/10 bg-white/[.02] p-4 text-center text-sm text-white/50">
+        <p>💡 Importing a flight plan will replace the default flight data with your SimBrief plan.</p>
+      </div>
+    </section>
+  )
+}
+
+=== app/random/page.tsx ===
+'use client'
+
+import Link from 'next/link'
+import { useState } from 'react'
+import useSWR from 'swr'
+import { Shuffle } from 'lucide-react'
+import { BoardingPass } from '@/components/BoardingPass'
+import { estimateBlockMinutes } from '@/lib/flight-time'
+
+type A = { id: string; name: string; iata: string; icao: string; active: boolean; numRoutes: number }
+type Ap = { iata?: string; city?: string; name?: string; lat?: number; lon?: number }
+type R = { from: string; to: string; fromAirport?: Ap; toAirport?: Ap; aircraft?: string[] }
+type Result = { airline: A; route: R; nm: number; min: number }
+
+const fetcher = (u: string) => fetch(u).then((r) => r.json())
+const norm = (s = '') => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)]
+const BUCKETS = [['any', 'Surprise me'], ['short', 'Under 2h'], ['medium', '2–5h'], ['long', '5h+']] as const
+
+function nmBetween(a?: Ap, b?: Ap) {
+  if (a?.lat == null || a?.lon == null || b?.lat == null || b?.lon == null) return 0
+  const r = Math.PI / 180
+  const h = Math.sin(((b.lat - a.lat) * r) / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(((b.lon - a.lon) * r) / 2) ** 2
+  return Math.round(2 * 3440.07 * Math.asin(Math.sqrt(h)))
+}
+
+export default function RandomPage() {
+  const { data } = useSWR<A[]>('/api/airlines', fetcher)
+  const list = Array.isArray(data) ? data : []
+  const [q, setQ] = useState('')
+  const [chosen, setChosen] = useState<A | null>(null)
+  const [airport, setAirport] = useState('')
+  const [time, setTime] = useState<'any' | 'short' | 'medium' | 'long'>('any')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  const [res, setRes] = useState<Result | null>(null)
+
+  const nq = norm(q.trim())
+  const suggestions = nq && !chosen ? list.filter((a) => norm(`${a.name} ${a.iata} ${a.icao}`).includes(nq)).slice(0, 5) : []
+
+  const generate = async () => {
+    setBusy(true); setMsg(''); setRes(null)
+    const airline = chosen || suggestions[0] || null
+    const pool = airline ? [airline] : list.filter((a) => a.active && a.numRoutes > 0).sort(() => Math.random() - 0.5).slice(0, 15)
+    const na = norm(airport.trim())
+    for (const a of pool) {
+      const d = await fetch(`/api/airlines/${a.id}`).then((r) => r.json()).catch(() => null)
+      const routes: R[] = d?.routes || []
+      const ok: Result[] = []
+      for (const r of routes) {
+        if (na && ![r.from, r.to, r.fromAirport?.city, r.toAirport?.city, r.fromAirport?.name, r.toAirport?.name].some((x) => norm(x || '').includes(na))) continue
+        const nm = nmBetween(r.fromAirport, r.toAirport)
+        const min = nm ? estimateBlockMinutes(nm, r.aircraft?.[0] || '') : 0
+        if (time !== 'any' && min) {
+          if (time === 'short' && min >= 120) continue
+          if (time === 'medium' && (min < 120 || min > 300)) continue
+          if (time === 'long' && min <= 300) continue
+        }
+        ok.push({ airline: a, route: r, nm, min })
+      }
+      if (ok.length) { setRes(pick(ok)); setBusy(false); return }
+    }
+    setMsg('No route matched. Loosen your choices and try again.')
+    setBusy(false)
+  }
+
+  const input = 'w-full rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-white outline-none placeholder:text-white/40 focus:border-[#1f88ff]'
+
+  return (
+    <section className="min-h-screen p-5 pb-32 sm:p-8">
+      <p className="text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">Random</p>
+      <h1 className="mt-2 text-4xl font-semibold">Pick a flight for me</h1>
+
+      <div className="mt-6 space-y-4">
+        <div>
+          <p className="mb-1 text-xs text-white/50">Airline</p>
+          <input className={input} placeholder="Surprise me" value={chosen ? chosen.name : q} onChange={(e) => { setChosen(null); setQ(e.target.value) }} />
+          {suggestions.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {suggestions.map((a) => (
+                <button key={a.id} onClick={() => { setChosen(a); setQ(a.name) }} className="rounded-lg border border-white/15 bg-white/10 px-2 py-1 text-xs">{a.name}</button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div>
+          <p className="mb-1 text-xs text-white/50">Airport or city</p>
+          <input className={input} placeholder="Surprise me" value={airport} onChange={(e) => setAirport(e.target.value)} />
+        </div>
+        <div>
+          <p className="mb-1 text-xs text-white/50">Flight time</p>
+          <div className="flex flex-wrap gap-2">
+            {BUCKETS.map(([k, label]) => (
+              <button key={k} onClick={() => setTime(k)} className={`rounded-xl border px-3 py-2 text-sm ${time === k ? 'border-[#1f88ff] bg-[#1f88ff]/20' : 'border-white/10 bg-white/5'}`}>{label}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {msg && <p className="mt-4 text-sm text-red-300">{msg}</p>}
+
+      {res && (
+        <div className="mt-8">
+          <BoardingPass
+            data={{
+              from: res.route.from, to: res.route.to, fromCity: res.route.fromAirport?.city, toCity: res.route.toAirport?.city,
+              airline: res.airline.name, flight: res.airline.iata, aircraft: res.route.aircraft?.[0], distanceNm: res.nm,
+              date: new Date().toISOString().slice(0, 10),
+            }}
+          />
+          <Link href={`/route/${res.airline.iata || res.airline.id}/${res.route.from}-${res.route.to}`} className="mt-4 flex min-h-12 items-center justify-center rounded-xl bg-[#1f88ff] font-medium">
+            Open route
+          </Link>
+        </div>
+      )}
+
+      <button onClick={generate} disabled={busy || !list.length} className="mt-8 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-white font-semibold text-black disabled:opacity-40">
+        <Shuffle className="size-4" /> {busy ? 'Searching...' : res ? 'Generate another' : 'Generate route'}
+      </button>
+    </section>
+  )
+}
+=== app/login/page.tsx ===
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { supabase } from '@/lib/supabase'
+
+const safeNext = () => {
+  try {
+    const n = new URLSearchParams(window.location.search).get('next') || '/'
+    return n.startsWith('/') && !n.startsWith('//') ? n : '/'
+  } catch {
+    return '/'
+  }
+}
+
+export default function LoginPage() {
+  const router = useRouter()
+  const [mode, setMode] = useState<'in' | 'up'>('in')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [msg, setMsg] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [user, setUser] = useState<string | null>(null)
+  const [needsLogin, setNeedsLogin] = useState(false)
+
+  useEffect(() => {
+    setNeedsLogin(new URLSearchParams(window.location.search).has('next'))
+    supabase.auth.getUser().then(({ data }) => setUser(data.user?.email ?? null))
+  }, [])
+
+  const submit = async () => {
+    setBusy(true)
+    setMsg('')
+    const { data, error } =
+      mode === 'in'
+        ? await supabase.auth.signInWithPassword({ email, password })
+        : await supabase.auth.signUp({ email, password })
+    setBusy(false)
+    if (error) return setMsg(error.message)
+    if (mode === 'up' && !data.session) return setMsg('Check your email to confirm your account, then sign in.')
+    router.push(safeNext())
+  }
+
+  const signOut = async () => {
+    await supabase.auth.signOut()
+    setUser(null)
+  }
+
+  const input = 'w-full rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-white outline-none focus:border-[#1f88ff]'
+
+  return (
+    <section className="min-h-screen p-5 sm:p-8">
+      <div className="mx-auto mt-10 max-w-sm rounded-2xl border border-white/10 bg-black/50 p-6">
+        <img src="/logo.png" alt="MyRoster" className="mb-5 h-12 w-auto" />
+        {user ? (
+          <>
+            <h1 className="text-2xl font-semibold">Signed in</h1>
+            <p className="mt-2 text-sm text-white/60">{user}</p>
+            <button onClick={() => router.push(safeNext())} className="mt-6 w-full rounded-xl bg-[#1f88ff] px-4 py-3 text-sm font-semibold">
+              Continue
+            </button>
+            <button onClick={signOut} className="mt-3 w-full rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-medium">
+              Sign out
+            </button>
+          </>
+        ) : (
+          <>
+            <h1 className="text-2xl font-semibold">{mode === 'in' ? 'Sign in' : 'Create account'}</h1>
+            {needsLogin && <p className="mt-2 text-sm text-white/50">Sign in to plan and log your flights.</p>}
+            <div className="mt-6 space-y-3">
+              <input className={input} type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <input className={input} type="password" placeholder="Password (min. 6 characters)" value={password} onChange={(e) => setPassword(e.target.value)} />
+            </div>
+            {msg && <p className="mt-3 text-sm text-red-300">{msg}</p>}
+            <button onClick={submit} disabled={busy || !email || !password} className="mt-5 w-full rounded-xl bg-[#1f88ff] px-4 py-3 text-sm font-semibold disabled:opacity-40">
+              {busy ? '...' : mode === 'in' ? 'Sign in' : 'Sign up'}
+            </button>
+            <button onClick={() => setMode(mode === 'in' ? 'up' : 'in')} className="mt-4 w-full text-sm text-[#55a7ff]">
+              {mode === 'in' ? 'No account? Create one' : 'Already have an account? Sign in'}
+            </button>
+            <p className="mt-5 text-center text-xs leading-relaxed text-white/45">
+              By {mode === 'in' ? 'signing in' : 'creating an account'}, you agree to our{' '}
+              <Link href="/terms" className="text-[#55a7ff] underline">Terms &amp; Conditions</Link> and{' '}
+              <Link href="/privacy" className="text-[#55a7ff] underline">Privacy Policy</Link>. See also our{' '}
+              <Link href="/cookies" className="text-[#55a7ff] underline">Cookie Policy</Link>.
+            </p>
+          </>
+        )}
+      </div>
+    </section>
+  )
+}
