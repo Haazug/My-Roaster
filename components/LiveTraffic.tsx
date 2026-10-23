@@ -3,6 +3,7 @@
 import useSWR from 'swr'
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Radio } from 'lucide-react'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -16,6 +17,17 @@ export default function LiveTraffic({ getCenter }: { getCenter: () => { lat: num
     { refreshInterval: 15000 },
   )
   const aircraft: Ac[] = data?.data ?? []
+  const router = useRouter()
+  const openAircraft = async (a: Ac) => {
+    try {
+      if (a.callsign) {
+        const j = await fetch(`/api/live/flight/${encodeURIComponent(a.callsign)}`).then((r) => r.json())
+        const f = j?.data
+        if (f) return router.push(`/route/${f.airlineIata || f.airlineIcao}/${f.from}-${f.to}`)
+      }
+    } catch {}
+    router.push(`/live/${a.hex}`)
+  }
 
   return (
     <div className="pointer-events-auto absolute right-4 top-20 z-10 flex max-w-[60vw] flex-col items-end gap-2">
@@ -32,10 +44,10 @@ export default function LiveTraffic({ getCenter }: { getCenter: () => { lat: num
         </p>
       )}
       {center && aircraft.slice(0, 8).map((a) => (
-        <Link key={a.hex} href={`/live/${a.hex}`} className="flex min-h-11 items-center gap-2 rounded-lg bg-black/70 px-3 text-xs text-white">
+        <button key={a.hex} onClick={() => openAircraft(a)} className="flex min-h-11 items-center gap-2 rounded-lg bg-black/70 px-3 text-xs text-white">
           <span className="size-2 rounded-full bg-cyan-300" aria-hidden="true" />
           {a.callsign || a.hex} · {a.onGround || a.altFt == null ? 'ground' : `FL${Math.round(a.altFt / 100)}`}
-        </Link>
+        </button>
       ))}
     </div>
   )

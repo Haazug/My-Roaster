@@ -6,17 +6,19 @@ import useSWR from 'swr'
 import { ArrowLeft, ChevronRight, RadioTower, ExternalLink } from 'lucide-react'
 import { useEffect } from 'react'
 import { useMapStore, type Point } from '@/lib/map-store'
+import { AirlineLogo } from '@/components/AirlineLogo'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 type Airport = { iata: string; icao: string; name: string; city: string; country: string; lat: number; lon: number; routes?: number }
-type Route = { from: string; to: string; fromAirport?: Airport; toAirport?: Airport }
+type Route = { from: string; to: string; fromAirport?: Airport; toAirport?: Airport; airlines?: { id: string; iata: string; icao: string; name: string }[] }
 type AirportDetail = { airport: Airport; routes: Route[]; nearby?: Airport[] }
 
 export default function AirportDetailPage() {
   const { code } = useParams<{ code: string }>()
   const decoded = code ? decodeURIComponent(code).toUpperCase() : ''
   const { data, error } = useSWR(decoded ? `/api/airports/${decoded}` : null, fetcher)
+  const { data: liveData } = useSWR(decoded ? `/api/airports/${decoded}/live` : null, fetcher, { refreshInterval: 60000 })
   const setView = useMapStore((s) => s.setView)
 
   useEffect(() => {
@@ -54,6 +56,7 @@ export default function AirportDetailPage() {
   const airport = data.airport as Airport
   const routes = (data.routes as Route[]) || []
   const nearby = (data.nearby as Airport[]) || []
+  const liveFlights: any[] = liveData?.data || []
 
   return (
     <section className="min-h-screen p-5 sm:p-8">
@@ -74,23 +77,42 @@ export default function AirportDetailPage() {
         </div>
       </header>
 
+      {liveFlights.length > 0 && (
+        <div className="mt-8">
+          <h2 className="mb-4 flex items-center gap-2 text-xl font-semibold"><span className="size-2 animate-pulse rounded-full bg-[#4caf50]" />Live now</h2>
+          <div className="flex flex-col gap-2">
+            {liveFlights.map((f) => (
+              <Link key={f.hex} href={`/route/${f.airlineIata || f.airlineIcao}/${f.from}-${f.to}`} className="flex items-center gap-3 rounded-2xl border border-[#4caf50]/30 bg-[#4caf50]/5 p-4 transition hover:border-[#4caf50]/60">
+                <AirlineLogo iata={f.airlineIata} icao={f.airlineIcao} name={f.airlineName} size="sm" showText={false} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 font-semibold"><span>{f.from}</span><span className="text-[#1f88ff]">→</span><span>{f.to}</span><span className="text-xs font-normal text-white/45">{f.callsign}</span></div>
+                  <p className="mt-1 truncate text-sm text-white/45">{f.airlineName} · {f.fromCity} → {f.toCity}</p>
+                </div>
+                <span className="shrink-0 text-xs text-[#4caf50]">{f.onGround ? 'On ground' : f.altFt != null ? `FL${Math.round(f.altFt / 100)}` : 'Airborne'}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
       {routes.length > 0 && (
         <div className="mt-8">
           <h2 className="text-xl font-semibold mb-4">Departures & Arrivals</h2>
           <div className="flex flex-col gap-2">
-            {routes.slice(0, 20).map((route, idx) => (
-              <Link key={idx} href={`/routes/${route.from}-${route.to}`} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#111217cc] p-4 transition hover:border-[#1f88ff]/60">
+            {routes.slice(0, 40).map((route, idx) => (
+              <Link key={idx} href={route.airlines?.length ? `/route/${route.airlines[0].iata || route.airlines[0].id}/${route.from}-${route.to}` : `/routes/${route.from}-${route.to}`} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#111217cc] p-4 transition hover:border-[#1f88ff]/60">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-3 font-semibold">
                     <span>{route.from}</span><span className="text-[#1f88ff]">→</span><span>{route.to}</span>
                   </div>
                   <p className="mt-1 text-sm text-white/45">{route.fromAirport?.city} → {route.toAirport?.city}</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-1">{(route.airlines || []).slice(0, 5).map((a) => <AirlineLogo key={a.id} iata={a.iata} icao={a.icao} name={a.name} size="sm" showText={false} />)}{(route.airlines?.length || 0) > 5 && <span className="text-xs text-white/40">+{route.airlines!.length - 5}</span>}</div>
                 </div>
                 <ChevronRight className="size-5 shrink-0 text-white/30" />
               </Link>
             ))}
           </div>
-          {routes.length > 20 && <p className="mt-4 text-sm text-white/40">+{routes.length - 20} more routes</p>}
+          {routes.length > 40 && <p className="mt-4 text-sm text-white/40">+{routes.length - 40} more routes</p>}
         </div>
       )}
 

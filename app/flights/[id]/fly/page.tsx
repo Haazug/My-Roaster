@@ -8,7 +8,8 @@ import { toast } from 'sonner'
 import { AirlineLogo } from '@/components/AirlineLogo'
 import { taxiMinutes } from '@/lib/flight-time'
 import { useMapStore } from '@/lib/map-store'
-import { useT } from '@/lib/i18n'
+import { useT, useLang } from '@/lib/i18n'
+import { CABIN } from '@/lib/extra-i18n'
 import * as sound from '@/lib/sound'
 import { useLocalStorage } from '@/lib/use-local-storage'
 
@@ -42,6 +43,7 @@ type FlightInfo = {
   aircraft: string
   durationMin: number
   distanceNm: number
+  altitude?: number
   fromLat?: number
   fromLon?: number
   toLat?: number
@@ -80,6 +82,10 @@ export default function FlyNowPage() {
   const [logs, setLogs] = useLocalStorage<any[]>('myroster.logs', [])
   const fired = useRef<Set<string>>(new Set())
   const saved = useRef(false)
+  const stepLog = useRef<Record<string, { status: string; at: number }>>({})
+  const startedAt = useRef(Date.now())
+  const nextCabin = useRef<number | null>(null)
+  const lang = useLang((s) => s.lang)
 
   // Load the plan saved by the Flight Plan page (for flights that are not samples)
   useEffect(() => {
@@ -100,7 +106,7 @@ export default function FlyNowPage() {
               toCity: p.toCity || p.to || '',
               aircraft: p.aircraft || '',
               durationMin: p.durationMin || 60,
-              distanceNm: p.distanceNm || 0, free: !!p.free,
+              distanceNm: p.distanceNm || 0, free: !!p.free, altitude: p.altitude,
               fromLat: p.fromLat, fromLon: p.fromLon, toLat: p.toLat, toLon: p.toLon,
               waypoints: Array.isArray(p.waypoints) ? p.waypoints : undefined,
             })
@@ -187,6 +193,26 @@ export default function FlyNowPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [elapsed, takeoffAt, statuses])
 
+  // random cabin announcements during the cruise (ding + toast + notification)
+  useEffect(() => {
+    if (!takeoffAt || !totalMs || finished) return
+    const frac = elapsed / totalMs
+    if (frac < 0.12 || frac > 0.78) return
+    const mins = elapsed / 60000
+    const gap = () => {
+      const lo = Math.min(10, Math.max(2, airborneMin / 8))
+      const hi = Math.min(22, Math.max(4, airborneMin / 4))
+      return lo + Math.random() * (hi - lo)
+    }
+    if (nextCabin.current === null) nextCabin.current = mins + gap()
+    if (mins >= nextCabin.current) {
+      nextCabin.current = mins + gap()
+      const pack = CABIN[lang] || CABIN.en
+      notify(pack.title, pack.lines[Math.floor(Math.random() * pack.lines.length)])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [elapsed, takeoffAt, finished])
+
   // When every step is handled, save the flight to history
   useEffect(() => {
     if (!info || saved.current) return
@@ -206,6 +232,16 @@ export default function FlyNowPage() {
       fromCity: info.fromCity,
       toCity: info.toCity,
       rating: 0, free: !!info.free,
+      summary: {
+        startedAt: startedAt.current,
+        takeoffAt: takeoffAt || null,
+        landingAt: stepLog.current['Landing']?.at || null,
+        endedAt: Date.now(),
+        plannedMin: info.durationMin,
+        airborneMin,
+        altitude: info.altitude || null,
+        steps: stepLog.current,
+      },
     }
     setLogs([entry, ...logs])
     setLogId(entryId)
@@ -226,6 +262,7 @@ export default function FlyNowPage() {
   const mark = (key: string, status: Status) => {
     sound.unlock()
     askPermission()
+    stepLog.current[key] = { status, at: Date.now() }
     setStatuses((prev) => ({ ...prev, [key]: status }))
     if (key === 'Takeoff') {
       const t0 = Date.now()
@@ -241,7 +278,7 @@ export default function FlyNowPage() {
     setStatuses((prev) => {
       const next = { ...prev }
       STEPS.slice(0, 3).forEach((s) => {
-        if (!next[s.key]) next[s.key] = 'skipped'
+        if (!next[s.key]) { next[s.key] = 'skipped'; stepLog.current[s.key] = { status: 'skipped', at: Date.now() } }
       })
       return next
     })
@@ -322,7 +359,7 @@ export default function FlyNowPage() {
           </div>
           <p className="mt-2 text-xs text-white/40">{tr('fly.rateHint', { n: rating })}</p>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
-            <Link href="/logs" className="rounded-xl bg-[#1f88ff] px-6 py-3 text-sm font-semibold">
+            <Link href={logId ? '/logs/' + encodeURIComponent(logId) : '/logs'} className="rounded-xl bg-[#1f88ff] px-6 py-3 text-sm font-semibold">
               {tr('fly.viewLogs')}
             </Link>
             <Link href="/" className="rounded-xl border border-white/15 bg-white/10 px-6 py-3 text-sm font-medium">

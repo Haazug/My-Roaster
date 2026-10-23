@@ -18,7 +18,7 @@ export default function LiveAircraftPage() {
     const fetchAircraft = async () => {
       if (!hex) return
       setLoading(true)
-      const data = await getAircraftByHex((hex as string).toUpperCase())
+      const data = await fetch(`/api/live/hex/${(hex as string).toUpperCase()}`).then((r) => r.json()).then((j) => { const a = j?.data?.[0]; return a ? ({ ...a, alt: a.altFt } as LiveAircraft) : null }).catch(() => null)
       setAircraft(data)
       setLastUpdate(new Date().toLocaleTimeString())
       setLoading(false)
@@ -50,7 +50,7 @@ export default function LiveAircraftPage() {
           <ArrowLeft className="size-4" /> Back
         </Link>
         <div className="mt-10 rounded-2xl border border-red-400/20 bg-red-400/10 p-5 text-red-100">
-          Aircraft {hex} not found in live traffic.
+          {String(hex).toUpperCase()} is no longer in live traffic. The aircraft may have landed or left the coverage area.
         </div>
       </section>
     )
