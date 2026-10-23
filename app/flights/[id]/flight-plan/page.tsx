@@ -6,7 +6,8 @@ import { ArrowLeft, Upload } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { parsePLNFile } from '@/lib/flight-plan-parser'
 import { matchAircraft } from '@/lib/aircraft-db'
-import { estimateBlockMinutes, parseSpeed } from '@/lib/flight-time'
+import { estimateBlockMinutes, parseSpeedAt } from '@/lib/flight-time'
+import { useT } from '@/lib/i18n'
 import { BoardingPass } from '@/components/BoardingPass'
 import { AirportInput, nmBetween, type Ap } from '@/components/AirportInput'
 
@@ -31,6 +32,7 @@ export default function FlightPlanPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const pathname = usePathname()
+  const t = useT()
   const [authed, setAuthed] = useState(false)
   const [seed, setSeed] = useState<any>(null)
   const [geo, setGeo] = useState<Geo | null>(null)
@@ -87,12 +89,12 @@ export default function FlightPlanPage() {
   // recalculate gate-to-gate time when distance, aircraft or speed change
   useEffect(() => {
     if (geo?.distanceNm && (acName || !form.aircraft.trim())) {
-      const speedKt = parseSpeed(form.speed) || undefined
-      setForm((f) => ({ ...f, duration: estimateBlockMinutes(geo.distanceNm, acName, { speedKt }) }))
+      const speedKt = parseSpeedAt(form.speed, form.fl) || undefined
+      setForm((f) => ({ ...f, duration: estimateBlockMinutes(geo.distanceNm, acName, { speedKt, fl: form.fl }) }))
     }
-  }, [geo, acName, form.speed])
+  }, [geo, acName, form.speed, form.fl])
 
-  const launch = (o: { from: string; to: string; fromCity: string; toCity: string; aircraft: string; fl: number; distanceNm: number; durationMin: number }) => {
+  const launch = (o: { from: string; to: string; fromCity: string; toCity: string; aircraft: string; fl: number; distanceNm: number; durationMin: number; fromLat?: number; fromLon?: number; toLat?: number; toLon?: number; waypoints?: { id?: string; lat: number; lon: number }[] }) => {
     try {
       localStorage.setItem(
         'myroster.activePlan',
@@ -103,6 +105,7 @@ export default function FlightPlanPage() {
           flightNumber: form.flight.replace(/^[A-Za-z]+/, ''),
           from: o.from, to: o.to, fromCity: o.fromCity, toCity: o.toCity,
           aircraft: o.aircraft, altitude: o.fl * 100, distanceNm: o.distanceNm, durationMin: o.durationMin,
+          fromLat: o.fromLat, fromLon: o.fromLon, toLat: o.toLat, toLon: o.toLon, waypoints: o.waypoints,
         })
       )
     } catch {}
@@ -110,10 +113,10 @@ export default function FlightPlanPage() {
   }
 
   const createPlan = () => {
-    if (!form.dep.trim() || !form.arr.trim()) return setError('Enter origin and destination')
-    if (form.aircraft.trim() && ac.status === 'none') return setError(`"${form.aircraft}" is not a known aircraft type.`)
-    if (form.aircraft.trim() && !acName) return setError('Please confirm the aircraft type above (or clear the field).')
-    if (!form.duration) return setError('Enter the block time')
+    if (!form.dep.trim() || !form.arr.trim()) return setError(t('plan.errAirports'))
+    if (form.aircraft.trim() && ac.status === 'none') return setError(t('plan.unknownAc', { name: form.aircraft }))
+    if (form.aircraft.trim() && !acName) return setError(t('plan.errConfirm'))
+    if (!form.duration) return setError(t('plan.errBlock'))
     setError('')
     setReady(true)
   }
@@ -125,25 +128,44 @@ export default function FlightPlanPage() {
       from: geo?.fromIata || dep, to: geo?.toIata || arr,
       fromCity: geo?.fromCity || dep, toCity: geo?.toCity || arr,
       aircraft: acName, fl: form.fl, distanceNm: geo?.distanceNm || 0, durationMin: form.duration,
+      fromLat: fromAp?.lat, fromLon: fromAp?.lon, toLat: toAp?.lat, toLon: toAp?.lon,
     })
 
+  // .pln: the waypoints are read, the route is recalculated through them and drawn on the globe
+  const [pln, setPln] = useState<{ from: string; to: string; fl: number; distance: number; direct: number; wps: { id?: string; lat: number; lon: number }[] } | null>(null)
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+    e.target.value = ''
     if (!file) return
     try {
       setError('')
       const p = parsePLNFile(await file.text())
-      launch({
-        from: p.departure, to: p.arrival, fromCity: p.departure, toCity: p.arrival,
-        aircraft: acName, fl: Math.round(p.cruiseAltitude / 100), distanceNm: p.distance,
-        durationMin: p.distance ? estimateBlockMinutes(p.distance, acName, { routed: true, speedKt: parseSpeed(form.speed) || undefined }) : form.duration,
-      })
+      const wps = (p.waypoints || []).filter((w) => w && isFinite(w.latitude) && isFinite(w.longitude) && (w.latitude !== 0 || w.longitude !== 0)).map((w) => ({ id: w.id, lat: w.latitude, lon: w.longitude }))
+      let direct = 0
+      if (wps.length > 1) direct = nmBetween({ lat: wps[0].lat, lon: wps[0].lon } as Ap, { lat: wps[wps.length - 1].lat, lon: wps[wps.length - 1].lon } as Ap)
+      let route = 0
+      for (let i = 1; i < wps.length; i++) route += nmBetween({ lat: wps[i - 1].lat, lon: wps[i - 1].lon } as Ap, { lat: wps[i].lat, lon: wps[i].lon } as Ap)
+      if (!route) route = p.distance || 0
+      setPln({ from: p.departure, to: p.arrival, fl: Math.round(p.cruiseAltitude / 100), distance: route, direct, wps })
+      setReady(false)
     } catch {
-      setError('Could not read this .pln file')
+      setError(t('plan.errPln'))
     }
   }
+  const plnFl = pln?.fl || form.fl
+  const plnMin = pln ? (pln.distance ? estimateBlockMinutes(pln.distance, acName, { routed: true, fl: plnFl, speedKt: parseSpeedAt(form.speed, plnFl) || undefined }) : form.duration) : 0
+  const plnLaunch = () => {
+    if (!pln) return
+    const f = pln.wps[0]
+    const l = pln.wps[pln.wps.length - 1]
+    launch({
+      from: pln.from, to: pln.to, fromCity: pln.from, toCity: pln.to,
+      aircraft: acName, fl: plnFl, distanceNm: pln.distance, durationMin: plnMin,
+      fromLat: f?.lat, fromLon: f?.lon, toLat: l?.lat, toLon: l?.lon, waypoints: pln.wps,
+    })
+  }
 
-  if (!authed) return <section className="min-h-screen p-5 text-white/40 sm:p-8">Checking your account...</section>
+  if (!authed) return <section className="min-h-screen p-5 text-white/40 sm:p-8">{t('plan.checking')}</section>
 
   const [h, mi] = form.time.split(':').map(Number)
   const depMin = (h || 0) * 60 + (mi || 0)
@@ -151,32 +173,32 @@ export default function FlightPlanPage() {
   return (
     <section className="min-h-screen p-5 sm:p-8">
       <button onClick={() => router.back()} className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
-        <ArrowLeft className="size-4" /> Back
+        <ArrowLeft className="size-4" /> {t('back')}
       </button>
-      <h1 className="mt-4 text-2xl font-semibold">Flight Plan</h1>
-      <p className="mt-1 text-sm text-white/50">Flight {id}</p>
+      <h1 className="mt-4 text-2xl font-semibold">{t('plan.title')}</h1>
+      <p className="mt-1 text-sm text-white/50">{t('plan.flight', { id: String(id) })}</p>
 
       <div className="mt-6 rounded-2xl border border-white/10 bg-black/40 p-5">
-        <h2 className="text-sm font-medium text-white/70">Upload .pln file</h2>
-        <p className="mb-3 mt-1 text-xs text-white/40">MSFS or SimBrief. Set the aircraft below first. You go straight to the flight clock.</p>
+        <h2 className="text-sm font-medium text-white/70">{t('plan.uploadTitle')}</h2>
+        <p className="mb-3 mt-1 text-xs text-white/40">{t('plan.uploadHint')}</p>
         <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-[#1f88ff] px-4 py-2 text-sm font-medium">
-          <Upload className="size-4" /> Choose file
+          <Upload className="size-4" /> {t('plan.choose')}
           <input type="file" accept=".pln,.xml" onChange={handleFile} className="hidden" />
         </label>
       </div>
 
       <div className="mt-4 rounded-2xl border border-white/10 bg-black/40 p-5">
-        <h2 className="mb-3 text-sm font-medium text-white/70">Or enter manually</h2>
+        <h2 className="mb-3 text-sm font-medium text-white/70">{t('plan.manual')}</h2>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Flight number (optional)"><input className={inputCls} placeholder="e.g. DT653" value={form.flight} onChange={(e) => set('flight', e.target.value)} /></Field>
-          <Field label="Departure time"><input className={inputCls} type="time" value={form.time} onChange={(e) => set('time', e.target.value)} /></Field>
-          <Field label="Origin (IATA, ICAO or city)"><AirportInput value={form.dep} onChange={(v) => set('dep', v)} onResolve={setFromAp} className={inputCls} /></Field>
-          <Field label="Destination (IATA, ICAO or city)"><AirportInput value={form.arr} onChange={(v) => set('arr', v)} onResolve={setToAp} className={inputCls} /></Field>
-          <Field label="Aircraft (optional)" className="col-span-2">
-            <input className={inputCls} placeholder="e.g. Airbus A380" value={form.aircraft} onChange={(e) => set('aircraft', e.target.value)} />
+          <Field label={t('plan.flightNo')}><input className={inputCls} placeholder={t('plan.flightNoPh')} value={form.flight} onChange={(e) => set('flight', e.target.value)} /></Field>
+          <Field label={t('plan.time')}><input className={inputCls} type="time" value={form.time} onChange={(e) => set('time', e.target.value)} /></Field>
+          <Field label={t('plan.origin')}><AirportInput value={form.dep} onChange={(v) => set('dep', v)} onResolve={setFromAp} className={inputCls} /></Field>
+          <Field label={t('plan.dest')}><AirportInput value={form.arr} onChange={(v) => set('arr', v)} onResolve={setToAp} className={inputCls} /></Field>
+          <Field label={t('plan.aircraft')} className="col-span-2">
+            <input className={inputCls} placeholder={t('plan.aircraftPh')} value={form.aircraft} onChange={(e) => set('aircraft', e.target.value)} />
             {ac.status === 'exact' && ac.match && <p className="mt-1 text-xs text-[#4caf50]">✓ {ac.match.name} · {ac.match.icao}</p>}
             {ac.status === 'fuzzy' && ac.match && (
-              <button type="button" onClick={() => set('aircraft', ac.match!.name)} className="mt-1 text-xs text-[#55a7ff]">Did you mean {ac.match.name}?</button>
+              <button type="button" onClick={() => set('aircraft', ac.match!.name)} className="mt-1 text-xs text-[#55a7ff]">{t('plan.didYouMean', { name: ac.match.name })}</button>
             )}
             {ac.status === 'family' && (
               <div className="mt-2 flex flex-wrap gap-2">
@@ -185,30 +207,57 @@ export default function FlightPlanPage() {
                 ))}
               </div>
             )}
-            {ac.status === 'none' && form.aircraft.trim() && <p className="mt-1 text-xs text-red-300">"{form.aircraft}" is not a known aircraft type.</p>}
+            {ac.status === 'none' && form.aircraft.trim() && <p className="mt-1 text-xs text-red-300">{t('plan.unknownAc', { name: form.aircraft })}</p>}
           </Field>
-          <Field label="Cruise level (FL)"><input className={inputCls} type="number" value={form.fl} onChange={(e) => set('fl', Number(e.target.value))} /></Field>
-          <Field label="Cruise speed (Mach or kt, optional)"><input className={inputCls} placeholder="M.82 or 450" value={form.speed} onChange={(e) => set('speed', e.target.value)} /></Field>
+          <Field label={t('plan.fl')}><input className={inputCls} type="number" value={form.fl} onChange={(e) => set('fl', Number(e.target.value))} /></Field>
+          <Field label={t('plan.speed')}><input className={inputCls} placeholder="M.82 or 450" value={form.speed} onChange={(e) => set('speed', e.target.value)} /></Field>
         </div>
 
         <div className="mt-4 grid grid-cols-4 rounded-2xl bg-white/[.04] p-3 text-center text-xs">
-          <div><p className="text-white/40">Distance</p><p className="mt-1 text-sm font-semibold">{geo ? `${geo.distanceNm.toLocaleString('en-US')} nm` : '—'}</p></div>
-          <div><p className="text-white/40">Departure</p><p className="mt-1 text-sm font-semibold">{form.time}</p></div>
+          <div><p className="text-white/40">{t('plan.distance')}</p><p className="mt-1 text-sm font-semibold">{geo ? `${geo.distanceNm.toLocaleString('en-US')} nm` : '—'}</p></div>
+          <div><p className="text-white/40">{t('plan.departure')}</p><p className="mt-1 text-sm font-semibold">{form.time}</p></div>
           <div>
-            <p className="text-white/40">Block time</p>
+            <p className="text-white/40">{t('plan.blockTime')}</p>
             <input className="mt-1 w-14 rounded bg-transparent text-center text-sm font-semibold outline-none" type="number" value={form.duration} onChange={(e) => set('duration', Number(e.target.value))} />
           </div>
-          <div><p className="text-white/40">Arrival</p><p className="mt-1 text-sm font-semibold">{hhmm(depMin + form.duration)}</p></div>
+          <div><p className="text-white/40">{t('plan.arrival')}</p><p className="mt-1 text-sm font-semibold">{hhmm(depMin + form.duration)}</p></div>
         </div>
         <p className="mt-2 text-xs text-white/40">
-          {geo ? 'Block time is calculated from distance, aircraft speed and route.' : 'Pick both airports (IATA, ICAO or city) to get distance and block time automatically. Otherwise type the block time (min).'}
+          {geo ? t('plan.helpAuto') : t('plan.helpManual')}
         </p>
-        <button onClick={createPlan} className="mt-3 rounded-xl bg-[#1f88ff] px-4 py-2 text-sm font-medium">Create plan</button>
+        <button onClick={createPlan} className="mt-3 rounded-xl bg-[#1f88ff] px-4 py-2 text-sm font-medium">{t('plan.create')}</button>
       </div>
 
       {error && <p className="mt-4 text-sm text-red-300">{error}</p>}
 
-      {ready && (
+      {pln && (
+        <div className="mt-6">
+          <div className="mb-4 rounded-2xl border border-white/10 bg-black/40 p-4 text-sm">
+            <div className="flex items-center justify-between">
+              <p className="font-medium text-white/80">{t('plan.plnTitle')}</p>
+              <button type="button" onClick={() => setPln(null)} className="text-xs text-[#55a7ff]">{t('plan.plnClear')}</button>
+            </div>
+            <p className="mt-2 text-white/60">{pln.from} → {pln.to} · FL{plnFl}</p>
+            <p className="mt-1 text-white/60">{t('plan.plnWaypoints', { n: pln.wps.length })}</p>
+            <p className="mt-1 text-white/60">
+              {pln.direct && pln.distance
+                ? t('plan.plnRoute', { route: Math.round(pln.distance).toLocaleString('en-US'), direct: Math.round(pln.direct).toLocaleString('en-US'), extra: Math.max(0, Math.round((pln.distance / pln.direct - 1) * 100)) })
+                : t('plan.plnRouteOnly', { route: Math.round(pln.distance).toLocaleString('en-US') })}
+              {' · '}{Math.floor(plnMin / 60)}h {String(plnMin % 60).padStart(2, '0')}m
+            </p>
+          </div>
+          <BoardingPass
+            tear
+            data={{
+              from: pln.from, to: pln.to, flight: form.flight || String(id).toUpperCase(), aircraft: acName,
+              distanceNm: Math.round(pln.distance), durationMin: plnMin, date: new Date().toISOString().slice(0, 10),
+            }}
+            onBoard={plnLaunch}
+          />
+        </div>
+      )}
+
+      {ready && !pln && (
         <div className="mt-6">
           <BoardingPass
             tear

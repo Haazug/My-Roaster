@@ -7,6 +7,9 @@ import { ArrowLeft, Check, FileUp, SkipForward, Star } from 'lucide-react'
 import { toast } from 'sonner'
 import { AirlineLogo } from '@/components/AirlineLogo'
 import { taxiMinutes } from '@/lib/flight-time'
+import { useMapStore } from '@/lib/map-store'
+import { useT } from '@/lib/i18n'
+import * as sound from '@/lib/sound'
 import { useLocalStorage } from '@/lib/use-local-storage'
 
 type Status = 'done' | 'skipped'
@@ -39,11 +42,16 @@ type FlightInfo = {
   aircraft: string
   durationMin: number
   distanceNm: number
+  fromLat?: number
+  fromLon?: number
+  toLat?: number
+  toLon?: number
+  waypoints?: { id?: string; lat: number; lon: number }[]
 }
 
 const SAMPLES: Record<string, FlightInfo> = {
-  'DT-653': { airlineName: 'TAAG Angola Airlines', airlineIata: 'DT', airlineIcao: 'DTA', flightNumber: '653', orig: 'LAD', dest: 'LIS', fromCity: 'Luanda', toCity: 'Lisbon', aircraft: 'Airbus A320', durationMin: 360, distanceNm: 2200 },
-  'EK-287': { airlineName: 'Emirates', airlineIata: 'EK', airlineIcao: 'UAE', flightNumber: '287', orig: 'DXB', dest: 'JFK', fromCity: 'Dubai', toCity: 'New York', aircraft: 'Boeing 777-300ER', durationMin: 765, distanceNm: 5124 },
+  'DT-653': { airlineName: 'TAAG Angola Airlines', airlineIata: 'DT', airlineIcao: 'DTA', flightNumber: '653', orig: 'NBJ', dest: 'LIS', fromCity: 'Luanda', toCity: 'Lisbon', aircraft: 'Airbus A320', durationMin: 360, distanceNm: 2200, fromLat: -9.0507, fromLon: 13.4991, toLat: 38.7742, toLon: -9.1342 },
+  'EK-287': { airlineName: 'Emirates', airlineIata: 'EK', airlineIcao: 'UAE', flightNumber: '287', orig: 'DXB', dest: 'JFK', fromCity: 'Dubai', toCity: 'New York', aircraft: 'Boeing 777-300ER', durationMin: 765, distanceNm: 5124, fromLat: 25.2532, fromLon: 55.3657, toLat: 40.6398, toLon: -73.7787 },
 }
 
 const fmt = (ms: number) => {
@@ -58,6 +66,8 @@ export default function FlyNowPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const flightKey = id ? String(id).toUpperCase() : ''
+  const tr = useT()
+  const setView = useMapStore((s) => s.setView)
 
   const [info, setInfo] = useState<FlightInfo | null>(SAMPLES[flightKey] || null)
   const [checked, setChecked] = useState(false)
@@ -91,6 +101,8 @@ export default function FlyNowPage() {
               aircraft: p.aircraft || '',
               durationMin: p.durationMin || 60,
               distanceNm: p.distanceNm || 0, free: !!p.free,
+              fromLat: p.fromLat, fromLon: p.fromLon, toLat: p.toLat, toLon: p.toLon,
+              waypoints: Array.isArray(p.waypoints) ? p.waypoints : undefined,
             })
           }
         }
@@ -100,7 +112,47 @@ export default function FlyNowPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flightKey])
 
+  // keep the globe fixed on this flight's route (through the waypoints when there is a .pln); cabin noise ends with the page
+  useEffect(() => {
+    if (!info) return
+    let live = true
+    const show = (a: { lat: number; lon: number }, b: { lat: number; lon: number }) => {
+      if (!live) return
+      setView({
+        mode: 'route',
+        from: { iata: info.orig, city: info.fromCity, lat: a.lat, lon: a.lon },
+        to: { iata: info.dest, city: info.toCity, lat: b.lat, lon: b.lon },
+        waypoints: info.waypoints,
+        lock: true,
+      })
+    }
+    if (info.fromLat != null && info.fromLon != null && info.toLat != null && info.toLon != null) {
+      show({ lat: info.fromLat, lon: info.fromLon }, { lat: info.toLat, lon: info.toLon })
+    } else {
+      const find = (code: string) =>
+        fetch(`/api/airport-search?q=${encodeURIComponent(code)}`)
+          .then((r) => r.json())
+          .then((l) => (Array.isArray(l) ? l.find((x: any) => x.iata === code || x.icao === code) || l[0] : null))
+          .catch(() => null)
+      Promise.all([find(info.orig), find(info.dest)]).then(([a, b]) => {
+        if (a && b) show(a, b)
+      })
+    }
+    return () => {
+      live = false
+    }
+  }, [info, setView])
+
+  useEffect(
+    () => () => {
+      setView({ mode: 'idle' })
+      sound.setBed('music')
+    },
+    [setView]
+  )
+
   const notify = (title: string, body: string) => {
+    sound.ding()
     toast(title, { description: body })
     try {
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
@@ -129,7 +181,7 @@ export default function FlyNowPage() {
       if (s.at === null || statuses[s.key] || fired.current.has(s.key)) return
       if (elapsed >= s.at * totalMs) {
         fired.current.add(s.key)
-        notify(`Time for ${s.key}`, 'Tick it off in the checklist when you get there.')
+        notify(tr('fly.timeFor', { step: tr('step.' + s.key) }), tr('fly.tick'))
       }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -158,7 +210,8 @@ export default function FlyNowPage() {
     setLogs([entry, ...logs])
     setLogId(entryId)
     setFinished(true)
-    toast.success('Flight added to your history')
+    sound.setBed('music')
+    toast.success(tr('fly.savedToast'))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statuses])
 
@@ -171,14 +224,17 @@ export default function FlyNowPage() {
   }
 
   const mark = (key: string, status: Status) => {
+    sound.unlock()
     askPermission()
     setStatuses((prev) => ({ ...prev, [key]: status }))
     if (key === 'Takeoff') {
-      const t = Date.now()
-      setTakeoffAt(t)
-      setNow(t)
-      toast.success('Takeoff! The clock is running.')
+      const t0 = Date.now()
+      setTakeoffAt(t0)
+      setNow(t0)
+      sound.setBed('cabin') // background music out, cabin noise in
+      toast.success(tr('fly.takeoffToast'))
     }
+    if (key === 'Landing') sound.setBed('music') // flight over: music is back
   }
 
   const skipToTakeoff = () => {
@@ -198,17 +254,17 @@ export default function FlyNowPage() {
   }
 
   if (!checked) {
-    return <section className="min-h-screen p-5 sm:p-8 text-white/40">Loading flight...</section>
+    return <section className="min-h-screen p-5 sm:p-8 text-white/40">{tr('fly.loading')}</section>
   }
 
   if (!info) {
     return (
       <section className="min-h-screen p-5 sm:p-8">
         <Link href={`/flights/${id}/flight-plan`} className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55">
-          <ArrowLeft className="size-4" /> Back
+          <ArrowLeft className="size-4" /> {tr('back')}
         </Link>
         <div className="mt-10 rounded-2xl border border-white/10 bg-black/40 p-5 text-white/60">
-          No flight plan found for "{id}". Create one first on the Flight Plan page.
+          {tr('fly.noPlan', { id: String(id) })}
         </div>
       </section>
     )
@@ -218,16 +274,24 @@ export default function FlyNowPage() {
   const remainingMs = Math.max(0, totalMs - elapsed)
 
   return (
-    <section className="min-h-screen p-5 sm:p-8">
+    <section
+      className="min-h-screen p-5 sm:p-8"
+      onClickCapture={(e) => {
+        if ((e.target as HTMLElement).closest('button')) {
+          sound.unlock()
+          sound.ding()
+        }
+      }}
+    >
       <div className="mb-6 flex items-center justify-between">
         <Link href={`/flights/${id}/flight-plan`} className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
-          <ArrowLeft className="size-4" /> Back
+          <ArrowLeft className="size-4" /> {tr('back')}
         </Link>
         <Link
           href={`/flights/${id}/simbrief`}
           className="flex min-h-11 items-center gap-2 rounded-lg border border-white/10 bg-white/[.08] px-4 text-sm text-white/60 transition hover:bg-white/[.12] hover:text-white"
         >
-          <FileUp className="size-4" /> Import Plan
+          <FileUp className="size-4" /> {tr('fly.importPlan')}
         </Link>
       </div>
 
@@ -237,32 +301,32 @@ export default function FlyNowPage() {
           {info.flightNumber ? `${info.airlineIata}${info.flightNumber}` : flightKey}
         </h1>
         <p className="mt-2 text-sm text-white/45">
-          {info.orig} → {info.dest} · {info.aircraft} · {info.durationMin} min
+          {info.orig} → {info.dest} · {info.aircraft} · {info.durationMin} {tr('fly.min')}
         </p>
       </header>
 
       {finished ? (
         <div className="mt-8 rounded-2xl border border-[#4caf50]/30 bg-[#4caf50]/10 p-6 text-center">
           <div className="text-5xl">🎉</div>
-          <h2 className="mt-3 text-2xl font-semibold">Flight added to your history</h2>
+          <h2 className="mt-3 text-2xl font-semibold">{tr('fly.addedTitle')}</h2>
           <p className="mt-2 text-sm text-white/60">
             {info.orig} → {info.dest}
           </p>
-          <p className="mt-6 text-sm text-white/60">How was your flight?</p>
+          <p className="mt-6 text-sm text-white/60">{tr('fly.rate')}</p>
           <div className="mt-3 flex justify-center gap-2">
             {[1, 2, 3, 4, 5].map((n) => (
-              <button key={n} onClick={() => rate(n)} aria-label={`${n} stars`} className="p-1">
+              <button key={n} onClick={() => rate(n)} aria-label={tr('fly.stars', { n })} className="p-1">
                 <Star className={`size-9 ${n <= rating ? 'fill-yellow-400 text-yellow-400' : 'text-white/30'}`} />
               </button>
             ))}
           </div>
-          <p className="mt-2 text-xs text-white/40">{rating}/5 · tap the same star again for 0</p>
+          <p className="mt-2 text-xs text-white/40">{tr('fly.rateHint', { n: rating })}</p>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
             <Link href="/logs" className="rounded-xl bg-[#1f88ff] px-6 py-3 text-sm font-semibold">
-              View my logs
+              {tr('fly.viewLogs')}
             </Link>
             <Link href="/" className="rounded-xl border border-white/15 bg-white/10 px-6 py-3 text-sm font-medium">
-              Home
+              {tr('fly.home')}
             </Link>
           </div>
         </div>
@@ -273,7 +337,7 @@ export default function FlyNowPage() {
               <>
                 <div className="text-6xl font-bold tabular-nums text-[#1f88ff]">{fmt(elapsed)}</div>
                 <p className="mt-4 text-sm text-white/45">
-                  {Math.ceil(remainingMs / 60_000)} min remaining · Block time: {info.durationMin} min
+                  {tr('fly.remaining', { n: Math.ceil(remainingMs / 60_000), b: info.durationMin })}
                 </p>
                 <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
                   <div className="h-full bg-[#1f88ff] transition-all" style={{ width: `${airborneProgress}%` }} />
@@ -282,7 +346,7 @@ export default function FlyNowPage() {
             ) : (
               <>
                 <div className="text-4xl font-bold text-white/30">--:--</div>
-                <p className="mt-4 text-sm text-white/45">The clock starts at Takeoff</p>
+                <p className="mt-4 text-sm text-white/45">{tr('fly.clockStarts')}</p>
               </>
             )}
           </div>
@@ -292,7 +356,7 @@ export default function FlyNowPage() {
               onClick={skipToTakeoff}
               className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[.06] px-4 py-3 text-sm font-medium hover:bg-white/10"
             >
-              <SkipForward className="size-4" /> Skip to Takeoff
+              <SkipForward className="size-4" /> {tr('fly.skipToTakeoff')}
             </button>
           )}
 
@@ -318,19 +382,19 @@ export default function FlyNowPage() {
                       )}
                     </span>
                     <span className={`flex-1 text-sm ${st ? 'text-white/45' : 'text-white'} ${st === 'skipped' ? 'line-through' : ''}`}>
-                      {s.icon} {s.key}
-                      {s.key === 'Takeoff' && !st && <span className="ml-2 text-xs text-white/40">starts the clock</span>}
+                      {s.icon} {tr('step.' + s.key)}
+                      {s.key === 'Takeoff' && !st && <span className="ml-2 text-xs text-white/40">{tr('fly.startsClock')}</span>}
                     </span>
-                    {eta !== null && <span className="text-xs text-white/40">+{eta} min</span>}
+                    {eta !== null && <span className="text-xs text-white/40">+{eta} {tr('fly.min')}</span>}
                   </div>
                   {isCurrent && (
                     <div className="mt-3 flex gap-2">
                       <button onClick={() => mark(s.key, 'done')} className="flex-1 rounded-lg bg-[#4caf50] px-3 py-2 text-sm font-semibold">
-                        {s.key === 'Takeoff' ? 'Takeoff!' : 'Done'}
+                        {s.key === 'Takeoff' ? tr('fly.takeoffBtn') : tr('fly.done')}
                       </button>
                       {s.key !== 'Takeoff' && (
                         <button onClick={() => mark(s.key, 'skipped')} className="rounded-lg border border-white/15 bg-white/10 px-4 py-2 text-sm">
-                          Skip
+                          {tr('fly.skip')}
                         </button>
                       )}
                     </div>
@@ -341,7 +405,7 @@ export default function FlyNowPage() {
           </ul>
 
           <button onClick={() => router.push('/')} className="mt-6 w-full rounded-xl border border-red-400/30 px-4 py-2 text-sm text-red-300">
-            Cancel flight
+            {tr('fly.cancel')}
           </button>
         </>
       )}

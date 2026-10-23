@@ -1,6 +1,7 @@
-'use client'
+"use client"
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState } from "react"
+import { useT } from "@/lib/i18n"
 
 export type Ap = { iata: string; icao: string; city: string; name: string; country: string; lat: number; lon: number }
 
@@ -10,12 +11,13 @@ export function nmBetween(a: Ap, b: Ap) {
   return Math.round(2 * 3440.07 * Math.asin(Math.sqrt(h)))
 }
 
-export function AirportInput({ value, onChange, onResolve, className = '' }: {
+export function AirportInput({ value, onChange, onResolve, className = "" }: {
   value: string
   onChange: (v: string) => void
   onResolve: (a: Ap | null) => void
   className?: string
 }) {
+  const t = useT()
   const [list, setList] = useState<Ap[]>([])
   const [picked, setPicked] = useState<Ap | null>(null)
   const [done, setDone] = useState(false)
@@ -25,7 +27,7 @@ export function AirportInput({ value, onChange, onResolve, className = '' }: {
     let live = true
     setDone(false)
     if (q.length < 2) { setList([]); setPicked(null); onResolve(null); return }
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       fetch(`/api/airport-search?q=${encodeURIComponent(q)}`)
         .then((r) => r.json())
         .then((d) => {
@@ -37,13 +39,13 @@ export function AirportInput({ value, onChange, onResolve, className = '' }: {
         })
         .catch(() => { if (live) { setList([]); setPicked(null); onResolve(null); setDone(true) } })
     }, 300)
-    return () => { live = false; clearTimeout(t) }
+    return () => { live = false; clearTimeout(timer) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value])
 
   return (
     <div>
-      <input className={className} placeholder="LAD, FNLU or Luanda" value={value} onChange={(e) => onChange(e.target.value)} />
+      <input className={className} placeholder={t("ap.ph")} value={value} onChange={(e) => onChange(e.target.value)} />
       {picked ? (
         <p className="mt-1 text-xs text-[#4caf50]">✓ {picked.city} · {picked.iata}/{picked.icao}</p>
       ) : list.length > 0 ? (
@@ -53,7 +55,7 @@ export function AirportInput({ value, onChange, onResolve, className = '' }: {
           ))}
         </div>
       ) : done && value.trim().length >= 2 ? (
-        <p className="mt-1 text-xs text-red-300">Airport not found</p>
+        <p className="mt-1 text-xs text-red-300">{t("ap.notFound")}</p>
       ) : null}
     </div>
   )

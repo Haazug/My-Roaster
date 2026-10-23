@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import { useT } from '@/lib/i18n'
 
 export type PassData = {
   from: string
@@ -78,12 +79,17 @@ export function BoardingPass({
   onTorn?: () => void
   onBoard?: () => void
 }) {
+  const t = useT()
   const [drag, setDrag] = useState(0)
+  const [dir, setDir] = useState(1)
   const [dragging, setDragging] = useState(false)
   const [torn, setTorn] = useState(false)
-  const startX = useRef<number | null>(null)
+  const [showBtn, setShowBtn] = useState(false)
+  const [collapse, setCollapse] = useState<number | null>(null)
+  const start = useRef<{ x: number; y: number } | null>(null)
   const dragRef = useRef(0)
   const box = useRef<HTMLDivElement>(null)
+  const stub = useRef<HTMLDivElement>(null)
 
   const seed = `${data.from}${data.to}${data.flight || ''}${data.date || ''}`
   const h = hash(seed)
@@ -97,29 +103,53 @@ export function BoardingPass({
     dragRef.current = v
     setDrag(v)
   }
+
+  const rip = (d: number) => {
+    if (torn) return
+    setDir(d)
+    setTorn(true)
+    try { navigator.vibrate?.(18) } catch {}
+    const px = stub.current?.offsetHeight ?? 140
+    setCollapse(px)
+    requestAnimationFrame(() => requestAnimationFrame(() => setCollapse(0)))
+    setTimeout(() => setShowBtn(true), 520)
+    onTorn?.()
+  }
+
   const down = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!tear || torn) return
-    startX.current = e.clientX
+    start.current = { x: e.clientX, y: e.clientY }
     setDragging(true)
     e.currentTarget.setPointerCapture(e.pointerId)
   }
   const move = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (startX.current === null) return
+    if (!start.current) return
     const w = box.current?.offsetWidth || 300
-    set(Math.max(0, Math.min(1, Math.abs(e.clientX - startX.current) / (w * 0.45))))
+    const dx = e.clientX - start.current.x
+    const dy = e.clientY - start.current.y
+    if (Math.abs(dx) > 4) setDir(dx < 0 ? -1 : 1)
+    const dist = Math.hypot(dx, Math.max(0, dy) * 1.4)
+    set(Math.max(0, Math.min(1, dist / (w * 0.5))))
   }
   const up = () => {
-    if (startX.current === null) return
-    startX.current = null
+    if (!start.current) return
+    start.current = null
     setDragging(false)
-    if (dragRef.current > 0.6) {
-      setTorn(true)
-      onTorn?.()
-    } else set(0)
+    if (dragRef.current > 0.55) rip(dir)
+    else set(0)
   }
 
+  // the stub follows the finger smoothly, tilts and lifts; once released past the threshold it falls away
   const p = drag
-  const stubTransform = torn ? 'translate(14px, 170px) rotate(11deg)' : `translate(${p * 26}px, ${p * 30}px) rotate(${p * 7}deg)`
+  const ease = p * p * (3 - 2 * p)
+  const stubTransform = torn
+    ? `translate(${dir * 90}px, 380px) rotate(${dir * 18}deg)`
+    : `translate(${dir * ease * 34}px, ${ease * 40}px) rotate(${dir * ease * 8}deg)`
+  const stubTransition = torn
+    ? 'transform .9s cubic-bezier(.55,.06,.85,.4), opacity .7s ease .2s'
+    : dragging
+      ? 'transform .09s ease-out'
+      : 'transform .7s cubic-bezier(.2,.9,.2,1)'
   const code = compact ? 'text-4xl' : 'text-5xl'
 
   return (
@@ -150,35 +180,55 @@ export function BoardingPass({
         </div>
         {!compact && (
           <dl className="relative mt-7 grid grid-cols-2 gap-y-4 text-sm">
-            <div><dt className="text-white/40">Seat</dt><dd className="font-mono font-bold">{seat}</dd></div>
-            <div className="text-right"><dt className="text-white/40">Distance</dt><dd className="font-mono font-bold">{km}</dd></div>
-            <div><dt className="text-white/40">Boarding</dt><dd className="font-mono font-bold">Now</dd></div>
-            <div className="text-right"><dt className="text-white/40">Date</dt><dd className="font-mono font-bold">{date}</dd></div>
+            <div><dt className="text-white/40">{t('bp.seat')}</dt><dd className="font-mono font-bold">{seat}</dd></div>
+            <div className="text-right"><dt className="text-white/40">{t('bp.distance')}</dt><dd className="font-mono font-bold">{km}</dd></div>
+            <div><dt className="text-white/40">{t('bp.boarding')}</dt><dd className="font-mono font-bold">{t('bp.now')}</dd></div>
+            <div className="text-right"><dt className="text-white/40">{t('bp.date')}</dt><dd className="font-mono font-bold">{date}</dd></div>
           </dl>
         )}
-        <div className="absolute inset-x-6 bottom-0 border-t border-dashed border-white/20" />
+        <div
+          className="absolute inset-x-6 bottom-0 border-t border-dashed transition-colors duration-200"
+          style={{ borderColor: `rgba(255,255,255,${0.2 + p * 0.5})` }}
+        />
       </div>
 
-      <div
-        onPointerDown={down}
-        onPointerMove={move}
-        onPointerUp={up}
-        onPointerCancel={up}
-        className={`relative rounded-b-3xl bg-[#232325] px-6 pb-5 pt-5 shadow-xl ${tear && !torn ? 'cursor-grab' : ''} ${torn ? 'pointer-events-none' : ''}`}
-        style={{
-          ...mask(notchBottom),
-          transform: stubTransform,
-          transition: dragging ? 'none' : 'transform .7s cubic-bezier(.3,.8,.3,1)',
-          touchAction: 'none',
-        }}
-      >
-        <Barcode seed={seed} />
-        {tear && !torn && <p className="mt-3 text-center text-[11px] uppercase tracking-[.25em] text-white/40">Drag to tear</p>}
+      <div style={{ height: collapse === null ? undefined : collapse, transition: 'height .55s ease .4s' }}>
+        <div
+          ref={stub}
+          role={tear && !torn ? 'button' : undefined}
+          tabIndex={tear && !torn ? 0 : undefined}
+          onKeyDown={(e) => {
+            if (tear && !torn && (e.key === 'Enter' || e.key === ' ')) {
+              e.preventDefault()
+              rip(1)
+            }
+          }}
+          onPointerDown={down}
+          onPointerMove={move}
+          onPointerUp={up}
+          onPointerCancel={up}
+          className={`relative rounded-b-3xl bg-[#232325] px-6 pb-5 pt-5 shadow-xl ${tear && !torn ? 'cursor-grab' : ''} ${torn ? 'pointer-events-none' : ''}`}
+          style={{
+            ...mask(notchBottom),
+            transform: stubTransform,
+            transformOrigin: dir > 0 ? '0% 0%' : '100% 0%',
+            transition: stubTransition,
+            opacity: torn ? 0 : 1,
+            touchAction: 'none',
+            willChange: 'transform',
+          }}
+        >
+          <Barcode seed={seed} />
+          {tear && !torn && <p className="mt-3 text-center text-[11px] uppercase tracking-[.25em] text-white/40">{t('bp.drag')}</p>}
+        </div>
       </div>
 
       {torn && (
-        <button onClick={onBoard} className="mt-44 w-full rounded-full bg-white py-4 text-base font-semibold text-black shadow-lg">
-          Boarding
+        <button
+          onClick={onBoard}
+          className={`mt-6 w-full rounded-full bg-white py-4 text-base font-semibold text-black shadow-lg transition-all duration-500 ${showBtn ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-3 opacity-0'}`}
+        >
+          {t('bp.board')}
         </button>
       )}
     </div>

@@ -13,12 +13,15 @@ export function getConsent(): Consent | null {
 export function setConsent(preferences: boolean) {
   try {
     window.localStorage.setItem(CONSENT_KEY, JSON.stringify({ v: 1, preferences, ts: Date.now() }))
+    window.dispatchEvent(new Event('myroster:consent-changed'))
     if (!preferences) {
       window.localStorage.removeItem('myroster.music.volume')
       window.localStorage.removeItem('myroster.music.muted')
+      window.localStorage.removeItem('myroster.lang')
     }
   } catch {}
 }
 
 export const canStorePreferences = () => !!getConsent()?.preferences
 export const openConsent = () => window.dispatchEvent(new Event('myroster:open-consent'))
+

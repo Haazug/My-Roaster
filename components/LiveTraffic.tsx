@@ -21,7 +21,7 @@ export default function LiveTraffic({ getCenter }: { getCenter: () => { lat: num
     <div className="pointer-events-auto absolute right-4 top-20 z-10 flex max-w-[60vw] flex-col items-end gap-2">
       <button
         aria-pressed={Boolean(center)}
-        onClick={() => setCenter(center ? null : (getCenter() ?? { lat: 38.7, lng: -9.1 }))}
+        onClick={() => setCenter(center ? null : (getCenter() ?? { lat: -9.0507, lng: 13.4991 }))}
         className="flex min-h-11 items-center gap-2 rounded-full border border-white/15 bg-black/70 px-4 text-sm text-white backdrop-blur"
       >
         <Radio className="size-4" />Live traffic

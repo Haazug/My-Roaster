@@ -5,6 +5,7 @@ import GlobeBackground from '@/components/GlobeBackground'
 import BottomNav from '@/components/BottomNav'
 import BackgroundMusic from '@/components/BackgroundMusic'
 import CookieBanner from '@/components/CookieBanner'
+import LanguageGate from '@/components/LanguageGate'
 import LegalFooter from '@/components/LegalFooter'
 
 export const metadata: Metadata = {
@@ -32,6 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <main className="relative z-10 min-h-screen pb-24 lg:ml-[420px] lg:max-w-[700px]">{children}<LegalFooter /></main>
         <BottomNav />
          <BackgroundMusic />
+        <LanguageGate />
         <CookieBanner />
         <Toaster theme="dark" position="top-center" richColors />
       </body>

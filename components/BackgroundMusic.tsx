@@ -1,97 +1,80 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Volume2, Volume1, VolumeX } from "lucide-react";
 import { canStorePreferences } from "@/lib/consent";
+import { useT } from "@/lib/i18n";
+import * as sound from "@/lib/sound";
+
+const save = (k: string, v: string) => {
+  try {
+    if (canStorePreferences()) localStorage.setItem(k, v);
+  } catch {}
+};
 
 export default function BackgroundMusic() {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const mutedRef = useRef(false);
-  const [playing, setPlaying] = useState(false);
-  const [muted, setMuted] = useState(false);
-  const [volume, setVolume] = useState(0.05);
+  const t = useT();
+  const [s, setS] = useState<sound.SoundState>(sound.getState());
 
   useEffect(() => {
     try {
-      if (localStorage.getItem("myroster.music.muted") === "1") {
-        mutedRef.current = true;
-        setMuted(true);
-      }
       const v = parseFloat(localStorage.getItem("myroster.music.volume") || "");
-      if (!isNaN(v)) setVolume(v);
+      if (!isNaN(v)) sound.setVolume(v);
+      if (localStorage.getItem("myroster.music.muted") === "1") sound.setMuted(true);
     } catch {}
-  }, []);
 
-  useEffect(() => {
-    if (audioRef.current) audioRef.current.volume = volume;
-    try { if (canStorePreferences()) localStorage.setItem("myroster.music.volume", String(volume)); } catch {}
-  }, [volume]);
+    const events = ["pointerup", "touchend", "click", "keydown"];
+    const onGesture = () => sound.unlock();
+    const removeGesture = () => events.forEach((e) => window.removeEventListener(e, onGesture));
+    events.forEach((e) => window.addEventListener(e, onGesture));
 
-  const start = useCallback(async () => {
-    const a = audioRef.current;
-    if (!a || mutedRef.current) return false;
-    try {
-      await a.play();
-      return true;
-    } catch {
-      return false;
-    }
-  }, []);
-
-  // Try now; if the browser blocks it, start on the first click/touch/key
-  useEffect(() => {
-    start();
-    const events = ["pointerdown", "keydown", "touchstart"];
-    const cleanup = () => events.forEach((e) => window.removeEventListener(e, onGesture));
-    const onGesture = async () => {
-      if (await start()) cleanup();
+    const off = sound.subscribe((st) => {
+      setS(st);
+      if (st.playing) removeGesture();
+    });
+    setS(sound.getState());
+    sound.start();
+    return () => {
+      off();
+      removeGesture();
     };
-    events.forEach((e) => window.addEventListener(e, onGesture, { passive: true }));
-    return cleanup;
-  }, [start]);
+  }, []);
 
-  const toggleMute = async () => {
-    const next = !muted;
-    mutedRef.current = next;
-    setMuted(next);
-    try { if (canStorePreferences()) localStorage.setItem("myroster.music.muted", next ? "1" : "0"); } catch {}
-    const a = audioRef.current;
-    if (!a) return;
-    if (next) a.pause();
-    else await start();
+  const changeVolume = (v: number) => {
+    sound.unlock();
+    sound.setVolume(v);
+    save("myroster.music.volume", String(v));
+  };
+  const toggleMute = () => {
+    sound.unlock();
+    const next = !s.muted;
+    sound.setMuted(next);
+    save("myroster.music.muted", next ? "1" : "0");
   };
 
-  const onButton = async () => {
-    if (!playing && !muted) {
-      await start();
-      return;
-    }
-    toggleMute();
-  };
-
-  const label = muted ? "🔇 Muted" : playing ? "🔊 Music On" : "▶ Play music";
+  const label = s.muted ? "🔇 " + t("music.muted") : s.playing ? "🔊 " + t("music.on") : "▶ " + t("music.play");
 
   return (
-    <>
-      <audio
-        ref={audioRef}
-        src="/aviao_es-e-mu_sicas.mp3"
-        loop
-        preload="auto"
-        onPlaying={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-      />
-      <div className="fixed bottom-20 right-4 z-40 md:bottom-24 md:right-8">
-        <div className="rounded-lg border border-[#333] bg-[#1a1a1a] p-3 shadow-lg backdrop-blur">
-          <div className="mb-2 flex items-center gap-3">
-            {muted ? <VolumeX className="h-4 w-4 text-gray-400" /> : volume < 0.3 ? <Volume1 className="h-4 w-4 text-[#4caf50]" /> : <Volume2 className="h-4 w-4 text-[#1f88ff]" />}
-            <input type="range" min="0" max="1" step="0.01" value={volume} onChange={(e) => setVolume(parseFloat(e.target.value))} className="h-1 w-20 cursor-pointer appearance-none rounded-lg bg-[#333] accent-[#1f88ff]" disabled={muted} />
-          </div>
-          <button onClick={onButton} className={`w-full rounded px-3 py-2 text-xs font-medium transition-all ${muted ? "bg-red-600 text-white hover:bg-red-700" : "bg-[#1f88ff] text-white hover:bg-blue-600"}`}>
-            {label}
-          </button>
-          <p className="mt-2 text-center text-xs text-gray-500">{Math.round(volume * 100)}% volume</p>
+    <div className="fixed bottom-20 right-4 md:bottom-24 md:right-8 z-40">
+      <div className="bg-[#1a1a1a] border border-[#333] rounded-lg p-3 shadow-lg backdrop-blur">
+        <div className="flex items-center gap-3 mb-2">
+          {s.muted ? <VolumeX className="w-4 h-4 text-gray-400" /> : s.volume < 0.3 ? <Volume1 className="w-4 h-4 text-[#4caf50]" /> : <Volume2 className="w-4 h-4 text-[#1f88ff]" />}
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={s.volume}
+            onChange={(e) => changeVolume(parseFloat(e.target.value))}
+            className="w-24 h-1 bg-[#333] rounded-lg appearance-none cursor-pointer accent-[#1f88ff]"
+            disabled={s.muted}
+            aria-label="Volume"
+          />
         </div>
+        <button onClick={toggleMute} className={`w-full min-h-9 px-3 py-2 rounded text-xs font-medium transition-all ${s.muted ? "bg-red-600 hover:bg-red-700 text-white" : "bg-[#1f88ff] hover:bg-blue-600 text-white"}`}>
+          {label}
+        </button>
+        <p className="text-xs text-gray-500 mt-2 text-center">{t("music.volume", { n: Math.round(s.volume * 100) })}</p>
       </div>
-    </>
+    </div>
   );
 }
