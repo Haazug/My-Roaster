@@ -296,9 +296,9 @@ export function BoardingPass({
   const [duoStart] = useState(() => Math.ceil((Date.now() + 10 * 60000) / 60000) * 60000)
   const airlineCode = (pathname?.match(/\/flights\/([^/]+)/)?.[1] || '').split('-')[0].toUpperCase()
   const shareLink = useMemo(() => {
-    if (!torn || !airlineCode || typeof window === 'undefined') return ''
+    if (!airlineCode || typeof window === 'undefined') return ''
     return `${window.location.origin}/s?d=${encodeShare({ a: airlineCode, f: data.from, t: data.to, ac: data.aircraft || '', n: data.flight || '', m: mode, s: mode === 'duo' ? duoStart : undefined })}`
-  }, [torn, airlineCode, data.from, data.to, data.aircraft, data.flight, mode, duoStart])
+  }, [airlineCode, data.from, data.to, data.aircraft, data.flight, mode, duoStart])
   useEffect(() => {
     if (!shareLink) return
     import('qrcode').then((Q: any) => (Q.default || Q).toDataURL(shareLink, { margin: 1, width: 240 })).then(setQr).catch(() => {})
@@ -408,7 +408,7 @@ export function BoardingPass({
         </div>
       </div>
 
-      {torn && !torn && qr && (
+      {qr && (
         <div className="mt-6 rounded-2xl bg-white/[.06] p-4 text-center">
           <div className="mx-auto flex w-fit rounded-full bg-white/10 p-1 text-xs">
             {(['solo', 'duo'] as const).map((m) => (
