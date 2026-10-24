@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import BookAction from '@/components/BookAction'
 import { usePathname } from 'next/navigation'
 import * as sound from '@/lib/sound'
 import { encodeShare } from '@/lib/share'
@@ -71,7 +72,7 @@ const mask = (img: string) =>
 
 export function BoardingPass({
   data,
-  tear = false,
+  tear: tearProp = false,
   compact = false,
   onTorn,
   onBoard,
@@ -83,6 +84,11 @@ export function BoardingPass({
   onBoard?: () => void
 }) {
   const t = useT()
+  const [bookMode, setBookMode] = useState(false)
+  useEffect(() => {
+    setBookMode(new URLSearchParams(window.location.search).has('book'))
+  }, [])
+  const tear = tearProp && !bookMode
   const [drag, setDrag] = useState(0)
   const [dir, setDir] = useState(1)
   const [dragging, setDragging] = useState(false)
@@ -251,6 +257,8 @@ export function BoardingPass({
           <p className="mt-2 text-xs text-white/50">{mode === 'duo' ? 'Duo: your friend scans this in MyRoster, Scan, and you both depart at the same time.' : 'Share this route: scan it in MyRoster, Scan.'}</p>
         </div>
       )}
+
+      {bookMode && <BookAction data={data} />}
 
       {torn && (
         <button

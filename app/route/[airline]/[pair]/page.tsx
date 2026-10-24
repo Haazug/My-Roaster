@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import useSWR from 'swr'
 import { ArrowLeft, Check, Plane, Star } from 'lucide-react'
 import { toast } from 'sonner'
@@ -17,6 +17,7 @@ import { fixName } from '@/lib/airline-names'
 import { estimateBlockMinutes } from '@/lib/flight-time'
 import { useNow } from '@/lib/use-now'
 import { useT } from '@/lib/i18n'
+import BookDialog from '@/components/BookDialog'
 
 type Airport = { iata: string; icao: string; name: string; city: string; country: string; lat: number; lon: number }
 type RouteData = {
@@ -41,6 +42,7 @@ export default function RoutePage() {
   const [bookings, setBookings] = useLocalStorage<RosterFlight[]>('myroster.bookings', [])
   const { has, toggle } = useFavourites()
   const setView = useMapStore((s) => s.setView)
+  const [bookOpen, setBookOpen] = useState(false)
   const now = useNow()
   const t = useT()
 
@@ -190,11 +192,25 @@ export default function RoutePage() {
         >
           <Plane className="size-4" />{t('route.fly')}
         </Link>
-        <button onClick={book} className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 font-medium hover:bg-white/15">
+        <button onClick={() => setBookOpen(true)} className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 font-medium hover:bg-white/15">
           <Check className="size-4" />{t('route.book')}
         </button>
         <ExportMenu flight={exportFlight} />
       </div>
+    <BookDialog open={bookOpen} onClose={() => setBookOpen(false)} onSaveRoute={book} onPlan={() => {
+          try {
+            localStorage.setItem('myroster.routeSeed', JSON.stringify({
+              free: new URLSearchParams(window.location.search).has('free'),
+              id: `${params.airline}-${params.pair}`,
+              airlineName: data?.airline.name, airlineIata: data?.airline.iata, airlineIcao: data?.airline.icao,
+              orig: data?.from.iata, dest: data?.to.iata, fromIcao: data?.from.icao, toIcao: data?.to.icao,
+              fromCity: data?.from.city, toCity: data?.to.city,
+              fromLat: data?.from.lat, fromLon: data?.from.lon, toLat: data?.to.lat, toLon: data?.to.lon,
+              distanceNm: data?.distanceNm, durationMin: exportFlight.durationMin,
+              aircraft: data?.aircraft?.[0]?.icao || '',
+            }))
+          } catch {}
+        }} planHref={`/flights/${params.airline}-${params.pair}/flight-plan?book=1`} />
     </section>
   )
 }
