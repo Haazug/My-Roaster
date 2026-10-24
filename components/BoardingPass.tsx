@@ -301,7 +301,7 @@ export function BoardingPass({
   }, [airlineCode, data.from, data.to, data.aircraft, data.flight, mode, duoStart])
   useEffect(() => {
     if (!shareLink) return
-    import('qrcode').then((Q: any) => (Q.default || Q).toDataURL(shareLink, { margin: 1, width: 240 })).then(setQr).catch(() => {})
+    import('qrcode').then((Q: any) => (Q.default || Q).toDataURL(shareLink, { margin: 3, width: 720, errorCorrectionLevel: 'L' })).then(setQr).catch(() => {})
   }, [shareLink])
 
   return (
@@ -415,7 +415,7 @@ export function BoardingPass({
               <button key={m} type="button" onClick={() => setMode(m)} className={`rounded-full px-4 py-1.5 font-semibold ${mode === m ? 'bg-white text-black' : 'text-white/60'}`}>{m === 'solo' ? 'Solo' : 'Duo'}</button>
             ))}
           </div>
-          <img src={qr} alt="Share this route" className="mx-auto mt-3 size-40 rounded-xl bg-white p-2" />
+          <img src={qr} alt="Share this route" className="mx-auto mt-3 size-56 rounded-xl bg-white p-3" />
           <p className="mt-2 text-xs text-white/50">{mode === 'duo' ? 'Duo: your friend scans this in MyRoster, Scan, and you both depart at the same time.' : 'Share this route: scan it in MyRoster, Scan.'}</p>
         </div>
       )}
