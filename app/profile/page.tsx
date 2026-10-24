@@ -15,6 +15,7 @@ export default function ProfilePage() {
   const [avatar, setAvatar] = useState('')
   const [developer, setDeveloper] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [copiedLink, setCopiedLink] = useState(false)
   const [friendCount, setFriendCount] = useState(0)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -128,6 +129,13 @@ export default function ProfilePage() {
     navigator.clipboard.writeText(shareCode)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleCopyLink = () => {
+    const link = `${window.location.origin}/invite/${generateShareCode({ ...profile!, avatar: undefined })}`
+    navigator.clipboard.writeText(link)
+    setCopiedLink(true)
+    setTimeout(() => setCopiedLink(false), 2000)
   }
 
   const input = 'w-full rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-sm outline-none focus:border-[#1f88ff]'
@@ -288,6 +296,13 @@ export default function ProfilePage() {
           className="mt-3 w-full flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 py-3 text-sm font-semibold hover:border-[#1f88ff]/60"
         >
           <Copy className="size-4" /> {copied ? 'Copiado!' : 'Copiar código'}
+        </button>
+
+        <button
+          onClick={handleCopyLink}
+          className="mt-3 w-full flex items-center justify-center gap-2 rounded-xl border border-[#1f88ff]/40 bg-[#1f88ff]/10 py-3 text-sm font-semibold hover:border-[#1f88ff]"
+        >
+          <Copy className="size-4" /> {copiedLink ? 'Link copiado!' : 'Copiar link de convite'}
         </button>
 
         <Link
