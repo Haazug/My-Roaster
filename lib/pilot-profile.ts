@@ -82,7 +82,7 @@ export function removeFriend(profileId: string) {
 
 export function generateShareCode(profile: PilotProfile): string {
   const short = profile.id.replace('pilot_', '').substring(0, 8)
-  return btoa(JSON.stringify({ id: profile.id, name: profile.name, username: profile.username, nationality: profile.nationality, avatar: profile.avatar, developer: profile.developer }))
+  return btoa(unescape(encodeURIComponent(JSON.stringify({ id: profile.id, name: profile.name, username: profile.username, nationality: profile.nationality, avatar: profile.avatar, developer: profile.developer }))))
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=+$/, '')
@@ -90,7 +90,7 @@ export function generateShareCode(profile: PilotProfile): string {
 
 export function decodeShareCode(code: string): PilotProfile | null {
   try {
-    const json = atob(code.replace(/-/g, '+').replace(/_/g, '/'))
+    const json = decodeURIComponent(escape(atob(code.replace(/-/g, '+').replace(/_/g, '/'))))
     const p = JSON.parse(json)
     return p && p.id && p.name ? (p as PilotProfile) : null
   } catch {

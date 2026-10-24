@@ -155,9 +155,41 @@ export default function ProfilePage() {
   const stats = profile ? getPilotStats(profile) : null
   const displayName = developer ? `${name}${username ? ` (@${username})` : ''} • Developer` : name
 
-  const handleCopyLink = () => {
-    const link = `${window.location.origin}/invite/${generateShareCode({ ...profile!, avatar: undefined })}`
-    navigator.clipboard.writeText(link)
+  const makeThumb = (src: string) =>
+    new Promise<string | undefined>((resolve) => {
+      if (!src) return resolve(undefined)
+      const img = new window.Image()
+      img.onload = () => {
+        try {
+          const size = 64
+          const canvas = document.createElement('canvas')
+          canvas.width = size
+          canvas.height = size
+          const ctx = canvas.getContext('2d')
+          if (!ctx) return resolve(undefined)
+          const side = Math.min(img.width, img.height)
+          ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size)
+          resolve(canvas.toDataURL('image/jpeg', 0.6))
+        } catch {
+          resolve(undefined)
+        }
+      }
+      img.onerror = () => resolve(undefined)
+      img.src = src
+    })
+
+  const handleCopyLink = async () => {
+    if (!profile) return
+    const thumb = await makeThumb(avatar || profile.avatar || '')
+    const code = generateShareCode({
+      ...profile,
+      name: name.trim() || profile.name,
+      username: username.trim() || undefined,
+      nationality,
+      avatar: thumb,
+      developer,
+    })
+    navigator.clipboard.writeText(`${window.location.origin}/invite/${code}`)
     setCopiedLink(true)
     setTimeout(() => setCopiedLink(false), 2000)
   }
