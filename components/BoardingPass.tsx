@@ -296,7 +296,11 @@ export function BoardingPass({
   const [qrSoft, setQrSoft] = useState('')
   const [copiedRoute, setCopiedRoute] = useState(false)
   const [duoStart] = useState(() => Math.ceil((Date.now() + 10 * 60000) / 60000) * 60000)
-  const airlineCode = (pathname?.match(/\/flights\/([^/]+)/)?.[1] || '').split('-')[0].toUpperCase()
+  const airlineCode = (
+    (pathname?.match(/\/flights\/([^/]+)/)?.[1] || '').split('-')[0] ||
+    (data.flight || '').match(/^[A-Za-z0-9]{2,3}?(?=\d)/)?.[0] ||
+    'XX'
+  ).toUpperCase()
   const shareLink = useMemo(() => {
     if (!airlineCode || typeof window === 'undefined') return ''
     return `${window.location.origin}/s?d=${encodeShare({ a: airlineCode, f: data.from, t: data.to, ac: data.aircraft || '', n: data.flight || '', m: mode, s: mode === 'duo' ? duoStart : undefined })}`
