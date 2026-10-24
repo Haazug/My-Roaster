@@ -108,9 +108,9 @@ export function BoardingPass({
   const km = data.distanceNm ? `${Math.round(data.distanceNm * 1.852).toLocaleString('en-US')} km` : '—'
   const date = data.date ? data.date.replace(/-/g, '/') : '—'
 
-  const N = 24
   const [span, setSpan] = useState<{ a: number; b: number } | null>(null)
   const [pull, setPull] = useState(0)
+  const [closing, setClosing] = useState(false)
   const spanRef = useRef<{ a: number; b: number } | null>(null)
   const dirRef = useRef(0)
 
@@ -131,6 +131,7 @@ export function BoardingPass({
   const rip = (d: number) => {
     if (torn) return
     setDir(d)
+    setClosing(false)
     setSpanBoth(d > 0 ? { a: 0, b: 1.3 } : { a: 1, b: -0.3 })
     setPull(1)
     setTorn(true)
@@ -143,7 +144,7 @@ export function BoardingPass({
   }
 
   const down = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!tear || torn) return
+    if (!tear || torn || closing) return
     start.current = { x: e.clientX, y: e.clientY, a: fracOf(e.clientX) }
     dirRef.current = 0
     setDragging(true)
@@ -163,7 +164,7 @@ export function BoardingPass({
     const f = fracOf(e.clientX)
     const prev = spanRef.current ? spanRef.current.b : st.a
     const front = d > 0 ? Math.max(prev, f) : Math.min(prev, f)
-    setPull(Math.max(0, Math.min(1, (e.clientY - st.y) / 60)))
+    setPull(Math.max(0, Math.min(1, (e.clientY - st.y) / 70)))
     setSpanBoth({ a: st.a, b: front })
   }
 
@@ -179,32 +180,44 @@ export function BoardingPass({
         rip(dirRef.current || 1)
         return
       }
+      setClosing(true)
+      setPull(0)
+      setTimeout(() => {
+        setSpanBoth(null)
+        setClosing(false)
+      }, 480)
     }
-    setSpanBoth(null)
-    setPull(0)
   }
 
-  // quanto cada fatia ja foi rasgada (0..1): so depois do ponteiro passar, com curva suave na frente
-  const sliceAmount = (i: number) => {
-    if (!span) return 0
-    const c = (i + 0.5) / N
-    const sgn = span.b >= span.a ? 1 : -1
-    const from = sgn > 0 ? c - span.a : span.a - c
-    if (from < -0.5 / N) return 0
-    const behind = sgn > 0 ? span.b - c : c - span.b
-    const x = Math.max(0, Math.min(1, behind / 0.14))
-    return x * x * (3 - 2 * x)
-  }
+  // ---- geometria do rasgo: uma tira rigida que gira na ponta, bordas irregulares ----
+  const K = 14
+  const NZ_A = useMemo(() => { const r = rng(hash(seed + 'a')); return Array.from({ length: K + 1 }, () => r()) }, [seed])
+  const NZ_B = useMemo(() => { const r = rng(hash(seed + 'b')); return Array.from({ length: K + 1 }, () => r()) }, [seed])
+  const clamp01 = (v: number) => Math.max(0, Math.min(1, v))
+  const ex = (x: number, nz: number[], k: number) => (x <= 0.002 || x >= 0.998 ? x * 100 : (x + (nz[k] - 0.5) * 0.03) * 100)
+  const edgePts = (x: number, nz: number[]) =>
+    Array.from({ length: K + 1 }, (_, k) => `${ex(x, nz, k).toFixed(2)}% ${((k / K) * 100).toFixed(1)}%`)
+
+  const aF = span ? clamp01(span.a) : 0
+  const bF = span ? clamp01(span.b) : 0
+  const aIsLo = aF <= bF
+  const lo = aIsLo ? aF : bF
+  const hi = aIsLo ? bF : aF
+  const nzLo = aIsLo ? NZ_A : NZ_B
+  const nzHi = aIsLo ? NZ_B : NZ_A
   const tearSign = span && span.b < span.a ? -1 : 1
+  const cov = hi - lo
+  const theta = closing ? 0 : Math.min(1, cov * 5) * (3 + 15 * pull)
 
-  const p = drag
+  const tornClip = span ? `polygon(${[...edgePts(lo, nzLo), ...edgePts(hi, nzHi).reverse()].join(',')})` : 'none'
+  const leftClip = span && lo > 0.002 ? `polygon(${['0% 0%', ...edgePts(lo, nzLo), '0% 100%'].join(',')})` : null
+  const rightClip = span && hi < 0.998 ? `polygon(${[...edgePts(hi, nzHi), '100% 100%', '100% 0%'].join(',')})` : null
+  const tipPct = (tearSign > 0 ? bF : bF) * 100
+
   const stubTransform = torn ? `translate(${dir * 90}px, 380px) rotate(${dir * 18}deg)` : 'none'
   const stubTransition = torn ? 'transform .9s cubic-bezier(.55,.06,.85,.4), opacity .7s ease .2s' : 'none'
-  const sliceTransition = torn
-    ? 'transform .12s ease-out'
-    : dragging
-      ? 'transform .09s ease-out'
-      : 'transform .6s cubic-bezier(.2,.9,.2,1)'
+  const pieceTransition = dragging ? 'transform .08s linear' : 'transform .45s cubic-bezier(.2,.9,.2,1)'
+  const p = drag
 
   const stubInner = useMemo(
     () => (
@@ -215,6 +228,8 @@ export function BoardingPass({
     ),
     [seed, tear, torn, t]
   )
+
+  const layerCls = 'absolute inset-0 rounded-b-3xl bg-[#232325] px-6 pb-5 pt-5'
 
   const code = compact ? 'text-4xl' : 'text-5xl'
   const displayStatus = data.booked ? 'BOOKED' : t('bp.now')
@@ -300,31 +315,39 @@ export function BoardingPass({
           <div className="invisible rounded-b-3xl px-6 pb-5 pt-5" style={mask(notchBottom)}>
             {stubInner}
           </div>
-          {Array.from({ length: N }, (_, i) => {
-            const a = sliceAmount(i)
-            const j = ((i * 7919) % 13) / 13
-            const lift = a * (8 + 14 * pull + j * 5)
-            const rot = tearSign * a * (2.5 + 3 * pull + j * 2)
-            const L = Math.max(0, (i / N) * 100 - 0.3)
-            const R = Math.max(0, 100 - ((i + 1) / N) * 100 - 0.3)
-            return (
-              <div
-                key={i}
-                aria-hidden="true"
-                className="absolute inset-0 rounded-b-3xl bg-[#232325] px-6 pb-5 pt-5"
-                style={{
-                  ...mask(notchBottom),
-                  clipPath: `inset(0 ${R}% 0 ${L}%)`,
-                  transform: `translate(${tearSign * a * 3}px, ${lift}px) rotate(${rot}deg)`,
-                  transformOrigin: `${((i + 0.5) / N) * 100}% 0%`,
-                  transition: sliceTransition,
-                  willChange: 'transform',
-                }}
-              >
-                {stubInner}
-              </div>
-            )
-          })}
+
+          {!span && (
+            <div aria-hidden="true" className={layerCls} style={mask(notchBottom)}>
+              {stubInner}
+            </div>
+          )}
+
+          {span && leftClip && (
+            <div aria-hidden="true" className={layerCls} style={{ ...mask(notchBottom), clipPath: leftClip }}>
+              {stubInner}
+            </div>
+          )}
+          {span && rightClip && (
+            <div aria-hidden="true" className={layerCls} style={{ ...mask(notchBottom), clipPath: rightClip }}>
+              {stubInner}
+            </div>
+          )}
+          {span && (
+            <div
+              aria-hidden="true"
+              className={layerCls}
+              style={{
+                ...mask(notchBottom),
+                clipPath: tornClip,
+                transformOrigin: `${tipPct}% 0%`,
+                transform: `rotate(${-tearSign * theta}deg)`,
+                transition: pieceTransition,
+                willChange: 'transform',
+              }}
+            >
+              {stubInner}
+            </div>
+          )}
         </div>
       </div>
 
