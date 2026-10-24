@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Camera, Copy, Users, LogOut, LogIn, Lock } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { getProfile, getFriends, saveProfile, generateShareCode, getPilotStats, type PilotProfile } from '@/lib/pilot-profile'
+import { getProfile, getFriends, saveProfile, generateShareCode, getPilotStats, pullAccountData, pushAccountData, type PilotProfile } from '@/lib/pilot-profile'
 
 const DEVELOPER_SECRET = "13442018"
 
@@ -65,6 +65,7 @@ export default function ProfilePage() {
       setEmail(mail)
       setAuthReady(true)
       if (mail) {
+        pullAccountData().then((changed) => { if (changed) window.location.reload() })
         const p = getProfile()
         if (p && p.name === 'Pilot') {
           const updated = { ...p, name: mail.split('@')[0] }
@@ -97,6 +98,7 @@ export default function ProfilePage() {
         developer,
       }
       saveProfile(updated)
+      pushAccountData()
       setProfile(updated)
       setTimeout(() => setSaving(false), 500)
     } catch (e) {

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { UserPlus, Check, Users } from 'lucide-react'
-import { decodeShareCode, addFriend, getProfile, getFriends, type PilotProfile } from '@/lib/pilot-profile'
+import { decodeShareCode, addFriend, getProfile, getFriends, pushAccountData, type PilotProfile } from '@/lib/pilot-profile'
 
 const CACHE_KEY = 'myroster.friendProfiles'
 
@@ -40,6 +40,7 @@ export default function InvitePage() {
     } catch (e) {
       console.error('Failed to cache friend profile:', e)
     }
+    pushAccountData()
     setAdded(true)
   }
 
