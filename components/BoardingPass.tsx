@@ -312,7 +312,7 @@ export function BoardingPass({
   useEffect(() => {
     if (!shareLink) return
     import('qrcode')
-      .then((Q: any) => (Q.default || Q).toDataURL(shareLink, { margin: 1, width: 480, errorCorrectionLevel: 'L', color: { dark: '#e8e8ecff', light: '#00000000' } }))
+      .then((Q: any) => (Q.default || Q).toDataURL(shareLink, { margin: 2, width: 720, errorCorrectionLevel: 'L', color: { dark: '#f2f2f5ff', light: '#232325ff' } }))
       .then(setQrSoft)
       .catch(() => {})
   }, [shareLink])
@@ -344,7 +344,7 @@ export function BoardingPass({
           </div>
         </div>
         {!compact && qrSoft && (
-          <img src={qrSoft} alt="" aria-hidden="true" draggable={false} className="pointer-events-none relative mx-auto mt-6 size-24 opacity-60" />
+          <img src={qrSoft} alt="" aria-hidden="true" draggable={false} className="pointer-events-none relative mx-auto mt-5 size-36 rounded-xl opacity-90" />
         )}
         {!compact && (
           <dl className="relative mt-7 grid grid-cols-2 gap-y-4 text-sm">

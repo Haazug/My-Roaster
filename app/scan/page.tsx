@@ -5,6 +5,18 @@ import { useEffect, useRef, useState } from 'react'
 import { QrCode, Upload } from 'lucide-react'
 import { codeFromText } from '@/lib/share'
 
+async function nativeDecode(src: CanvasImageSource): Promise<string | null> {
+  try {
+    const BD = (window as any).BarcodeDetector
+    if (!BD) return null
+    const det = new BD({ formats: ['qr_code'] })
+    const r = await det.detect(src)
+    return r?.[0]?.rawValue || null
+  } catch {
+    return null
+  }
+}
+
 function decodeQR(jsQR: any, src: CanvasImageSource, w: number, h: number): string | null {
   const widths = [w, 1200, 800, 500, 320].filter((x, i, a) => x <= w && a.indexOf(x) === i)
   for (const tw of widths) {
@@ -51,12 +63,12 @@ export default function ScanPage() {
         await v.play()
         const jsQR = (await import('jsqr')).default
         const canvas = document.createElement('canvas')
-        const tick = () => {
+        const tick = async () => {
           if (stop) return
           if (v.videoWidth) {
             canvas.width = v.videoWidth
             canvas.height = v.videoHeight
-            const raw = decodeQR(jsQR, v, v.videoWidth, v.videoHeight)
+            const raw = (await nativeDecode(v)) || decodeQR(jsQR, v, v.videoWidth, v.videoHeight)
             if (raw && open(raw)) return
           }
           setTimeout(tick, 200)
@@ -80,7 +92,7 @@ export default function ScanPage() {
     img.src = URL.createObjectURL(file)
     await img.decode().catch(() => {})
     const jsQR = (await import('jsqr')).default
-    const raw = decodeQR(jsQR, img, img.naturalWidth, img.naturalHeight)
+    const raw = (await nativeDecode(img)) || decodeQR(jsQR, img, img.naturalWidth, img.naturalHeight)
     if (!raw) return setMsg('No QR code found in that image. Crop it closer to the QR and try again.')
     if (!open(raw)) setMsg('QR read, but it is not a MyRoster code.')
   }
