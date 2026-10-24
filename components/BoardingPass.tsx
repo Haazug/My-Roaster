@@ -154,6 +154,7 @@ export function BoardingPass({
       ? 'transform .09s ease-out'
       : 'transform .7s cubic-bezier(.2,.9,.2,1)'
   const code = compact ? 'text-4xl' : 'text-5xl'
+  const displayStatus = data.booked ? 'BOOKED' : t('bp.now')
   const pathname = usePathname()
   const [mode, setMode] = useState<'solo' | 'duo'>('solo')
   const [qr, setQr] = useState('')
@@ -198,7 +199,7 @@ export function BoardingPass({
           <dl className="relative mt-7 grid grid-cols-2 gap-y-4 text-sm">
             <div><dt className="text-white/40">{t('bp.seat')}</dt><dd className="font-mono font-bold">{seat}</dd></div>
             <div className="text-right"><dt className="text-white/40">{t('bp.distance')}</dt><dd className="font-mono font-bold">{km}</dd></div>
-            <div><dt className="text-white/40">{t('bp.boarding')}</dt><dd className="font-mono font-bold">{t('bp.now')}</dd></div>
+            <div><dt className="text-white/40">{t('bp.boarding')}</dt><dd className="font-mono font-bold">{displayStatus}</dd></div>
             <div className="text-right"><dt className="text-white/40">{t('bp.date')}</dt><dd className="font-mono font-bold">{date}</dd></div>
           </dl>
         )}
