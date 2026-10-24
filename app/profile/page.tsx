@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Camera, Copy, Users, LogOut } from 'lucide-react'
+import { Camera, Copy, Users, LogOut, Lock } from 'lucide-react'
 import { getProfile, getFriends, saveProfile, generateShareCode, getPilotStats, type PilotProfile } from '@/lib/pilot-profile'
+
+const DEVELOPER_SECRET = "13442018"
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<PilotProfile | null>(null)
@@ -16,6 +18,9 @@ export default function ProfilePage() {
   const [friendCount, setFriendCount] = useState(0)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [devUnlocked, setDevUnlocked] = useState(false)
+  const [devCode, setDevCode] = useState('')
+  const [devError, setDevError] = useState('')
 
   useEffect(() => {
     try {
@@ -40,6 +45,7 @@ export default function ProfilePage() {
         setNationality(p.nationality || '')
         setAvatar(p.avatar || '')
         setDeveloper(p.developer || false)
+        setDevUnlocked(p.developer || false)
         setFriendCount(getFriends().length)
       }
     } catch (e) {
@@ -82,6 +88,16 @@ export default function ProfilePage() {
     }
   }
 
+  const handleUnlockDeveloper = () => {
+    setDevError('')
+    if (devCode === DEVELOPER_SECRET) {
+      setDevUnlocked(true)
+      setDevCode('')
+    } else {
+      setDevError('Código incorreto')
+    }
+  }
+
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -106,6 +122,7 @@ export default function ProfilePage() {
 
   const shareCode = profile ? generateShareCode(profile) : ''
   const stats = profile ? getPilotStats(profile) : null
+  const displayName = developer ? `${name}${username ? ` (@${username})` : ''} • Developer` : name
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(shareCode)
@@ -123,7 +140,7 @@ export default function ProfilePage() {
       <div className="flex items-center justify-between">
         <div>
           <p className={label}>Perfil</p>
-          <h1 className="mt-2 text-4xl font-semibold">Meu piloto</h1>
+          <h1 className="mt-2 text-4xl font-semibold">{displayName}</h1>
         </div>
         <button
           onClick={handleLogout}
@@ -231,17 +248,6 @@ export default function ProfilePage() {
           </select>
         </div>
 
-        {/* Developer Badge */}
-        <div className="mt-4 flex items-center gap-3">
-          <input
-            type="checkbox"
-            checked={developer}
-            onChange={(e) => setDeveloper(e.target.checked)}
-            className="w-4 h-4 cursor-pointer"
-          />
-          <label className="text-sm text-white/70">Developer Badge</label>
-        </div>
-
         <button
           onClick={handleSave}
           disabled={saving}
@@ -290,6 +296,46 @@ export default function ProfilePage() {
         >
           <Users className="size-4" /> Ver amigos ({friendCount})
         </Link>
+      </div>
+
+      {/* Definições Avançadas */}
+      <div className="mt-6 rounded-2xl border border-white/10 bg-[#111217cc] p-6">
+        <p className={label}>Definições avançadas</p>
+        
+        {!devUnlocked ? (
+          <div className="mt-4">
+            <p className="text-sm text-white/50 mb-3">Unlock Developer</p>
+            <div className="flex gap-2">
+              <input
+                type="password"
+                value={devCode}
+                onChange={(e) => setDevCode(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleUnlockDeveloper()}
+                placeholder="Código secreto"
+                className={input}
+              />
+              <button
+                onClick={handleUnlockDeveloper}
+                className="rounded-xl bg-[#1f88ff] px-4 font-semibold shrink-0 flex items-center gap-2"
+              >
+                <Lock className="size-4" /> Unlock
+              </button>
+            </div>
+            {devError && <p className="mt-2 text-sm text-red-300">{devError}</p>}
+          </div>
+        ) : (
+          <div className="mt-4">
+            <div className="flex items-center gap-3 rounded-xl border border-[#1f88ff]/30 bg-[#1f88ff]/10 p-4">
+              <input
+                type="checkbox"
+                checked={developer}
+                onChange={(e) => setDeveloper(e.target.checked)}
+                className="w-4 h-4 cursor-pointer"
+              />
+              <label className="text-sm text-white/70">Developer Badge</label>
+            </div>
+          </div>
+        )}
       </div>
     </section>
   )
