@@ -9,6 +9,7 @@ import { ExportMenu } from '@/components/ExportMenu'
 import { AirlineLogo } from '@/components/AirlineLogo'
 import { simbriefUrl, type ExportFlight } from '@/lib/export'
 import { useNow } from '@/lib/use-now'
+import { FlyWithFriends } from '@/components/FlyWithFriends'
 
 const SAMPLE_FLIGHTS: Record<string, any> = {
   'DT-653': {
@@ -182,6 +183,7 @@ export default function FlightDetailPage() {
           <Plane className="mr-2 size-5" /> Fly Now
         </Link>
         <ExportMenu flight={exportData} />
+        <FlyWithFriends flightKey={String(id).toUpperCase()} />
       </div>
 
       <div className="mt-8 rounded-2xl border border-white/10 bg-white/[.02] p-6">
