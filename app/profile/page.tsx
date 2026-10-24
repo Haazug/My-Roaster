@@ -14,7 +14,6 @@ export default function ProfilePage() {
   const [nationality, setNationality] = useState('')
   const [avatar, setAvatar] = useState('')
   const [developer, setDeveloper] = useState(false)
-  const [copied, setCopied] = useState(false)
   const [copiedLink, setCopiedLink] = useState(false)
   const [friendCount, setFriendCount] = useState(0)
   const [saving, setSaving] = useState(false)
@@ -121,15 +120,8 @@ export default function ProfilePage() {
     reader.readAsDataURL(file)
   }
 
-  const shareCode = profile ? generateShareCode(profile) : ''
   const stats = profile ? getPilotStats(profile) : null
   const displayName = developer ? `${name}${username ? ` (@${username})` : ''} • Developer` : name
-
-  const handleCopyCode = () => {
-    navigator.clipboard.writeText(shareCode)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
 
   const handleCopyLink = () => {
     const link = `${window.location.origin}/invite/${generateShareCode({ ...profile!, avatar: undefined })}`
@@ -285,22 +277,11 @@ export default function ProfilePage() {
       <div className="mt-6 rounded-2xl border border-white/10 bg-[#111217cc] p-6">
         <p className={label}>Partilhar conta</p>
         <h2 className="mt-2 text-lg font-semibold">Convida amigos</h2>
-        <p className="mt-2 text-sm text-white/50">Partilha este código para que os teus amigos te adicionem como piloto amigo.</p>
-
-        <div className="mt-4 rounded-xl bg-white/5 p-4 border border-white/10 font-mono text-xs break-all">
-          {shareCode.substring(0, 20)}...
-        </div>
-
-        <button
-          onClick={handleCopyCode}
-          className="mt-3 w-full flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 py-3 text-sm font-semibold hover:border-[#1f88ff]/60"
-        >
-          <Copy className="size-4" /> {copied ? 'Copiado!' : 'Copiar código'}
-        </button>
+        <p className="mt-2 text-sm text-white/50">Partilha o teu link para que os teus amigos te adicionem como piloto amigo.</p>
 
         <button
           onClick={handleCopyLink}
-          className="mt-3 w-full flex items-center justify-center gap-2 rounded-xl border border-[#1f88ff]/40 bg-[#1f88ff]/10 py-3 text-sm font-semibold hover:border-[#1f88ff]"
+          className="mt-4 w-full flex items-center justify-center gap-2 rounded-xl border border-[#1f88ff]/40 bg-[#1f88ff]/10 py-3 text-sm font-semibold hover:border-[#1f88ff]"
         >
           <Copy className="size-4" /> {copiedLink ? 'Link copiado!' : 'Copiar link de convite'}
         </button>
