@@ -95,7 +95,7 @@ export function BoardingPass({
   const [torn, setTorn] = useState(false)
   const [showBtn, setShowBtn] = useState(false)
   const [collapse, setCollapse] = useState<number | null>(null)
-  const start = useRef<{ x: number; y: number } | null>(null)
+  const start = useRef<{ x: number; y: number; a: number } | null>(null)
   const dragRef = useRef(0)
   const box = useRef<HTMLDivElement>(null)
   const stub = useRef<HTMLDivElement>(null)
@@ -108,14 +108,31 @@ export function BoardingPass({
   const km = data.distanceNm ? `${Math.round(data.distanceNm * 1.852).toLocaleString('en-US')} km` : '—'
   const date = data.date ? data.date.replace(/-/g, '/') : '—'
 
-  const set = (v: number) => {
-    dragRef.current = v
-    setDrag(v)
+  const N = 24
+  const [span, setSpan] = useState<{ a: number; b: number } | null>(null)
+  const [pull, setPull] = useState(0)
+  const spanRef = useRef<{ a: number; b: number } | null>(null)
+  const dirRef = useRef(0)
+
+  const setSpanBoth = (v: { a: number; b: number } | null) => {
+    spanRef.current = v
+    setSpan(v)
+    const c = v ? Math.min(1, Math.abs(v.b - v.a)) : 0
+    dragRef.current = c
+    setDrag(c)
+  }
+
+  const fracOf = (clientX: number) => {
+    const r = stub.current?.getBoundingClientRect()
+    if (!r || !r.width) return 0.5
+    return Math.max(0, Math.min(1, (clientX - r.left) / r.width))
   }
 
   const rip = (d: number) => {
     if (torn) return
     setDir(d)
+    setSpanBoth(d > 0 ? { a: 0, b: 1.3 } : { a: 1, b: -0.3 })
+    setPull(1)
     setTorn(true)
     try { navigator.vibrate?.(18) } catch {}
     const px = stub.current?.offsetHeight ?? 140
@@ -127,38 +144,78 @@ export function BoardingPass({
 
   const down = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!tear || torn) return
-    start.current = { x: e.clientX, y: e.clientY }
+    start.current = { x: e.clientX, y: e.clientY, a: fracOf(e.clientX) }
+    dirRef.current = 0
     setDragging(true)
     e.currentTarget.setPointerCapture(e.pointerId)
   }
+
   const move = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!start.current) return
-    const w = box.current?.offsetWidth || 300
-    const dx = e.clientX - start.current.x
-    const dy = e.clientY - start.current.y
-    if (Math.abs(dx) > 4) setDir(dx < 0 ? -1 : 1)
-    const dist = Math.hypot(dx, Math.max(0, dy) * 1.4)
-    set(Math.max(0, Math.min(1, dist / (w * 0.5))))
+    const st = start.current
+    if (!st) return
+    const dx = e.clientX - st.x
+    if (!dirRef.current) {
+      if (Math.abs(dx) < 5) return
+      dirRef.current = dx > 0 ? 1 : -1
+      setDir(dirRef.current)
+    }
+    const d = dirRef.current
+    const f = fracOf(e.clientX)
+    const prev = spanRef.current ? spanRef.current.b : st.a
+    const front = d > 0 ? Math.max(prev, f) : Math.min(prev, f)
+    setPull(Math.max(0, Math.min(1, (e.clientY - st.y) / 60)))
+    setSpanBoth({ a: st.a, b: front })
   }
+
   const up = () => {
     if (!start.current) return
     start.current = null
     setDragging(false)
-    if (dragRef.current > 0.55) rip(dir)
-    else set(0)
+    const sp = spanRef.current
+    if (sp) {
+      const cov = Math.abs(sp.b - sp.a)
+      const edge = sp.b < 0.04 || sp.b > 0.96
+      if ((edge && cov > 0.3) || cov > 0.65) {
+        rip(dirRef.current || 1)
+        return
+      }
+    }
+    setSpanBoth(null)
+    setPull(0)
   }
 
-  // the stub follows the finger smoothly, tilts and lifts; once released past the threshold it falls away
+  // quanto cada fatia ja foi rasgada (0..1): so depois do ponteiro passar, com curva suave na frente
+  const sliceAmount = (i: number) => {
+    if (!span) return 0
+    const c = (i + 0.5) / N
+    const sgn = span.b >= span.a ? 1 : -1
+    const from = sgn > 0 ? c - span.a : span.a - c
+    if (from < -0.5 / N) return 0
+    const behind = sgn > 0 ? span.b - c : c - span.b
+    const x = Math.max(0, Math.min(1, behind / 0.14))
+    return x * x * (3 - 2 * x)
+  }
+  const tearSign = span && span.b < span.a ? -1 : 1
+
   const p = drag
-  const ease = p * p * (3 - 2 * p)
-  const stubTransform = torn
-    ? `translate(${dir * 90}px, 380px) rotate(${dir * 18}deg)`
-    : `translate(${dir * ease * 34}px, ${ease * 40}px) rotate(${dir * ease * 8}deg)`
-  const stubTransition = torn
-    ? 'transform .9s cubic-bezier(.55,.06,.85,.4), opacity .7s ease .2s'
+  const stubTransform = torn ? `translate(${dir * 90}px, 380px) rotate(${dir * 18}deg)` : 'none'
+  const stubTransition = torn ? 'transform .9s cubic-bezier(.55,.06,.85,.4), opacity .7s ease .2s' : 'none'
+  const sliceTransition = torn
+    ? 'transform .12s ease-out'
     : dragging
       ? 'transform .09s ease-out'
-      : 'transform .7s cubic-bezier(.2,.9,.2,1)'
+      : 'transform .6s cubic-bezier(.2,.9,.2,1)'
+
+  const stubInner = useMemo(
+    () => (
+      <>
+        <Barcode seed={seed} />
+        {tear && !torn && <p className="mt-3 text-center text-[11px] uppercase tracking-[.25em] text-white/40">{t('bp.drag')}</p>}
+      </>
+    ),
+    [seed, tear, torn, t]
+  )
+
   const code = compact ? 'text-4xl' : 'text-5xl'
   const displayStatus = data.booked ? 'BOOKED' : t('bp.now')
   const pathname = usePathname()
@@ -230,9 +287,8 @@ export function BoardingPass({
           onPointerMove={move}
           onPointerUp={up}
           onPointerCancel={up}
-          className={`relative rounded-b-3xl bg-[#232325] px-6 pb-5 pt-5 shadow-xl ${tear && !torn ? 'cursor-grab' : ''} ${torn ? 'pointer-events-none' : ''}`}
+          className={`relative ${tear && !torn ? 'cursor-grab' : ''} ${torn ? 'pointer-events-none' : ''}`}
           style={{
-            ...mask(notchBottom),
             transform: stubTransform,
             transformOrigin: dir > 0 ? '0% 0%' : '100% 0%',
             transition: stubTransition,
@@ -241,8 +297,34 @@ export function BoardingPass({
             willChange: 'transform',
           }}
         >
-          <Barcode seed={seed} />
-          {tear && !torn && <p className="mt-3 text-center text-[11px] uppercase tracking-[.25em] text-white/40">{t('bp.drag')}</p>}
+          <div className="invisible rounded-b-3xl px-6 pb-5 pt-5" style={mask(notchBottom)}>
+            {stubInner}
+          </div>
+          {Array.from({ length: N }, (_, i) => {
+            const a = sliceAmount(i)
+            const j = ((i * 7919) % 13) / 13
+            const lift = a * (8 + 14 * pull + j * 5)
+            const rot = tearSign * a * (2.5 + 3 * pull + j * 2)
+            const L = Math.max(0, (i / N) * 100 - 0.3)
+            const R = Math.max(0, 100 - ((i + 1) / N) * 100 - 0.3)
+            return (
+              <div
+                key={i}
+                aria-hidden="true"
+                className="absolute inset-0 rounded-b-3xl bg-[#232325] px-6 pb-5 pt-5"
+                style={{
+                  ...mask(notchBottom),
+                  clipPath: `inset(0 ${R}% 0 ${L}%)`,
+                  transform: `translate(${tearSign * a * 3}px, ${lift}px) rotate(${rot}deg)`,
+                  transformOrigin: `${((i + 0.5) / N) * 100}% 0%`,
+                  transition: sliceTransition,
+                  willChange: 'transform',
+                }}
+              >
+                {stubInner}
+              </div>
+            )
+          })}
         </div>
       </div>
 
