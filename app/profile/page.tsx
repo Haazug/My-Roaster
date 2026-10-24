@@ -1,48 +1,156 @@
-"use client"
-import Link from "next/link"
-import { useLocalStorage } from "@/lib/use-local-storage"
-import type { RosterFlight } from "@/lib/roster-data"
-import { useT } from "@/lib/i18n"
-import { LanguageSelect } from "@/components/LanguageGate"
+'use client'
+
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { Camera, Copy, Users } from 'lucide-react'
+import { getProfile, saveProfile, generateShareCode, getPilotStats, type PilotProfile } from '@/lib/pilot-profile'
 
 export default function ProfilePage() {
-  const t = useT()
-  const [profile, setProfile] = useLocalStorage("myroster.profile", { name: "Pilot", avatar: "" })
-  const [logs] = useLocalStorage<RosterFlight[]>("myroster.logs", [])
-  const nm = logs.reduce((s, f) => s + f.distanceNm, 0)
-  return (
-    <main className="min-h-screen bg-[#0a0a0a] px-5 py-8 text-white sm:px-8">
-      <div className="mx-auto max-w-3xl">
-        <Link href="/" className="text-sm text-white/50">← MyRoster</Link>
-        <h1 className="mt-10 text-4xl font-semibold">{t("profile.title")}</h1>
-        <div className="mt-8 rounded-[28px] border border-white/10 bg-[#151619] p-6">
-          <div className="flex items-center gap-4">
-            <div className="flex size-16 items-center justify-center rounded-full bg-[#1f88ff] text-2xl font-bold">{profile.avatar || profile.name.slice(0, 1).toUpperCase()}</div>
-            <div>
-              <label className="text-xs text-white/40">{t("profile.name")}</label>
-              <input value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} className="mt-1 block rounded-lg bg-white/10 px-3 py-2 outline-none" />
-            </div>
-          </div>
-          <div className="mt-8 grid grid-cols-2 gap-3">
-            <Stat label={t("profile.flights")} value={logs.length} />
-            <Stat label={t("profile.nm")} value={nm.toLocaleString()} />
-            <Stat label={t("profile.airports")} value={new Set(logs.flatMap((f) => [f.orig, f.dest])).size} />
-            <Stat label={t("profile.airlines")} value={new Set(logs.map((f) => f.airlineIata)).size} />
-          </div>
-        </div>
-        <LanguageSelect className="mt-6 rounded-[28px] border border-white/10 bg-[#151619] p-6" />
-        <Link href="/login" className="mt-6 flex min-h-12 items-center justify-center rounded-xl border border-white/15 bg-white/10 font-medium">{t("profile.account")}</Link>
-        <p className="mt-10 text-xs leading-5 text-white/35">{t("profile.disclaimer")}</p>
-      </div>
-    </main>
-  )
-}
+  const [profile, setProfile] = useState<PilotProfile | null>(null)
+  const [name, setName] = useState('')
+  const [nationality, setNationality] = useState('')
+  const [avatar, setAvatar] = useState('')
+  const [copied, setCopied] = useState(false)
 
-function Stat({ label, value }: { label: string; value: string | number }) {
+  useEffect(() => {
+    const p = getProfile()
+    if (!p) {
+      const newId = `pilot_${Date.now()}`
+      const newProfile: PilotProfile = {
+        id: newId,
+        name: 'Pilot',
+        nationality: '',
+        createdAt: Date.now(),
+        totalFlights: 0,
+        totalHours: 0,
+      }
+      saveProfile(newProfile)
+      setProfile(newProfile)
+      setName(newProfile.name)
+    } else {
+      setProfile(p)
+      setName(p.name)
+      setNationality(p.nationality || '')
+      setAvatar(p.avatar || '')
+    }
+  }, [])
+
+  const handleSave = () => {
+    if (!profile) return
+    const updated: PilotProfile = { ...profile, name: name || 'Pilot', nationality, avatar }
+    saveProfile(updated)
+    setProfile(updated)
+  }
+
+  const shareCode = profile ? generateShareCode(profile) : ''
+  const shareLink = `${typeof window !== 'undefined' ? window.location.origin : ''}/friends?code=${shareCode}`
+
+  const handleCopyCode = () => {
+    navigator.clipboard.writeText(shareCode)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const data = ev.target?.result as string
+      setAvatar(data)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const input = 'w-full rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-sm outline-none focus:border-[#1f88ff]'
+  const label = 'text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]'
+
   return (
-    <div className="rounded-xl bg-white/[0.05] p-4">
-      <p className="text-xl font-semibold">{value}</p>
-      <p className="text-xs text-white/40">{label}</p>
-    </div>
+    <section className="min-h-screen p-5 pb-32 sm:p-8">
+      <p className={label}>Perfil</p>
+      <h1 className="mt-2 text-4xl font-semibold">Meu piloto</h1>
+
+      <div className="mt-6 rounded-2xl border border-white/10 bg-[#111217cc] p-6">
+        {/* Avatar */}
+        <label className="flex flex-col items-center gap-3 cursor-pointer group">
+          <div className="relative size-24 rounded-full bg-[#1f88ff]/20 flex items-center justify-center overflow-hidden">
+            {avatar ? (
+              <img src={avatar} alt="Avatar" className="w-full h-full object-cover" />
+            ) : (
+              <Camera className="size-8 text-[#1f88ff]" />
+            )}
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition rounded-full" />
+          </div>
+          <span className="text-xs text-white/50">Alterar foto</span>
+          <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+        </label>
+
+        {/* Nome */}
+        <div className="mt-6">
+          <p className={label}>Nome de piloto</p>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Seu nome"
+            className={input}
+          />
+        </div>
+
+        {/* Nacionalidade */}
+        <div className="mt-4">
+          <p className={label}>Nacionalidade</p>
+          <select
+            value={nationality}
+            onChange={(e) => setNationality(e.target.value)}
+            className={input + ' cursor-pointer'}
+          >
+            <option value="">Selecione...</option>
+            <option value="Angola">Angola</option>
+            <option value="Portugal">Portugal</option>
+            <option value="Brazil">Brasil</option>
+            <option value="United States">Estados Unidos</option>
+            <option value="United Kingdom">Reino Unido</option>
+            <option value="France">França</option>
+            <option value="Germany">Alemanha</option>
+            <option value="Spain">Espanha</option>
+            <option value="Italy">Itália</option>
+            <option value="Netherlands">Holanda</option>
+          </select>
+        </div>
+
+        <button
+          onClick={handleSave}
+          className="mt-6 w-full rounded-xl bg-[#1f88ff] py-3 font-semibold hover:bg-[#1f88ff]/90"
+        >
+          Guardar mudanças
+        </button>
+      </div>
+
+      {/* Partilhar */}
+      <div className="mt-6 rounded-2xl border border-white/10 bg-[#111217cc] p-6">
+        <p className={label}>Partilhar conta</p>
+        <h2 className="mt-2 text-lg font-semibold">Convida amigos</h2>
+        <p className="mt-2 text-sm text-white/50">Partilha este código para que os teus amigos te adicionem como piloto amigo.</p>
+
+        <div className="mt-4 rounded-xl bg-white/5 p-4 border border-white/10 font-mono text-xs break-all">
+          {shareCode}
+        </div>
+
+        <button
+          onClick={handleCopyCode}
+          className="mt-3 w-full flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 py-3 text-sm font-semibold hover:border-[#1f88ff]/60"
+        >
+          <Copy className="size-4" /> {copied ? 'Copiado!' : 'Copiar código'}
+        </button>
+
+        <Link
+          href="/friends"
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-[#1f88ff] py-3 font-semibold"
+        >
+          <Users className="size-4" /> Ver amigos
+        </Link>
+      </div>
+    </section>
   )
 }

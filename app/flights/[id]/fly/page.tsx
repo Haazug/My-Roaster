@@ -30,6 +30,8 @@ const STEPS = [
   { key: 'At gate', icon: '🎉', at: null },
 ]
 
+const kindFor = (k: string): sound.Kind => (['Takeoff', 'Approach', 'Cruise', 'Landing'].includes(k) ? 'dingdong' : 'ding')
+
 type FlightInfo = {
   free?: boolean
   airlineName: string
@@ -157,8 +159,8 @@ export default function FlyNowPage() {
     [setView]
   )
 
-  const notify = (title: string, body: string) => {
-    sound.ding()
+  const notify = (title: string, body: string, kind: sound.Kind = 'ding') => {
+    sound.play(kind)
     toast(title, { description: body })
     try {
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
@@ -187,7 +189,7 @@ export default function FlyNowPage() {
       if (s.at === null || statuses[s.key] || fired.current.has(s.key)) return
       if (elapsed >= s.at * totalMs) {
         fired.current.add(s.key)
-        notify(tr('fly.timeFor', { step: tr('step.' + s.key) }), tr('fly.tick'))
+        notify(tr('fly.timeFor', { step: tr('step.' + s.key) }), tr('fly.tick'), kindFor(s.key))
       }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -208,7 +210,7 @@ export default function FlyNowPage() {
     if (mins >= nextCabin.current) {
       nextCabin.current = mins + gap()
       const pack = CABIN[lang] || CABIN.en
-      notify(pack.title, pack.lines[Math.floor(Math.random() * pack.lines.length)])
+      notify(pack.title, pack.lines[Math.floor(Math.random() * pack.lines.length)], Math.random() < 0.5 ? 'ding' : 'dingdong')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [elapsed, takeoffAt, finished])
@@ -262,6 +264,7 @@ export default function FlyNowPage() {
   const mark = (key: string, status: Status) => {
     sound.unlock()
     askPermission()
+    sound.play(kindFor(key))
     stepLog.current[key] = { status, at: Date.now() }
     setStatuses((prev) => ({ ...prev, [key]: status }))
     if (key === 'Takeoff') {
@@ -275,6 +278,7 @@ export default function FlyNowPage() {
   }
 
   const skipToTakeoff = () => {
+    sound.play('ding')
     setStatuses((prev) => {
       const next = { ...prev }
       STEPS.slice(0, 3).forEach((s) => {
@@ -313,12 +317,7 @@ export default function FlyNowPage() {
   return (
     <section
       className="min-h-screen p-5 sm:p-8"
-      onClickCapture={(e) => {
-        if ((e.target as HTMLElement).closest('button')) {
-          sound.unlock()
-          sound.ding()
-        }
-      }}
+      onClickCapture={() => sound.unlock()}
     >
       <div className="mb-6 flex items-center justify-between">
         <Link href={`/flights/${id}/flight-plan`} className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">

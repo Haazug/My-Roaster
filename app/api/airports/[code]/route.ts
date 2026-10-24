@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
+import { topRank } from '@/lib/top-airlines'
 import { nearbyAirports } from '@/lib/openflights-parse'
 
 export async function GET(req: Request, { params }: { params: Promise<{ code: string }> }) {
@@ -27,7 +28,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
       if (al && !g.airlines.some((x: any) => x.id === al.id)) g.airlines.push({ id: al.id, iata: al.iata, icao: al.icao, name: al.name, active: al.active })
     }
     const routesWithAirports = Array.from(groups.values())
-      .map((g) => ({ ...g, airlines: g.airlines.sort((a: any, b: any) => Number(b.active) - Number(a.active)) }))
+      .map((g) => ({ ...g, airlines: g.airlines.sort((a: any, b: any) => topRank(a.icao) - topRank(b.icao) || Number(b.active) - Number(a.active)) }))
       .sort((a, b) => b.airlines.length - a.airlines.length)
 
     const nearby = nearbyAirports(db, airport.lat, airport.lon, 300, 12)

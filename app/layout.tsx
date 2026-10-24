@@ -5,6 +5,7 @@ import GlobeBackground from '@/components/GlobeBackground'
 import BottomNav from '@/components/BottomNav'
 import BackgroundMusic from '@/components/BackgroundMusic'
 import CookieBanner from '@/components/CookieBanner'
+import PlnDrop from '@/components/PlnDrop'
 import LanguageGate from '@/components/LanguageGate'
 import LegalFooter from '@/components/LegalFooter'
 
@@ -34,6 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <BottomNav />
          <BackgroundMusic />
         <LanguageGate />
+        <PlnDrop />
         <CookieBanner />
         <Toaster theme="dark" position="top-center" richColors />
       </body>

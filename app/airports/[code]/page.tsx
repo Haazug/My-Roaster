@@ -7,6 +7,8 @@ import { ArrowLeft, ChevronRight, RadioTower, ExternalLink } from 'lucide-react'
 import { useEffect } from 'react'
 import { useMapStore, type Point } from '@/lib/map-store'
 import { AirlineLogo } from '@/components/AirlineLogo'
+import LiveNow from '@/components/AirportLiveNow'
+import { fixName } from '@/lib/airline-names'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -100,16 +102,24 @@ export default function AirportDetailPage() {
           <h2 className="text-xl font-semibold mb-4">Departures & Arrivals</h2>
           <div className="flex flex-col gap-2">
             {routes.map((route, idx) => (
-              <Link key={idx} style={{ contentVisibility: 'auto', containIntrinsicSize: '0 110px' }} href={route.airlines?.length ? `/route/${route.airlines[0].iata || route.airlines[0].id}/${route.from}-${route.to}` : `/routes/${route.from}-${route.to}`} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#111217cc] p-4 transition hover:border-[#1f88ff]/60">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-3 font-semibold">
-                    <span>{route.from}</span><span className="text-[#1f88ff]">→</span><span>{route.to}</span>
-                  </div>
-                  <p className="mt-1 text-sm text-white/45">{route.fromAirport?.city} → {route.toAirport?.city}</p>
-                  <div className="mt-2 flex flex-wrap items-center gap-1">{(route.airlines || []).slice(0, 5).map((a) => <AirlineLogo key={a.id} iata={a.iata} icao={a.icao} name={a.name} size="sm" showText={false} />)}{(route.airlines?.length || 0) > 5 && <span className="text-xs text-white/40">+{route.airlines!.length - 5}</span>}</div>
+              <div key={idx} style={{ contentVisibility: 'auto', containIntrinsicSize: '0 120px' }} className="rounded-2xl border border-white/10 bg-[#111217cc] p-4">
+                <div className="flex items-center gap-3 font-semibold">
+                  <span>{route.from}</span><span className="text-[#1f88ff]">→</span><span>{route.to}</span>
                 </div>
-                <ChevronRight className="size-5 shrink-0 text-white/30" />
-              </Link>
+                <p className="mt-1 text-sm text-white/45">{route.fromAirport?.city} → {route.toAirport?.city}</p>
+                {route.airlines?.length ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {route.airlines.map((a) => (
+                      <Link key={a.id} href={`/route/${a.iata || a.id}/${route.from}-${route.to}`} className="flex min-h-10 items-center gap-2 rounded-full border border-white/15 bg-white/[.06] py-1 pl-1 pr-3 text-xs transition hover:border-[#1f88ff]/60">
+                        <AirlineLogo iata={a.iata} icao={a.icao} name={fixName(a.name)} size="sm" showText={false} />
+                        <span className="max-w-[10rem] truncate">{fixName(a.name)}</span>
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <Link href={`/routes/${route.from}-${route.to}`} className="mt-3 inline-block text-xs text-[#55a7ff]">View route</Link>
+                )}
+              </div>
             ))}
           </div>
           

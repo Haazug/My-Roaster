@@ -6,6 +6,7 @@ import { ArrowLeft, RefreshCw, ExternalLink } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { getAircraftByHex, formatAltitude, formatSpeed, formatVerticalRate, formatTrack } from '@/lib/live-traffic'
 import type { LiveAircraft } from '@/lib/live-traffic'
+import { AirlineLogo } from '@/components/AirlineLogo'
 
 export default function LiveAircraftPage() {
   const { hex } = useParams<{ hex: string }>()
@@ -13,6 +14,12 @@ export default function LiveAircraftPage() {
   const [loading, setLoading] = useState(true)
   const [lastUpdate, setLastUpdate] = useState<string | null>(null)
   const [autoRefresh, setAutoRefresh] = useState(true)
+  const [fr, setFr] = useState<any>(null)
+  useEffect(() => {
+    const cs = aircraft?.callsign
+    if (!cs) return
+    fetch(`/api/live/flight/${encodeURIComponent(cs)}`).then((r) => r.json()).then((j) => setFr(j?.data || null)).catch(() => {})
+  }, [aircraft?.callsign])
 
   useEffect(() => {
     const fetchAircraft = async () => {
@@ -76,9 +83,9 @@ export default function LiveAircraftPage() {
 
       <header className="mt-8 border-b border-white/10 pb-7">
         <div className="flex items-start gap-4">
-          <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-[#1f88ff]/15 text-sm font-bold text-[#1f88ff]">
+          {fr ? <AirlineLogo iata={fr.airlineIata} icao={fr.airlineIcao} name={fr.airlineName} size="lg" showText={false} /> : <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-[#1f88ff]/15 text-sm font-bold text-[#1f88ff]">
             {aircraft.hex.substring(0, 3).toUpperCase()}
-          </div>
+          </div>}
           <div>
             <p className="text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">Live Aircraft</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight font-mono">
@@ -90,6 +97,16 @@ export default function LiveAircraftPage() {
           </div>
         </div>
       </header>
+
+      {fr && (
+        <div className="mt-6 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-[#111217cc] p-4">
+          <div className="min-w-0">
+            <p className="text-xs text-white/40">{fr.airlineName}</p>
+            <p className="truncate font-semibold">{fr.from} → {fr.to} <span className="font-normal text-white/45">{fr.fromCity} → {fr.toCity}</span></p>
+          </div>
+          <Link href={`/route/${fr.airlineIata || fr.airlineIcao}/${fr.from}-${fr.to}`} className="shrink-0 rounded-xl bg-[#1f88ff] px-4 py-3 text-sm font-semibold">Fly this route</Link>
+        </div>
+      )}
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div className="rounded-2xl border border-white/10 bg-[#111217cc] p-6">

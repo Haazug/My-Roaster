@@ -31,6 +31,7 @@ export default function RandomPage() {
   const [chosen, setChosen] = useState<A | null>(null)
   const [airport, setAirport] = useState('')
   const [time, setTime] = useState<'any' | 'short' | 'medium' | 'long'>('any')
+  const [custom, setCustom] = useState('')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [res, setRes] = useState<Result | null>(null)
@@ -43,6 +44,7 @@ export default function RandomPage() {
     const airline = chosen || suggestions[0] || null
     const pool = airline ? [airline] : list.filter((a) => a.active && a.numRoutes > 0).sort(() => Math.random() - 0.5).slice(0, 15)
     const na = norm(airport.trim())
+    const target = Number(custom) || 0
     for (const a of pool) {
       const d = await fetch(`/api/airlines/${a.id}`).then((r) => r.json()).catch(() => null)
       const routes: R[] = d?.routes || []
@@ -51,7 +53,8 @@ export default function RandomPage() {
         if (na && ![r.from, r.to, r.fromAirport?.city, r.toAirport?.city, r.fromAirport?.name, r.toAirport?.name].some((x) => norm(x || '').includes(na))) continue
         const nm = nmBetween(r.fromAirport, r.toAirport)
         const min = nm ? estimateBlockMinutes(nm, r.aircraft?.[0] || '') : 0
-        if (time !== 'any' && min) {
+        if (target > 0 && min && Math.abs(min - target) > Math.max(10, target * 0.25)) continue
+        if (!target && time !== 'any' && min) {
           if (time === 'short' && min >= 120) continue
           if (time === 'medium' && (min < 120 || min > 300)) continue
           if (time === 'long' && min <= 300) continue
@@ -89,6 +92,8 @@ export default function RandomPage() {
         </div>
         <div>
           <p className="mb-1 text-xs text-white/50">Flight time</p>
+          <input className={input} type="number" min={5} placeholder="Custom: exact minutes (e.g. 30)" value={custom} onChange={(e) => setCustom(e.target.value)} />
+          <p className="mb-2 mt-3 text-xs text-white/40">or choose a range</p>
           <div className="flex flex-wrap gap-2">
             {BUCKETS.map(([k, label]) => (
               <button key={k} onClick={() => setTime(k)} className={`rounded-xl border px-3 py-2 text-sm ${time === k ? 'border-[#1f88ff] bg-[#1f88ff]/20' : 'border-white/10 bg-white/5'}`}>{label}</button>

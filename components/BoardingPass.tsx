@@ -1,6 +1,9 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { usePathname } from 'next/navigation'
+import * as sound from '@/lib/sound'
+import { encodeShare } from '@/lib/share'
 import { useT } from '@/lib/i18n'
 
 export type PassData = {
@@ -151,6 +154,19 @@ export function BoardingPass({
       ? 'transform .09s ease-out'
       : 'transform .7s cubic-bezier(.2,.9,.2,1)'
   const code = compact ? 'text-4xl' : 'text-5xl'
+  const pathname = usePathname()
+  const [mode, setMode] = useState<'solo' | 'duo'>('solo')
+  const [qr, setQr] = useState('')
+  const [duoStart] = useState(() => Math.ceil((Date.now() + 10 * 60000) / 60000) * 60000)
+  const airlineCode = (pathname?.match(/\/flights\/([^/]+)/)?.[1] || '').split('-')[0].toUpperCase()
+  const shareLink = useMemo(() => {
+    if (!torn || !airlineCode || typeof window === 'undefined') return ''
+    return `${window.location.origin}/s?d=${encodeShare({ a: airlineCode, f: data.from, t: data.to, ac: data.aircraft || '', n: data.flight || '', m: mode, s: mode === 'duo' ? duoStart : undefined })}`
+  }, [torn, airlineCode, data.from, data.to, data.aircraft, data.flight, mode, duoStart])
+  useEffect(() => {
+    if (!shareLink) return
+    import('qrcode').then((Q: any) => (Q.default || Q).toDataURL(shareLink, { margin: 1, width: 240 })).then(setQr).catch(() => {})
+  }, [shareLink])
 
   return (
     <div ref={box} className="w-full select-none text-white">
@@ -223,9 +239,21 @@ export function BoardingPass({
         </div>
       </div>
 
+      {torn && !torn && qr && (
+        <div className="mt-6 rounded-2xl bg-white/[.06] p-4 text-center">
+          <div className="mx-auto flex w-fit rounded-full bg-white/10 p-1 text-xs">
+            {(['solo', 'duo'] as const).map((m) => (
+              <button key={m} type="button" onClick={() => setMode(m)} className={`rounded-full px-4 py-1.5 font-semibold ${mode === m ? 'bg-white text-black' : 'text-white/60'}`}>{m === 'solo' ? 'Solo' : 'Duo'}</button>
+            ))}
+          </div>
+          <img src={qr} alt="Share this route" className="mx-auto mt-3 size-40 rounded-xl bg-white p-2" />
+          <p className="mt-2 text-xs text-white/50">{mode === 'duo' ? 'Duo: your friend scans this in MyRoster, Scan, and you both depart at the same time.' : 'Share this route: scan it in MyRoster, Scan.'}</p>
+        </div>
+      )}
+
       {torn && (
         <button
-          onClick={onBoard}
+          onClick={() => { sound.unlock(); sound.play('dingdong'); onBoard?.() }}
           className={`mt-6 w-full rounded-full bg-white py-4 text-base font-semibold text-black shadow-lg transition-all duration-500 ${showBtn ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-3 opacity-0'}`}
         >
           {t('bp.board')}
