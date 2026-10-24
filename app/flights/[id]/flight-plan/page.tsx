@@ -249,7 +249,7 @@ export default function FlightPlanPage() {
           <BoardingPass
             tear
             data={{
-              from: pln.from, to: pln.to, flight: form.flight || String(id).toUpperCase(), aircraft: acName,
+              from: pln.from, to: pln.to, airline: seed?.airlineName, airlineIata: seed?.airlineIata, flight: form.flight || String(id).toUpperCase(), aircraft: acName,
               distanceNm: Math.round(pln.distance), durationMin: plnMin, date: new Date().toISOString().slice(0, 10),
             }}
             onBoard={plnLaunch}
@@ -263,7 +263,7 @@ export default function FlightPlanPage() {
             tear
             data={{
               from: geo?.fromIata || dep, to: geo?.toIata || arr, fromCity: geo?.fromCity, toCity: geo?.toCity,
-              airline: seed?.airlineName, flight: form.flight || String(id).toUpperCase(), aircraft: acName,
+              airline: seed?.airlineName, airlineIata: seed?.airlineIata, flight: form.flight || String(id).toUpperCase(), aircraft: acName,
               distanceNm: geo?.distanceNm, durationMin: form.duration, date: new Date().toISOString().slice(0, 10),
             }}
             onBoard={manualLaunch}

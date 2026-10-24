@@ -13,6 +13,7 @@ export type PassData = {
   fromCity?: string
   toCity?: string
   airline?: string
+  airlineIata?: string
   flight?: string
   aircraft?: string
   distanceNm?: number
@@ -297,13 +298,14 @@ export function BoardingPass({
   const [copiedRoute, setCopiedRoute] = useState(false)
   const [duoStart] = useState(() => Math.ceil((Date.now() + 10 * 60000) / 60000) * 60000)
   const airlineCode = (
+    data.airlineIata ||
     (pathname?.match(/\/flights\/([^/]+)/)?.[1] || '').split('-')[0] ||
     (data.flight || '').match(/^[A-Za-z0-9]{2,3}?(?=\d)/)?.[0] ||
     'XX'
   ).toUpperCase()
   const shareLink = useMemo(() => {
     if (!airlineCode || typeof window === 'undefined') return ''
-    return `${window.location.origin}/s?d=${encodeShare({ a: airlineCode, f: data.from, t: data.to, ac: data.aircraft || '', n: data.flight || '', m: mode, s: mode === 'duo' ? duoStart : undefined })}`
+    return `${window.location.origin}/s?d=${encodeShare({ a: airlineCode, f: data.from, t: data.to, ac: data.aircraft || '', n: data.flight || '', an: data.airline || '', m: mode, s: mode === 'duo' ? duoStart : undefined })}`
   }, [airlineCode, data.from, data.to, data.aircraft, data.flight, mode, duoStart])
   useEffect(() => {
     if (!shareLink) return

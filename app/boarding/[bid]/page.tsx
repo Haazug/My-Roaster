@@ -42,6 +42,7 @@ export default function BoardingPage() {
           fromCity: p.fromCity,
           toCity: p.toCity,
           airline: p.airlineName,
+          airlineIata: p.airlineIata || String(p.id || '').split('-')[0],
           flight: b.flightNumber,
           aircraft: p.aircraft,
           distanceNm: p.distanceNm,

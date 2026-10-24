@@ -24,7 +24,7 @@ export default function SharedRoutePage() {
   return (
     <section className="min-h-screen p-5 pb-32 sm:p-8">
       <p className="text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">{s.m === 'duo' ? 'Duo flight' : 'Shared route'}</p>
-      <div className="mt-4"><AirlineLogo iata={s.a} name={s.a} size="md" /></div>
+      <div className="mt-4"><AirlineLogo iata={s.a} name={s.an || s.a} size="md" /></div>
       <h1 className="mt-4 text-4xl font-semibold">{s.f} → {s.t}</h1>
       <p className="mt-2 text-sm text-white/50">{[s.n, s.ac].filter(Boolean).join(' · ')}</p>
       {when && (
