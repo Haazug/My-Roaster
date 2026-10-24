@@ -5,6 +5,25 @@ import { useEffect, useRef, useState } from 'react'
 import { QrCode, Upload } from 'lucide-react'
 import { codeFromText } from '@/lib/share'
 
+function decodeQR(jsQR: any, src: CanvasImageSource, w: number, h: number): string | null {
+  const widths = [w, 1200, 800, 500, 320].filter((x, i, a) => x <= w && a.indexOf(x) === i)
+  for (const tw of widths) {
+    const th = Math.round((h * tw) / w)
+    const cv = document.createElement('canvas')
+    cv.width = tw
+    cv.height = th
+    const ctx = cv.getContext('2d', { willReadFrequently: true })
+    if (!ctx) continue
+    ctx.fillStyle = '#fff'
+    ctx.fillRect(0, 0, tw, th)
+    ctx.drawImage(src, 0, 0, tw, th)
+    const d = ctx.getImageData(0, 0, tw, th)
+    const r = jsQR(d.data, d.width, d.height, { inversionAttempts: 'attemptBoth' })
+    if (r?.data) return r.data
+  }
+  return null
+}
+
 export default function ScanPage() {
   const router = useRouter()
   const video = useRef<HTMLVideoElement>(null)
@@ -37,11 +56,8 @@ export default function ScanPage() {
           if (v.videoWidth) {
             canvas.width = v.videoWidth
             canvas.height = v.videoHeight
-            const c = canvas.getContext('2d', { willReadFrequently: true })!
-            c.drawImage(v, 0, 0)
-            const img = c.getImageData(0, 0, canvas.width, canvas.height)
-            const r = jsQR(img.data, img.width, img.height)
-            if (r?.data && open(r.data)) return
+            const raw = decodeQR(jsQR, v, v.videoWidth, v.videoHeight)
+            if (raw && open(raw)) return
           }
           setTimeout(tick, 200)
         }
@@ -59,18 +75,14 @@ export default function ScanPage() {
   }, [cam])
 
   const fromImage = async (file: File) => {
+    setMsg('')
     const img = new Image()
     img.src = URL.createObjectURL(file)
     await img.decode().catch(() => {})
-    const canvas = document.createElement('canvas')
-    canvas.width = img.naturalWidth
-    canvas.height = img.naturalHeight
-    const c = canvas.getContext('2d')!
-    c.drawImage(img, 0, 0)
     const jsQR = (await import('jsqr')).default
-    const d = c.getImageData(0, 0, canvas.width, canvas.height)
-    const r = jsQR(d.data, d.width, d.height)
-    if (!(r?.data && open(r.data))) setMsg('No MyRoster code found in that image.')
+    const raw = decodeQR(jsQR, img, img.naturalWidth, img.naturalHeight)
+    if (!raw) return setMsg('No QR code found in that image. Crop it closer to the QR and try again.')
+    if (!open(raw)) setMsg('QR read, but it is not a MyRoster code.')
   }
 
   const input = 'w-full rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-sm outline-none focus:border-[#1f88ff]'
