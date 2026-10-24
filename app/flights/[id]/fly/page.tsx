@@ -87,6 +87,12 @@ export default function FlyNowPage() {
   const stepLog = useRef<Record<string, { status: string; at: number }>>({})
   const startedAt = useRef(Date.now())
   const nextCabin = useRef<number | null>(null)
+  const [holding, setHolding] = useState(false)
+  const holdSince = useRef<number | null>(null)
+  const holdTotal = useRef(0)
+  const holdCount = useRef(0)
+  const goArounds = useRef(0)
+  const [goAroundCount, setGoAroundCount] = useState(0)
   const lang = useLang((s) => s.lang)
 
   // Load the plan saved by the Flight Plan page (for flights that are not samples)
@@ -184,7 +190,7 @@ export default function FlyNowPage() {
 
   // Reminders at the estimated times
   useEffect(() => {
-    if (!takeoffAt || !totalMs || finished) return
+    if (!takeoffAt || !totalMs || finished || holding) return
     STEPS.forEach((s) => {
       if (s.at === null || statuses[s.key] || fired.current.has(s.key)) return
       if (elapsed >= s.at * totalMs) {
@@ -243,6 +249,9 @@ export default function FlyNowPage() {
         airborneMin,
         altitude: info.altitude || null,
         steps: stepLog.current,
+        goArounds: goArounds.current,
+        holdings: holdCount.current,
+        holdingMin: Math.round((holdTotal.current + (holdSince.current !== null ? Date.now() - holdSince.current : 0)) / 60000),
       },
     }
     setLogs([entry, ...logs])
@@ -261,8 +270,47 @@ export default function FlyNowPage() {
     } catch {}
   }
 
+  const endHolding = () => {
+    if (holdSince.current !== null) {
+      holdTotal.current += Date.now() - holdSince.current
+      holdSince.current = null
+    }
+    setHolding(false)
+  }
+
+  const toggleHolding = () => {
+    sound.unlock()
+    sound.play('ding')
+    if (holdSince.current !== null) {
+      endHolding()
+      toast('Holding ended', { description: 'Flight resumed' })
+    } else {
+      holdSince.current = Date.now()
+      holdCount.current += 1
+      setHolding(true)
+      toast('Holding', { description: 'The clock keeps running' })
+    }
+  }
+
+  const goAround = () => {
+    sound.unlock()
+    sound.play('dingdong')
+    const from = STEPS.findIndex((x) => x.key === 'Descent')
+    const redo = STEPS.slice(from)
+    redo.forEach((x) => { delete stepLog.current[x.key] })
+    setStatuses((prev) => {
+      const next = { ...prev }
+      redo.forEach((x) => { delete next[x.key] })
+      return next
+    })
+    goArounds.current += 1
+    setGoAroundCount(goArounds.current)
+    toast('Go around', { description: 'Back to descent' })
+  }
+
   const mark = (key: string, status: Status) => {
     sound.unlock()
+    if (holdSince.current !== null) endHolding()
     askPermission()
     sound.play(kindFor(key))
     stepLog.current[key] = { status, at: Date.now() }
@@ -313,6 +361,7 @@ export default function FlyNowPage() {
 
   const airborneProgress = totalMs ? Math.min(100, (elapsed / totalMs) * 100) : 0
   const remainingMs = Math.max(0, totalMs - elapsed)
+  const holdMs = holdTotal.current + (holdSince.current !== null ? Math.max(0, now - holdSince.current) : 0)
 
   return (
     <section
@@ -375,6 +424,12 @@ export default function FlyNowPage() {
                 <p className="mt-4 text-sm text-white/45">
                   {tr('fly.remaining', { n: Math.ceil(remainingMs / 60_000), b: info.durationMin })}
                 </p>
+                {(holding || holdTotal.current > 0) && (
+                  <p className="mt-3 text-sm font-medium text-yellow-300">🔄 Holding: {fmt(holdMs)}</p>
+                )}
+                {holding && elapsed >= totalMs && (
+                  <p className="mt-1 text-xs text-yellow-200/70">Autopilot at destination, circling until manual intervention.</p>
+                )}
                 <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
                   <div className="h-full bg-[#1f88ff] transition-all" style={{ width: `${airborneProgress}%` }} />
                 </div>
@@ -423,6 +478,19 @@ export default function FlyNowPage() {
                     </span>
                     {eta !== null && <span className="text-xs text-white/40">+{eta} {tr('fly.min')}</span>}
                   </div>
+                  {isCurrent && s.key === 'Cruise' && takeoffAt && (
+                    <button
+                      onClick={toggleHolding}
+                      className={`mt-3 w-full rounded-lg border px-3 py-2 text-sm font-medium ${holding ? 'border-yellow-400/60 bg-yellow-400/15 text-yellow-200' : 'border-white/15 bg-white/10'}`}
+                    >
+                      {holding ? 'Exit holding' : 'Holding'}
+                    </button>
+                  )}
+                  {isCurrent && (s.key === 'Approach' || s.key === 'Landing') && (
+                    <button onClick={goAround} className="mt-3 w-full rounded-lg border border-orange-400/40 bg-orange-400/10 px-3 py-2 text-sm font-medium text-orange-200">
+                      Go around{goAroundCount > 0 ? ` (${goAroundCount})` : ''}
+                    </button>
+                  )}
                   {isCurrent && (
                     <div className="mt-3 flex gap-2">
                       <button onClick={() => mark(s.key, 'done')} className="flex-1 rounded-lg bg-[#4caf50] px-3 py-2 text-sm font-semibold">
