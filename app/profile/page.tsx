@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Camera, Copy, Users, LogOut, Lock } from 'lucide-react'
+import { Camera, Copy, Users, LogOut, LogIn, Lock } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 import { getProfile, getFriends, saveProfile, generateShareCode, getPilotStats, type PilotProfile } from '@/lib/pilot-profile'
 
 const DEVELOPER_SECRET = "13442018"
@@ -21,6 +22,8 @@ export default function ProfilePage() {
   const [devUnlocked, setDevUnlocked] = useState(false)
   const [devCode, setDevCode] = useState('')
   const [devError, setDevError] = useState('')
+  const [email, setEmail] = useState<string | null>(null)
+  const [authReady, setAuthReady] = useState(false)
 
   useEffect(() => {
     try {
@@ -54,6 +57,32 @@ export default function ProfilePage() {
     }
   }, [])
 
+  useEffect(() => {
+    let live = true
+    supabase.auth.getSession().then(({ data }) => {
+      if (!live) return
+      const mail = data.session?.user.email ?? null
+      setEmail(mail)
+      setAuthReady(true)
+      if (mail) {
+        const p = getProfile()
+        if (p && p.name === 'Pilot') {
+          const updated = { ...p, name: mail.split('@')[0] }
+          saveProfile(updated)
+          setProfile(updated)
+          setName(updated.name)
+        }
+      }
+    })
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      setEmail(session?.user.email ?? null)
+    })
+    return () => {
+      live = false
+      sub.subscription.unsubscribe()
+    }
+  }, [])
+
   const handleSave = async () => {
     if (!profile || !name.trim()) return
     setSaving(true)
@@ -77,14 +106,15 @@ export default function ProfilePage() {
     }
   }
 
-  const handleLogout = () => {
-    if (window.confirm('Apagar perfil e sair?')) {
-      try {
-        localStorage.clear()
-        window.location.href = '/'
-      } catch (e) {
-        console.error('Logout failed:', e)
-      }
+  const handleLogout = async () => {
+    if (!window.confirm('Terminar sessão?')) return
+    try {
+      await supabase.auth.signOut()
+      localStorage.removeItem('myroster.profile')
+      localStorage.removeItem('myroster.friends')
+      window.location.href = '/login'
+    } catch (e) {
+      console.error('Logout failed:', e)
     }
   }
 
@@ -141,13 +171,23 @@ export default function ProfilePage() {
         <div>
           <p className={label}>Perfil</p>
           <h1 className="mt-2 text-4xl font-semibold">{displayName}</h1>
+          {email && <p className="mt-1 text-sm text-white/50">{email}</p>}
         </div>
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-2 rounded-lg border border-red-300/30 bg-red-300/10 px-3 py-2 text-sm text-red-300 hover:bg-red-300/20"
-        >
-          <LogOut className="size-4" /> Sair
-        </button>
+{email ? (
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 rounded-lg border border-red-300/30 bg-red-300/10 px-3 py-2 text-sm text-red-300 hover:bg-red-300/20"
+          >
+            <LogOut className="size-4" /> Sair
+          </button>
+        ) : authReady ? (
+          <Link
+            href="/login?next=/profile"
+            className="flex items-center gap-2 rounded-lg border border-[#1f88ff]/40 bg-[#1f88ff]/10 px-3 py-2 text-sm text-[#55a7ff] hover:bg-[#1f88ff]/20"
+          >
+            <LogIn className="size-4" /> Entrar
+          </Link>
+        ) : null}
       </div>
 
       <div className="mt-6 rounded-2xl border border-white/10 bg-[#111217cc] p-6">
