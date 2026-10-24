@@ -113,6 +113,13 @@ export function BoardingPass({
   const [closing, setClosing] = useState(false)
   const spanRef = useRef<{ a: number; b: number } | null>(null)
   const dirRef = useRef(0)
+  const targetB = useRef(0)
+  const targetA = useRef(0)
+  const pullTarget = useRef(0)
+  const pullCur = useRef(0)
+  const finishing = useRef(false)
+  const raf = useRef<number | null>(null)
+  const ripRef = useRef<(d: number) => void>(() => {})
 
   const setSpanBoth = (v: { a: number; b: number } | null) => {
     spanRef.current = v
@@ -132,7 +139,7 @@ export function BoardingPass({
     if (torn) return
     setDir(d)
     setClosing(false)
-    setSpanBoth(d > 0 ? { a: 0, b: 1.3 } : { a: 1, b: -0.3 })
+    setSpanBoth(d > 0 ? { a: 0, b: 1 } : { a: 1, b: 0 })
     setPull(1)
     setTorn(true)
     try { navigator.vibrate?.(18) } catch {}
@@ -142,11 +149,48 @@ export function BoardingPass({
     setTimeout(() => setShowBtn(true), 520)
     onTorn?.()
   }
+  ripRef.current = rip
+
+  // a frente do rasgo persegue o ponteiro com inercia (papel), em vez de saltar
+  const tick = () => {
+    raf.current = null
+    const st = spanRef.current
+    if (!st) return
+    const tb = targetB.current
+    const ta = targetA.current
+    const nb = st.b + (tb - st.b) * 0.2
+    const na = st.a + (ta - st.a) * 0.2
+    const np = pullCur.current + (pullTarget.current - pullCur.current) * 0.2
+    pullCur.current = np
+    setPull(np)
+    const done = Math.abs(tb - nb) < 0.002 && Math.abs(ta - na) < 0.002
+    if (done) {
+      setSpanBoth({ a: ta, b: tb })
+      if (finishing.current) {
+        finishing.current = false
+        ripRef.current(dirRef.current || 1)
+        return
+      }
+      if (Math.abs(pullTarget.current - np) < 0.01) return
+    } else {
+      setSpanBoth({ a: na, b: nb })
+    }
+    raf.current = requestAnimationFrame(tick)
+  }
+  const kick = () => {
+    if (raf.current == null) raf.current = requestAnimationFrame(tick)
+  }
+  useEffect(() => () => { if (raf.current != null) cancelAnimationFrame(raf.current) }, [])
 
   const down = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!tear || torn || closing) return
-    start.current = { x: e.clientX, y: e.clientY, a: fracOf(e.clientX) }
+    if (!tear || torn || closing || finishing.current) return
+    const a = fracOf(e.clientX)
+    start.current = { x: e.clientX, y: e.clientY, a }
     dirRef.current = 0
+    targetA.current = a
+    targetB.current = a
+    pullTarget.current = 0
+    pullCur.current = 0
     setDragging(true)
     e.currentTarget.setPointerCapture(e.pointerId)
   }
@@ -159,13 +203,13 @@ export function BoardingPass({
       if (Math.abs(dx) < 5) return
       dirRef.current = dx > 0 ? 1 : -1
       setDir(dirRef.current)
+      setSpanBoth({ a: st.a, b: st.a })
     }
     const d = dirRef.current
     const f = fracOf(e.clientX)
-    const prev = spanRef.current ? spanRef.current.b : st.a
-    const front = d > 0 ? Math.max(prev, f) : Math.min(prev, f)
-    setPull(Math.max(0, Math.min(1, (e.clientY - st.y) / 70)))
-    setSpanBoth({ a: st.a, b: front })
+    targetB.current = d > 0 ? Math.max(targetB.current, f) : Math.min(targetB.current, f)
+    pullTarget.current = Math.max(0, Math.min(1, (e.clientY - st.y) / 70))
+    kick()
   }
 
   const up = () => {
@@ -173,23 +217,31 @@ export function BoardingPass({
     start.current = null
     setDragging(false)
     const sp = spanRef.current
-    if (sp) {
-      const cov = Math.abs(sp.b - sp.a)
-      const edge = sp.b < 0.04 || sp.b > 0.96
-      if ((edge && cov > 0.3) || cov > 0.65) {
-        rip(dirRef.current || 1)
-        return
-      }
-      setClosing(true)
-      setPull(0)
-      setTimeout(() => {
-        setSpanBoth(null)
-        setClosing(false)
-      }, 480)
+    if (!sp) return
+    const tb = targetB.current
+    const cov = Math.abs(tb - sp.a)
+    const edge = tb < 0.04 || tb > 0.96
+    if ((edge && cov > 0.3) || cov > 0.6) {
+      // ponto de nao retorno: o rasgo continua sozinho ate as duas pontas
+      const d = dirRef.current || 1
+      finishing.current = true
+      targetB.current = d > 0 ? 1 : 0
+      targetA.current = d > 0 ? 0 : 1
+      pullTarget.current = 0.6
+      kick()
+      return
     }
+    pullTarget.current = 0
+    pullCur.current = 0
+    setClosing(true)
+    setPull(0)
+    setTimeout(() => {
+      setSpanBoth(null)
+      setClosing(false)
+    }, 480)
   }
 
-  // ---- geometria do rasgo: uma tira rigida que gira na ponta, bordas irregulares ----
+  // ---- geometria do rasgo: tira unica que gira na ponta, bordas irregulares ----
   const K = 14
   const NZ_A = useMemo(() => { const r = rng(hash(seed + 'a')); return Array.from({ length: K + 1 }, () => r()) }, [seed])
   const NZ_B = useMemo(() => { const r = rng(hash(seed + 'b')); return Array.from({ length: K + 1 }, () => r()) }, [seed])
@@ -207,16 +259,21 @@ export function BoardingPass({
   const nzHi = aIsLo ? NZ_B : NZ_A
   const tearSign = span && span.b < span.a ? -1 : 1
   const cov = hi - lo
-  const theta = closing ? 0 : Math.min(1, cov * 5) * (3 + 15 * pull)
+  const sm = Math.min(1, cov * 4)
+  const eased = sm * sm * (3 - 2 * sm)
+  const theta = closing ? 0 : eased * (5 + 20 * pull)
+  const gap = closing ? 0 : eased * (3 + 12 * pull)
 
   const tornClip = span ? `polygon(${[...edgePts(lo, nzLo), ...edgePts(hi, nzHi).reverse()].join(',')})` : 'none'
   const leftClip = span && lo > 0.002 ? `polygon(${['0% 0%', ...edgePts(lo, nzLo), '0% 100%'].join(',')})` : null
   const rightClip = span && hi < 0.998 ? `polygon(${[...edgePts(hi, nzHi), '100% 100%', '100% 0%'].join(',')})` : null
-  const tipPct = (tearSign > 0 ? bF : bF) * 100
+  const tipPct = bF * 100
 
   const stubTransform = torn ? `translate(${dir * 90}px, 380px) rotate(${dir * 18}deg)` : 'none'
-  const stubTransition = torn ? 'transform .9s cubic-bezier(.55,.06,.85,.4), opacity .7s ease .2s' : 'none'
-  const pieceTransition = dragging ? 'transform .08s linear' : 'transform .45s cubic-bezier(.2,.9,.2,1)'
+  const stubTransition = torn
+    ? 'transform .9s cubic-bezier(.55,.06,.85,.4), opacity .7s ease .2s, visibility 0s linear .95s'
+    : 'none'
+  const pieceTransition = closing ? 'transform .45s cubic-bezier(.2,.9,.2,1)' : 'none'
   const p = drag
 
   const stubInner = useMemo(
@@ -308,6 +365,7 @@ export function BoardingPass({
             transformOrigin: dir > 0 ? '0% 0%' : '100% 0%',
             transition: stubTransition,
             opacity: torn ? 0 : 1,
+            visibility: torn ? 'hidden' : 'visible',
             touchAction: 'none',
             willChange: 'transform',
           }}
@@ -321,7 +379,6 @@ export function BoardingPass({
               {stubInner}
             </div>
           )}
-
           {span && leftClip && (
             <div aria-hidden="true" className={layerCls} style={{ ...mask(notchBottom), clipPath: leftClip }}>
               {stubInner}
@@ -340,7 +397,7 @@ export function BoardingPass({
                 ...mask(notchBottom),
                 clipPath: tornClip,
                 transformOrigin: `${tipPct}% 0%`,
-                transform: `rotate(${-tearSign * theta}deg)`,
+                transform: `translateY(${gap}px) rotate(${-tearSign * theta}deg)`,
                 transition: pieceTransition,
                 willChange: 'transform',
               }}
