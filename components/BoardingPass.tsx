@@ -293,6 +293,8 @@ export function BoardingPass({
   const pathname = usePathname()
   const [mode, setMode] = useState<'solo' | 'duo'>('solo')
   const [qr, setQr] = useState('')
+  const [qrSoft, setQrSoft] = useState('')
+  const [copiedRoute, setCopiedRoute] = useState(false)
   const [duoStart] = useState(() => Math.ceil((Date.now() + 10 * 60000) / 60000) * 60000)
   const airlineCode = (pathname?.match(/\/flights\/([^/]+)/)?.[1] || '').split('-')[0].toUpperCase()
   const shareLink = useMemo(() => {
@@ -302,6 +304,13 @@ export function BoardingPass({
   useEffect(() => {
     if (!shareLink) return
     import('qrcode').then((Q: any) => (Q.default || Q).toDataURL(shareLink, { margin: 3, width: 720, errorCorrectionLevel: 'L' })).then(setQr).catch(() => {})
+  }, [shareLink])
+  useEffect(() => {
+    if (!shareLink) return
+    import('qrcode')
+      .then((Q: any) => (Q.default || Q).toDataURL(shareLink, { margin: 1, width: 480, errorCorrectionLevel: 'L', color: { dark: '#e8e8ecff', light: '#00000000' } }))
+      .then(setQrSoft)
+      .catch(() => {})
   }, [shareLink])
 
   return (
@@ -330,6 +339,9 @@ export function BoardingPass({
             {data.toCity && <p className="mt-2 truncate text-sm text-white/45">{data.toCity}</p>}
           </div>
         </div>
+        {!compact && qrSoft && (
+          <img src={qrSoft} alt="" aria-hidden="true" draggable={false} className="pointer-events-none relative mx-auto mt-6 size-24 opacity-60" />
+        )}
         {!compact && (
           <dl className="relative mt-7 grid grid-cols-2 gap-y-4 text-sm">
             <div><dt className="text-white/40">{t('bp.seat')}</dt><dd className="font-mono font-bold">{seat}</dd></div>
@@ -418,6 +430,25 @@ export function BoardingPass({
           <img src={qr} alt="Share this route" className="mx-auto mt-3 size-56 rounded-xl bg-white p-3" />
           <p className="mt-2 text-xs text-white/50">{mode === 'duo' ? 'Duo: your friend scans this in MyRoster, Scan, and you both depart at the same time.' : 'Share this route: scan it in MyRoster, Scan.'}</p>
         </div>
+      )}
+
+      {shareLink && (
+        <button
+          type="button"
+          onClick={async () => {
+            try {
+              if (navigator.share) await navigator.share({ title: `${data.from} → ${data.to}`, url: shareLink })
+              else {
+                await navigator.clipboard.writeText(shareLink)
+                setCopiedRoute(true)
+                setTimeout(() => setCopiedRoute(false), 2000)
+              }
+            } catch {}
+          }}
+          className="mt-4 w-full rounded-full border border-white/15 bg-white/10 py-3 text-sm font-semibold"
+        >
+          {copiedRoute ? 'Link copied!' : 'Share route'}
+        </button>
       )}
 
       {bookMode && <BookAction data={data} />}
