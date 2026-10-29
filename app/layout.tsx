@@ -10,6 +10,7 @@ import JingleOnClick from '@/components/JingleOnClick'
 import ExternalOpen from '@/components/ExternalOpen'
 import LanguageGate from '@/components/LanguageGate'
 import LegalFooter from '@/components/LegalFooter'
+import LogoCorner from '@/components/LogoCorner'
 
 export const metadata: Metadata = {
   manifest: '/manifest.webmanifest',
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className="dark" suppressHydrationWarning>
       <body className="overflow-x-hidden bg-[#0a0a0a] text-white antialiased" suppressHydrationWarning>
         <GlobeBackground />
+        <LogoCorner />
         <main className="relative z-10 min-h-screen pb-24 lg:ml-[420px] lg:max-w-[700px]">{children}<LegalFooter /></main>
         <BottomNav />
          <BackgroundMusic />

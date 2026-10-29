@@ -12,7 +12,7 @@ export default function Home() {
         <p className="text-[11px] font-medium uppercase tracking-[.3em] text-white/40">{t('home.kicker')}</p>
 
         <h1 className="mt-6 text-6xl font-semibold leading-[.95] tracking-[-.05em] text-white sm:text-7xl">
-          {t('home.title')}
+          MyRoster
         </h1>
 
         <p className="mt-6 max-w-md text-base leading-relaxed text-white/50">{t('home.sub')}</p>

@@ -27,7 +27,7 @@ export default function BottomNav() {
         return (
           <Link key={href} href={href} className={`relative flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-full text-[9px] transition ${on ? 'text-white' : 'text-white/35 hover:text-white/70'}`}>
             <Icon className="size-4" />
-            <span>{t(key)}</span>
+            <span>{href === '/' ? 'MyRoster' : t(key)}</span>
             {on && <span className="absolute bottom-0.5 size-1 rounded-full bg-[#1f88ff]" />}
           </Link>
         )
