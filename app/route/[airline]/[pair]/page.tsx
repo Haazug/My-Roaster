@@ -18,7 +18,7 @@ import { estimateBlockMinutes } from '@/lib/flight-time'
 import { useNow } from '@/lib/use-now'
 import { useT } from '@/lib/i18n'
 import BookDialog from '@/components/BookDialog'
-import FlyChoiceDialog from '@/components/FlyChoiceDialog'
+import FlyChoiceDialog, { openExternal, type FlyKind } from '@/components/FlyChoiceDialog'
 
 type Airport = { iata: string; icao: string; name: string; city: string; country: string; lat: number; lon: number }
 type RouteData = {
@@ -108,10 +108,10 @@ export default function RoutePage() {
       }))
     } catch {}
   }
-  const flyWith = (simbrief: boolean) => {
+  const flyWith = (kind: FlyKind) => {
     saveSeed()
     setFlyOpen(false)
-    if (simbrief) window.open(simbriefUrl(exportFlight), '_blank', 'noopener,noreferrer')
+    openExternal(kind, exportFlight)
     router.push(`/flights/${params.airline}-${params.pair}/flight-plan`)
   }
 
@@ -197,7 +197,7 @@ export default function RoutePage() {
         </button>
         <ExportMenu flight={exportFlight} />
       </div>
-    <FlyChoiceDialog open={flyOpen} onClose={() => setFlyOpen(false)} onSimbrief={() => flyWith(true)} onManual={() => flyWith(false)} />
+    <FlyChoiceDialog open={flyOpen} onClose={() => setFlyOpen(false)} onPick={flyWith} />
     <BookDialog open={bookOpen} onClose={() => setBookOpen(false)} onSaveRoute={book} onPlan={() => {
           try {
             localStorage.setItem('myroster.routeSeed', JSON.stringify({

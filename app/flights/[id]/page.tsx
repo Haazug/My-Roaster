@@ -10,7 +10,7 @@ import { AirlineLogo } from '@/components/AirlineLogo'
 import { simbriefUrl, type ExportFlight } from '@/lib/export'
 import { useNow } from '@/lib/use-now'
 import { FlyWithFriends } from '@/components/FlyWithFriends'
-import FlyChoiceDialog from '@/components/FlyChoiceDialog'
+import FlyChoiceDialog, { openExternal, type FlyKind } from '@/components/FlyChoiceDialog'
 
 const SAMPLE_FLIGHTS: Record<string, any> = {
   'DT-653': {
@@ -130,7 +130,7 @@ export default function FlightDetailPage() {
     distanceNm: flight.distanceNm,
   }
 
-  const flyWith = (simbrief: boolean) => {
+  const flyWith = (kind: FlyKind) => {
     try {
       localStorage.setItem('myroster.routeSeed', JSON.stringify({
         id: String(id),
@@ -142,7 +142,7 @@ export default function FlightDetailPage() {
       }))
     } catch {}
     setFlyOpen(false)
-    if (simbrief) window.open(simbriefUrl(exportData), '_blank', 'noopener,noreferrer')
+    openExternal(kind, exportData)
     router.push(`/flights/${id}/flight-plan`)
   }
 
@@ -201,7 +201,7 @@ export default function FlightDetailPage() {
         <ExportMenu flight={exportData} />
         <FlyWithFriends flightKey={String(id).toUpperCase()} />
       </div>
-      <FlyChoiceDialog open={flyOpen} onClose={() => setFlyOpen(false)} onSimbrief={() => flyWith(true)} onManual={() => flyWith(false)} />
+      <FlyChoiceDialog open={flyOpen} onClose={() => setFlyOpen(false)} onPick={flyWith} />
 
       <div className="mt-8 rounded-2xl border border-white/10 bg-white/[.02] p-6">
         <p className="text-sm text-white/60">
