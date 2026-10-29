@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Camera, Copy, Users, LogOut, LogIn, Lock } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { getProfile, getFriends, saveProfile, generateShareCode, getPilotStats, pullAccountData, pushAccountData, type PilotProfile } from '@/lib/pilot-profile'
+import { getProfile, getFriends, saveProfile, generateShareCode, getPilotStats, pullAccountData, pushAccountData, decodeShareCode, type PilotProfile } from '@/lib/pilot-profile'
 
 const DEVELOPER_SECRET = "13442018"
 
@@ -189,7 +189,20 @@ export default function ProfilePage() {
       avatar: thumb,
       developer,
     })
-    navigator.clipboard.writeText(`${window.location.origin}/invite/${code}`)
+    let link = `${window.location.origin}/invite/${code}`
+    try {
+      const { data } = await supabase.auth.getSession()
+      const uid = data.session?.user.id
+      const prof = decodeShareCode(code)
+      if (uid && prof) {
+        const short = uid.replace(/-/g, '').slice(0, 8)
+        const { error } = await supabase
+          .from('pilot_invites')
+          .upsert({ code: short, user_id: uid, profile: prof, updated_at: new Date().toISOString() })
+        if (!error) link = `${window.location.origin}/invite/${short}`
+      }
+    } catch {}
+    navigator.clipboard.writeText(link)
     setCopiedLink(true)
     setTimeout(() => setCopiedLink(false), 2000)
   }

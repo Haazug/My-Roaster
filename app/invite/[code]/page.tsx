@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { UserPlus, Check, Users } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 import { decodeShareCode, addFriend, getProfile, getFriends, pushAccountData, type PilotProfile } from '@/lib/pilot-profile'
 
 const CACHE_KEY = 'myroster.friendProfiles'
@@ -19,14 +20,27 @@ export default function InvitePage() {
   const [added, setAdded] = useState(false)
 
   useEffect(() => {
-    const p = decodeShareCode(code)
-    setPilot(p)
-    if (p) {
-      const me = getProfile()
-      setIsMe(me?.id === p.id)
-      setAlready(getFriends().some((f) => f.profileId === p.id))
-    }
-    setReady(true)
+    let live = true
+    ;(async () => {
+      let p: PilotProfile | null = null
+      if (/^[a-f0-9]{8}$/i.test(code)) {
+        try {
+          const { data } = await supabase.from('pilot_invites').select('profile').eq('code', code.toLowerCase()).maybeSingle()
+          p = (data?.profile as PilotProfile) || null
+        } catch {}
+      } else {
+        p = decodeShareCode(code)
+      }
+      if (!live) return
+      setPilot(p)
+      if (p) {
+        const me = getProfile()
+        setIsMe(me?.id === p.id)
+        setAlready(getFriends().some((f) => f.profileId === p.id))
+      }
+      setReady(true)
+    })()
+    return () => { live = false }
   }, [code])
 
   const handleAdd = () => {
