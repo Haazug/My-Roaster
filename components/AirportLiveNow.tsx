@@ -13,7 +13,7 @@ export default function AirportLiveNow({ code }: { code?: string }) {
   if (!flights.length) return null
 
   return (
-    <div className="rounded-3xl border border-white/10 bg-[#111217cc] p-4 sm:p-6">
+    <div className="rounded-3xl border border-white/10 bg-[#0a0a0acc] p-4 sm:p-6">
       <button
         type="button"
         onClick={() => setHidden(!hidden)}

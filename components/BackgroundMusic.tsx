@@ -57,7 +57,7 @@ export default function BackgroundMusic() {
     <div className="fixed bottom-20 right-4 md:bottom-24 md:right-8 z-40">
       <div className="bg-[#1a1a1a] border border-[#333] rounded-lg p-3 shadow-lg backdrop-blur">
         <div className="flex items-center gap-3 mb-2">
-          {s.muted ? <VolumeX className="w-4 h-4 text-gray-400" /> : s.volume < 0.3 ? <Volume1 className="w-4 h-4 text-[#4caf50]" /> : <Volume2 className="w-4 h-4 text-[#1f88ff]" />}
+          {s.muted ? <VolumeX className="w-4 h-4 text-gray-400" /> : s.volume < 0.3 ? <Volume1 className="w-4 h-4 text-[#55a7ff]" /> : <Volume2 className="w-4 h-4 text-[#1f88ff]" />}
           <input
             type="range"
             min="0"

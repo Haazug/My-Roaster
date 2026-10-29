@@ -32,7 +32,7 @@ export default function BoardingPage() {
   return (
     <section className="min-h-screen p-5 pb-32 sm:p-8">
       {back}
-      <p className="mt-6 text-xs font-semibold uppercase tracking-[.2em] text-[#facc15]">Booked</p>
+      <p className="mt-6 text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">Booked</p>
       <h1 className="mb-6 mt-2 text-3xl font-semibold">Ready to board</h1>
       <BoardingPass
         tear

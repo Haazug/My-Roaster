@@ -124,7 +124,7 @@ export default function SimBriefPage() {
             onChange={(e) => setPlnContent(e.target.value)}
             onPaste={handlePaste}
             placeholder="Paste your flight plan here or use Cmd+V after uploading..."
-            className="w-full h-48 rounded-2xl border border-white/10 bg-[#111217cc] p-4 text-sm text-white placeholder:text-white/40 outline-none focus:border-[#1f88ff]/60"
+            className="w-full h-48 rounded-2xl border border-white/10 bg-[#0a0a0acc] p-4 text-sm text-white placeholder:text-white/40 outline-none focus:border-[#1f88ff]/60"
           />
 
           <button
@@ -138,8 +138,8 @@ export default function SimBriefPage() {
 
         <div className="space-y-4">
           {simBriefData ? (
-            <div className="rounded-2xl border border-[#4caf50]/20 bg-[#4caf50]/5 p-6 space-y-4">
-              <div className="flex items-center gap-2 text-[#4caf50]">
+            <div className="rounded-2xl border border-[#55a7ff]/20 bg-[#1f88ff]/5 p-6 space-y-4">
+              <div className="flex items-center gap-2 text-[#55a7ff]">
                 <CheckCircle className="size-5" />
                 <p className="font-semibold">Flight plan imported</p>
               </div>

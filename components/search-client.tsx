@@ -95,7 +95,7 @@ export default function SearchClient() {
               {data.airlines.map((a) => (
                 <Row key={a.id} href={`/airlines/${a.id}`}>
                   <p className="font-semibold">{a.name}</p>
-                  <p className="mt-1 text-sm text-white/45">{[a.iata, a.icao, a.country].filter(Boolean).join(' · ')} · <span className="text-[#4caf50]">{a.numRoutes} routes</span></p>
+                  <p className="mt-1 text-sm text-white/45">{[a.iata, a.icao, a.country].filter(Boolean).join(' · ')} · <span className="text-[#55a7ff]">{a.numRoutes} routes</span></p>
                 </Row>
               ))}
             </Group>
@@ -144,7 +144,7 @@ function Group({ title, count, empty, children }: { title: string; count: number
 
 function Row({ href, onClick, children }: { href: string; onClick?: () => void; children: React.ReactNode }) {
   return (
-    <Link href={href} onClick={onClick} className="flex min-h-14 items-center gap-3 rounded-2xl border border-white/10 bg-[#111217cc] p-4 transition hover:border-[#1f88ff]/60">
+    <Link href={href} onClick={onClick} className="flex min-h-14 items-center gap-3 rounded-2xl border border-white/10 bg-[#0a0a0acc] p-4 transition hover:border-[#1f88ff]/60">
       <div className="min-w-0 flex-1 break-words">{children}</div>
       <ChevronRight className="size-5 shrink-0 text-white/30" aria-hidden="true" />
     </Link>

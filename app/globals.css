@@ -165,3 +165,10 @@
 /* nothing may push the page wider than the screen (fixes the shrunken page on iPhone) */
 html, body { max-width: 100%; overflow-x: clip; }
 main { overflow-x: clip; }
+
+
+/* minimal-ui:start */
+body { background: #000; -webkit-font-smoothing: antialiased; letter-spacing: -0.005em; }
+h1, h2 { letter-spacing: -0.03em; font-weight: 600; }
+::selection { background: rgba(31, 136, 255, .45); color: #fff; }
+/* minimal-ui:end */

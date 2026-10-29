@@ -478,13 +478,13 @@ export default function FlyNowPage() {
       </header>
 
       {sessionId && crew.length > 0 && (
-        <p className="mt-4 rounded-xl border border-[#4caf50]/30 bg-[#4caf50]/10 px-4 py-3 text-sm text-[#4caf50]">
+        <p className="mt-4 rounded-xl border border-[#55a7ff]/30 bg-[#1f88ff]/10 px-4 py-3 text-sm text-[#55a7ff]">
           👥 Voo em grupo · {crew.join(', ')}
         </p>
       )}
 
       {finished ? (
-        <div className="mt-8 rounded-2xl border border-[#4caf50]/30 bg-[#4caf50]/10 p-6 text-center">
+        <div className="mt-8 rounded-2xl border border-[#55a7ff]/30 bg-[#1f88ff]/10 p-6 text-center">
           <div className="text-5xl">🎉</div>
           <h2 className="mt-3 text-2xl font-semibold">{tr('fly.addedTitle')}</h2>
           <p className="mt-2 text-sm text-white/60">
@@ -494,7 +494,7 @@ export default function FlyNowPage() {
           <div className="mt-3 flex justify-center gap-2">
             {[1, 2, 3, 4, 5].map((n) => (
               <button key={n} onClick={() => rate(n)} aria-label={tr('fly.stars', { n })} className="p-1">
-                <Star className={`size-9 ${n <= rating ? 'fill-yellow-400 text-yellow-400' : 'text-white/30'}`} />
+                <Star className={`size-9 ${n <= rating ? 'fill-white text-white' : 'text-white/30'}`} />
               </button>
             ))}
           </div>
@@ -510,7 +510,7 @@ export default function FlyNowPage() {
         </div>
       ) : (
         <>
-          <div className="mt-8 rounded-2xl border border-white/10 bg-gradient-to-br from-[#111217cc] to-[#0a0a0acc] p-8 text-center">
+          <div className="mt-8 rounded-2xl border border-white/10 bg-gradient-to-br from-[#0a0a0acc] to-[#0a0a0acc] p-8 text-center">
             {takeoffAt ? (
               <>
                 <div className="text-6xl font-bold tabular-nums text-[#1f88ff]">{fmt(elapsed)}</div>
@@ -518,10 +518,10 @@ export default function FlyNowPage() {
                   {tr('fly.remaining', { n: Math.ceil(remainingMs / 60_000), b: info.durationMin })}
                 </p>
                 {(holding || holdTotal.current > 0) && (
-                  <p className="mt-3 text-sm font-medium text-yellow-300">🔄 Holding: {fmt(holdMs)}</p>
+                  <p className="mt-3 text-sm font-medium text-white">🔄 Holding: {fmt(holdMs)}</p>
                 )}
                 {holding && elapsed >= totalMs && (
-                  <p className="mt-1 text-xs text-yellow-200/70">Autopilot at destination, circling until manual intervention.</p>
+                  <p className="mt-1 text-xs text-white/70">Autopilot at destination, circling until manual intervention.</p>
                 )}
                 <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
                   <div className="h-full bg-[#1f88ff] transition-all" style={{ width: `${airborneProgress}%` }} />
@@ -553,12 +553,12 @@ export default function FlyNowPage() {
               return (
                 <li
                   key={s.key}
-                  className={`rounded-xl border p-3 ${isCurrent ? 'border-[#1f88ff]/50 bg-[#1f88ff]/10' : 'border-white/10 bg-white/[.02]'} ${due ? 'ring-1 ring-yellow-400/60' : ''}`}
+                  className={`rounded-xl border p-3 ${isCurrent ? 'border-[#1f88ff]/50 bg-[#1f88ff]/10' : 'border-white/10 bg-white/[.02]'} ${due ? 'ring-1 ring-white/60' : ''}`}
                 >
                   <div className="flex items-center gap-3">
                     <span className="flex size-6 shrink-0 items-center justify-center">
                       {st === 'done' ? (
-                        <Check className="size-5 text-[#4caf50]" />
+                        <Check className="size-5 text-[#55a7ff]" />
                       ) : st === 'skipped' ? (
                         <SkipForward className="size-4 text-white/30" />
                       ) : (
@@ -574,19 +574,19 @@ export default function FlyNowPage() {
                   {isCurrent && s.key === 'Cruise' && takeoffAt && (
                     <button
                       onClick={toggleHolding}
-                      className={`mt-3 w-full rounded-lg border px-3 py-2 text-sm font-medium ${holding ? 'border-yellow-400/60 bg-yellow-400/15 text-yellow-200' : 'border-white/15 bg-white/10'}`}
+                      className={`mt-3 w-full rounded-lg border px-3 py-2 text-sm font-medium ${holding ? 'border-white/60 bg-white/15 text-white' : 'border-white/15 bg-white/10'}`}
                     >
                       {holding ? 'Exit holding' : 'Holding'}
                     </button>
                   )}
                   {isCurrent && (s.key === 'Approach' || s.key === 'Landing') && (
-                    <button onClick={() => goAround()} className="mt-3 w-full rounded-lg border border-orange-400/40 bg-orange-400/10 px-3 py-2 text-sm font-medium text-orange-200">
+                    <button onClick={() => goAround()} className="mt-3 w-full rounded-lg border border-white/40 bg-white/10 px-3 py-2 text-sm font-medium text-white">
                       Go around{goAroundCount > 0 ? ` (${goAroundCount})` : ''}
                     </button>
                   )}
                   {isCurrent && (
                     <div className="mt-3 flex gap-2">
-                      <button onClick={() => mark(s.key, 'done')} className="flex-1 rounded-lg bg-[#4caf50] px-3 py-2 text-sm font-semibold">
+                      <button onClick={() => mark(s.key, 'done')} className="flex-1 rounded-lg bg-[#1f88ff] px-3 py-2 text-sm font-semibold">
                         {s.key === 'Takeoff' ? tr('fly.takeoffBtn') : tr('fly.done')}
                       </button>
                       {s.key !== 'Takeoff' && (

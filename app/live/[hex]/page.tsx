@@ -72,7 +72,7 @@ export default function LiveAircraftPage() {
         <div className="flex items-center gap-2 text-xs text-white/40">
           <button
             onClick={() => setAutoRefresh(!autoRefresh)}
-            className={`flex items-center gap-1 rounded px-2 py-1 ${autoRefresh ? 'text-[#4caf50]' : 'text-white/40'}`}
+            className={`flex items-center gap-1 rounded px-2 py-1 ${autoRefresh ? 'text-[#55a7ff]' : 'text-white/40'}`}
           >
             <RefreshCw className={`size-3 ${autoRefresh ? 'animate-spin' : ''}`} />
             {autoRefresh ? 'Live' : 'Paused'}
@@ -99,7 +99,7 @@ export default function LiveAircraftPage() {
       </header>
 
       {fr && (
-        <div className="mt-6 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-[#111217cc] p-4">
+        <div className="mt-6 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-[#0a0a0acc] p-4">
           <div className="min-w-0">
             <p className="text-xs text-white/40">{fr.airlineName}</p>
             <p className="truncate font-semibold">{fr.from} → {fr.to} <span className="font-normal text-white/45">{fr.fromCity} → {fr.toCity}</span></p>
@@ -109,17 +109,17 @@ export default function LiveAircraftPage() {
       )}
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <div className="rounded-2xl border border-white/10 bg-[#111217cc] p-6">
+        <div className="rounded-2xl border border-white/10 bg-[#0a0a0acc] p-6">
           <p className="text-xs font-semibold uppercase tracking-[.2em] text-white/60">Altitude</p>
           <p className="mt-3 font-bold text-white">{formatAltitude(aircraft.alt)}</p>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[#111217cc] p-6">
+        <div className="rounded-2xl border border-white/10 bg-[#0a0a0acc] p-6">
           <p className="text-xs font-semibold uppercase tracking-[.2em] text-white/60">Ground Speed</p>
           <p className="mt-3 font-bold text-white">{formatSpeed(aircraft.gs)}</p>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[#111217cc] p-6">
+        <div className="rounded-2xl border border-white/10 bg-[#0a0a0acc] p-6">
           <p className="text-xs font-semibold uppercase tracking-[.2em] text-white/60">Heading</p>
           <p className="mt-3 font-bold text-white">{formatTrack(aircraft.track)}</p>
         </div>

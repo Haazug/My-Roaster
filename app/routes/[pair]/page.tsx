@@ -86,7 +86,7 @@ export default function RouteDetailPage() {
               <Link 
                 key={idx} 
                 href={`/route/${flight.airlineId || flight.airlineIata}/${flight.from}-${flight.to}`}
-                className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#111217cc] p-4 transition hover:border-[#1f88ff]/60"
+                className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#0a0a0acc] p-4 transition hover:border-[#1f88ff]/60"
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 font-semibold">

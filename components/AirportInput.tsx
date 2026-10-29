@@ -47,7 +47,7 @@ export function AirportInput({ value, onChange, onResolve, className = "" }: {
     <div>
       <input className={className} placeholder={t("ap.ph")} value={value} onChange={(e) => onChange(e.target.value)} />
       {picked ? (
-        <p className="mt-1 text-xs text-[#4caf50]">✓ {picked.city} · {picked.iata}/{picked.icao}</p>
+        <p className="mt-1 text-xs text-[#55a7ff]">✓ {picked.city} · {picked.iata}/{picked.icao}</p>
       ) : list.length > 0 ? (
         <div className="mt-2 flex flex-wrap gap-2">
           {list.map((a) => (

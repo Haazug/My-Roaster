@@ -73,7 +73,7 @@ export default function FriendsContent() {
       <p className={label}>Amigos</p>
       <h1 className="mt-2 text-4xl font-semibold">Pilotos amigos</h1>
 
-      <div className="mt-6 rounded-2xl border border-white/10 bg-[#111217cc] p-6">
+      <div className="mt-6 rounded-2xl border border-white/10 bg-[#0a0a0acc] p-6">
         <p className={label}>Adicionar amigo</p>
         <p className="mt-2 text-sm text-white/50">Cola o código que o teu amigo partilhou</p>
 
@@ -127,7 +127,7 @@ export default function FriendsContent() {
         ) : (
           <div className="mt-3 space-y-2">
             {friends.map((friend: any) => (
-              <div key={friend.profileId} className="flex items-center justify-between rounded-xl border border-white/10 bg-[#111217cc] p-4">
+              <div key={friend.profileId} className="flex items-center justify-between rounded-xl border border-white/10 bg-[#0a0a0acc] p-4">
                 <div className="flex items-center gap-3">
                   {friend.avatar && (
                     <img

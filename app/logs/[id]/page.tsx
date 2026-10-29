@@ -76,7 +76,7 @@ export default function LogSummaryPage() {
       <div className="mt-2 flex gap-1">
         {[1, 2, 3, 4, 5].map((n) => (
           <button key={n} onClick={() => rate(n)} aria-label={`${n}`} className="p-1">
-            <Star className={`size-8 ${n <= (f.rating || 0) ? 'fill-yellow-400 text-yellow-400' : 'text-white/30'}`} />
+            <Star className={`size-8 ${n <= (f.rating || 0) ? 'fill-white text-white' : 'text-white/30'}`} />
           </button>
         ))}
       </div>
@@ -89,7 +89,7 @@ export default function LogSummaryPage() {
               const st = s.steps[k]
               return (
                 <li key={k} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[.02] p-3 text-sm">
-                  {st?.status === 'done' ? <Check className="size-5 text-[#4caf50]" /> : <SkipForward className="size-4 text-white/30" />}
+                  {st?.status === 'done' ? <Check className="size-5 text-[#55a7ff]" /> : <SkipForward className="size-4 text-white/30" />}
                   <span className={`flex-1 ${st?.status === 'done' ? '' : 'text-white/40 line-through'}`}>{tr('step.' + k)}</span>
                   <span className="font-mono text-xs text-white/50">{st?.status === 'done' ? hm(st.at) : t.skipped}</span>
                 </li>

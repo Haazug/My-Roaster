@@ -91,7 +91,7 @@ export default function AirlineDetailPage() {
           const from = route.fromAirport
           const to = route.toAirport
           return (
-            <Link key={`${route.from}-${route.to}-${index}`} href={`/route/${airline.iata || id}/${route.from}-${route.to}`} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#111217cc] p-4 transition hover:border-[#1f88ff]/60">
+            <Link key={`${route.from}-${route.to}-${index}`} href={`/route/${airline.iata || id}/${route.from}-${route.to}`} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#0a0a0acc] p-4 transition hover:border-[#1f88ff]/60">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-3 font-semibold">
                   <span>{route.from}</span><span className="text-[#1f88ff]">{route.roundTrip ? '⇄' : '→'}</span><span>{route.to}</span>

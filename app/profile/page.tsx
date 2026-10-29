@@ -224,7 +224,7 @@ export default function ProfilePage() {
         ) : null}
       </div>
 
-      <div className="mt-6 rounded-2xl border border-white/10 bg-[#111217cc] p-6">
+      <div className="mt-6 rounded-2xl border border-white/10 bg-[#0a0a0acc] p-6">
         {/* Avatar */}
         <label className="flex flex-col items-center gap-3 cursor-pointer group">
           <div className="relative size-24 rounded-full bg-[#1f88ff]/20 flex items-center justify-center overflow-hidden">
@@ -333,22 +333,22 @@ export default function ProfilePage() {
 
       {/* Stats */}
       <div className="mt-6 grid grid-cols-3 gap-3">
-        <div className="rounded-xl border border-white/10 bg-[#111217cc] p-4 text-center">
+        <div className="rounded-xl border border-white/10 bg-[#0a0a0acc] p-4 text-center">
           <p className="text-2xl font-bold text-[#1f88ff]">{stats?.totalFlights || 0}</p>
           <p className="text-xs text-white/50 mt-1">Voos</p>
         </div>
-        <div className="rounded-xl border border-white/10 bg-[#111217cc] p-4 text-center">
+        <div className="rounded-xl border border-white/10 bg-[#0a0a0acc] p-4 text-center">
           <p className="text-2xl font-bold text-[#1f88ff]">{stats?.totalHours || 0}</p>
           <p className="text-xs text-white/50 mt-1">Horas</p>
         </div>
-        <div className="rounded-xl border border-white/10 bg-[#111217cc] p-4 text-center">
+        <div className="rounded-xl border border-white/10 bg-[#0a0a0acc] p-4 text-center">
           <p className="text-2xl font-bold text-[#1f88ff]">{friendCount}</p>
           <p className="text-xs text-white/50 mt-1">Amigos</p>
         </div>
       </div>
 
       {/* Partilhar */}
-      <div className="mt-6 rounded-2xl border border-white/10 bg-[#111217cc] p-6">
+      <div className="mt-6 rounded-2xl border border-white/10 bg-[#0a0a0acc] p-6">
         <p className={label}>Partilhar conta</p>
         <h2 className="mt-2 text-lg font-semibold">Convida amigos</h2>
         <p className="mt-2 text-sm text-white/50">Partilha o teu link para que os teus amigos te adicionem como piloto amigo.</p>
@@ -369,7 +369,7 @@ export default function ProfilePage() {
       </div>
 
       {/* Definições Avançadas */}
-      <div className="mt-6 rounded-2xl border border-white/10 bg-[#111217cc] p-6">
+      <div className="mt-6 rounded-2xl border border-white/10 bg-[#0a0a0acc] p-6">
         <p className={label}>Definições avançadas</p>
         
         {!devUnlocked ? (

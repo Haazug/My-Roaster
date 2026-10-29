@@ -123,7 +123,7 @@ export default function SessionPage() {
       <p className={label}>Voo em grupo</p>
       <h1 className="mt-2 text-4xl font-semibold">{flightKey}</h1>
 
-      <div className="mt-6 rounded-2xl border border-white/10 bg-[#111217cc] p-6">
+      <div className="mt-6 rounded-2xl border border-white/10 bg-[#0a0a0acc] p-6">
         <p className="flex items-center gap-2 text-sm text-white/60">
           <Users className="size-4" /> Pilotos na sessão ({members.length})
         </p>
@@ -134,8 +134,8 @@ export default function SessionPage() {
                 {m.name.charAt(0).toUpperCase()}
               </span>
               <span className="flex-1 text-sm font-medium">{m.name}{m.user_id === meId ? ' (tu)' : ''}</span>
-              <span className="flex items-center gap-1.5 text-xs text-[#4caf50]">
-                <span className="size-2 rounded-full bg-[#4caf50]" /> conectado
+              <span className="flex items-center gap-1.5 text-xs text-[#55a7ff]">
+                <span className="size-2 rounded-full bg-[#1f88ff]" /> conectado
               </span>
             </li>
           ))}

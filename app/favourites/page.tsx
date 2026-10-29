@@ -18,14 +18,14 @@ export default function FavouritesPage() {
       {items.length ? (
         <div className="mt-8 flex flex-col gap-3">
           {items.map((flight) => (
-            <article key={flight.id} className="flex items-start gap-3 rounded-2xl border border-white/10 bg-[#111217cc] p-5">
+            <article key={flight.id} className="flex items-start gap-3 rounded-2xl border border-white/10 bg-[#0a0a0acc] p-5">
               <Link href={`/route/${flight.airlineIata}/${flight.orig}-${flight.dest}`} className="min-h-11 min-w-0 flex-1">
                 <p className="font-medium">{flightTitle(flight)}</p>
                 <p className="mt-1 text-sm text-white/45">{flight.orig} → {flight.dest} · {flight.airlineName}</p>
                 <p className="mt-3 flex items-center gap-2 text-xs text-white/45"><Plane className="size-4 text-[#1f88ff]" aria-hidden="true" />{flight.aircraft} · {distanceFromNm(flight.distanceNm).km.toLocaleString('en-US')} km</p>
               </Link>
               <button aria-label="Remove favourite" onClick={() => toggle(flight)} className="flex size-11 shrink-0 items-center justify-center rounded-xl hover:bg-white/5">
-                <Star className="size-5 fill-[#facc15] text-[#facc15]" />
+                <Star className="size-5 fill-[#55a7ff] text-[#55a7ff]" />
               </button>
             </article>
           ))}

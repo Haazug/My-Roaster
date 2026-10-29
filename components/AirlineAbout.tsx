@@ -29,14 +29,14 @@ export default function AirlineAbout({ id }: { id: string }) {
   const hubs: any[] = data.hubs || []
   const chip = 'flex min-h-10 items-center gap-2 rounded-full border border-white/15 bg-white/[.06] px-3 text-xs transition hover:border-[#1f88ff]/60'
   return (
-    <div className="mt-6 rounded-2xl border border-white/10 bg-[#111217cc] p-4">
+    <div className="mt-6 rounded-2xl border border-white/10 bg-[#0a0a0acc] p-4">
       <p className="text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">{t.about}</p>
       <p className="mt-2 text-sm leading-relaxed text-white/70">
         {t.line({ name: a.name, codes, country: a.country || '—', hub: hubs[0] ? `${hubs[0].city} (${hubs[0].iata})` : '', airports: data.airports, countries: data.countries, pairs: data.pairs })}
       </p>
       <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-white/50">
         <span>{t.codes}: <strong className="text-white">{codes || '—'}</strong></span>
-        <span className={a.active ? 'text-[#4caf50]' : 'text-amber-300'}>{a.active ? t.active : t.historical}</span>
+        <span className={a.active ? 'text-[#55a7ff]' : 'text-amber-300'}>{a.active ? t.active : t.historical}</span>
       </div>
       {hubs.length > 0 && (
         <>

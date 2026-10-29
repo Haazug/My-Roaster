@@ -119,7 +119,7 @@ export default function RoutePage() {
           onClick={() => toggle(flight)}
           className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 hover:bg-white/10"
         >
-          <Star className={`size-5 ${has(flight.id) ? 'fill-[#facc15] text-[#facc15]' : 'text-white/70'}`} />
+          <Star className={`size-5 ${has(flight.id) ? 'fill-[#55a7ff] text-[#55a7ff]' : 'text-white/70'}`} />
         </button>
       </header>
 

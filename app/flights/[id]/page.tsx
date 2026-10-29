@@ -145,20 +145,20 @@ export default function FlightDetailPage() {
       </header>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
-        <div className="rounded-2xl border border-white/10 bg-[#111217cc] p-6">
+        <div className="rounded-2xl border border-white/10 bg-[#0a0a0acc] p-6">
           <p className="text-xs font-semibold uppercase tracking-[.2em] text-white/60">Departure</p>
           <p className="mt-3 text-3xl font-bold">{now ? hhmm(depH * 60 + depM) : '--:--'}</p>
           <p className="mt-2 text-sm text-white/45">{flight.fromCity} ({flight.from})</p>
           <p className="mt-1 text-xs text-white/40">{flight.fromIcao}</p>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[#111217cc] p-6">
+        <div className="rounded-2xl border border-white/10 bg-[#0a0a0acc] p-6">
           <p className="text-xs font-semibold uppercase tracking-[.2em] text-white/60">Duration</p>
           <p className="mt-3 text-3xl font-bold">{Math.floor(flight.durationMin / 60)}h {flight.durationMin % 60}m</p>
           <p className="mt-2 text-sm text-white/45">{flight.distanceNm} nm (~{Math.round(flight.distanceNm * 1.15)}mi)</p>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[#111217cc] p-6">
+        <div className="rounded-2xl border border-white/10 bg-[#0a0a0acc] p-6">
           <p className="text-xs font-semibold uppercase tracking-[.2em] text-white/60">Arrival</p>
           <p className="mt-3 text-3xl font-bold">
             {now ? hhmm(depH * 60 + depM + flight.durationMin) : '--:--'}
@@ -168,7 +168,7 @@ export default function FlightDetailPage() {
           <p className="mt-1 text-xs text-white/40">{flight.toIcao}</p>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[#111217cc] p-6">
+        <div className="rounded-2xl border border-white/10 bg-[#0a0a0acc] p-6">
           <p className="text-xs font-semibold uppercase tracking-[.2em] text-white/60">Aircraft</p>
           <p className="mt-3 text-2xl font-bold">{flight.aircraftIcao}</p>
           <p className="mt-2 text-sm text-white/45">{flight.aircraftType}</p>

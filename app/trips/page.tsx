@@ -19,7 +19,7 @@ export default function TripsPage() {
           {bookings.map((flight) => {
             const d = distanceFromNm(flight.distanceNm)
             return (
-              <article key={flight.id} className="rounded-2xl border border-white/10 bg-[#111217cc] p-5">
+              <article key={flight.id} className="rounded-2xl border border-white/10 bg-[#0a0a0acc] p-5">
                 <Link href={`/route/${flight.airlineIata}/${flight.orig}-${flight.dest}`} className="flex min-h-11 items-start justify-between gap-4">
                   <div className="min-w-0">
                     <p className="font-medium">{flightTitle(flight)}</p>

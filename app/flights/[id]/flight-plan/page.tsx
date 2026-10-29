@@ -207,7 +207,7 @@ export default function FlightPlanPage() {
           <Field label={t('plan.dest')}><AirportInput value={form.arr} onChange={(v) => set('arr', v)} onResolve={setToAp} className={inputCls} /></Field>
           <Field label={t('plan.aircraft')} className="col-span-2">
             <input className={inputCls} placeholder={t('plan.aircraftPh')} value={form.aircraft} onChange={(e) => set('aircraft', e.target.value)} />
-            {ac.status === 'exact' && ac.match && <p className="mt-1 text-xs text-[#4caf50]">✓ {ac.match.name} · {ac.match.icao}</p>}
+            {ac.status === 'exact' && ac.match && <p className="mt-1 text-xs text-[#55a7ff]">✓ {ac.match.name} · {ac.match.icao}</p>}
             {ac.status === 'fuzzy' && ac.match && (
               <button type="button" onClick={() => set('aircraft', ac.match!.name)} className="mt-1 text-xs text-[#55a7ff]">{t('plan.didYouMean', { name: ac.match.name })}</button>
             )}

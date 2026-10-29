@@ -92,7 +92,16 @@ export default function GlobeInner() {
   // one smooth move per place. Outbound/return of the same route, data refreshes and quick page swaps do not zoom again.
   useEffect(() => {
     if (!camKey) {
-      const t = setTimeout(() => { zoomKey.current = '' }, 1200)
+      // back to a menu: after a short wait (so quick page swaps do not bounce) show the whole globe again
+      const t = setTimeout(() => {
+        if (!zoomKey.current) return
+        zoomKey.current = ''
+        clearTimers()
+        const g = ref.current
+        if (!g) return
+        const pv = g.pointOfView()
+        g.pointOfView({ lat: pv.lat, lng: pv.lng, altitude: 2.5 }, 1600)
+      }, 450)
       return () => clearTimeout(t)
     }
     if (zoomKey.current === camKey) return
@@ -146,15 +155,15 @@ export default function GlobeInner() {
         atmosphereColor="#1f88ff"
         atmosphereAltitude={0.16}
         arcsData={arcs}
-        arcColor={() => ['rgba(85,167,255,0.10)', 'rgba(31,136,255,0.85)']}
-        arcStroke={view.mode === 'route' ? 0.35 : 0.1}
+        arcColor={() => (view.mode === 'route' ? ['rgba(255,255,255,0.9)', 'rgba(31,136,255,1)'] : ['rgba(85,167,255,0.18)', 'rgba(130,195,255,0.9)'])}
+        arcStroke={view.mode === 'route' ? 0.7 : 0.26}
         arcAltitudeAutoScale={view.mode === 'route' ? 0.25 : 0.2}
         pathsData={paths}
         pathPoints="pts"
         pathPointLat={(p: any) => p[0]}
         pathPointLng={(p: any) => p[1]}
         pathColor={() => '#4caf50'}
-        pathStroke={0.5}
+        pathStroke={0.9}
         pathPointAlt={0.012}
         pointsData={points}
         pointLat="lat"

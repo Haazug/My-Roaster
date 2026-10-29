@@ -36,7 +36,7 @@ export default function Airlines() {
           <p className="mb-2 text-xs font-semibold uppercase tracking-[.2em] text-white/40">Top airlines</p>
           <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-2">
             {top.map((a) => (
-              <Link key={a.id} href={`/airlines/${a.id}`} className="flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-[#111217cc] py-1.5 pl-1.5 pr-4 text-sm hover:border-[#1f88ff]/60">
+              <Link key={a.id} href={`/airlines/${a.id}`} className="flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-[#0a0a0acc] py-1.5 pl-1.5 pr-4 text-sm hover:border-[#1f88ff]/60">
                 <AirlineLogo iata={a.iata} icao={a.icao} name={fixName(a.name)} size="sm" showText={false} />
                 <span className="whitespace-nowrap">{fixName(a.name)}</span>
               </Link>
@@ -59,11 +59,11 @@ export default function Airlines() {
       ) : (
         <div className="flex flex-col gap-2">
           {rows.map((a) => (
-            <Link href={`/airlines/${a.id}`} key={a.id} className="flex min-h-[76px] items-center gap-4 rounded-2xl border border-white/10 bg-[#111217cc] p-3 transition hover:border-[#1f88ff]/60">
+            <Link href={`/airlines/${a.id}`} key={a.id} className="flex min-h-[76px] items-center gap-4 rounded-2xl border border-white/10 bg-[#0a0a0acc] p-3 transition hover:border-[#1f88ff]/60">
               <AirlineLogo iata={a.iata} icao={a.icao} name={fixName(a.name)} size="md" showText={false} />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold">{fixName(a.name)}</p>
-                <p className="text-sm text-[#4caf50]">Available Routes: {a.numRoutes}{!a.active && <span className="ml-2 text-xs text-amber-300">Historical</span>}</p>
+                <p className="text-sm text-[#55a7ff]">Available Routes: {a.numRoutes}{!a.active && <span className="ml-2 text-xs text-amber-300">Historical</span>}</p>
               </div>
               <ChevronRight className="size-5 shrink-0 text-white/30" aria-hidden="true" />
             </Link>

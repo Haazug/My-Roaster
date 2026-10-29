@@ -20,10 +20,10 @@ export function LiveNow({ airlineIcao, from, to, distanceNm }: { airlineIcao?: s
   const goingFrom = list.filter((a) => headingTo(a.track, from, to) === 'from')
 
   return (
-    <div className="mt-4 rounded-2xl border border-white/10 bg-[#111217cc] p-4">
+    <div className="mt-4 rounded-2xl border border-white/10 bg-[#0a0a0acc] p-4">
       <div className="flex items-center justify-between gap-3">
         <p className="flex items-center gap-2 text-sm font-semibold">
-          <Radio className="size-4 text-[#4caf50]" aria-hidden="true" /> Ao vivo agora
+          <Radio className="size-4 text-[#55a7ff]" aria-hidden="true" /> Ao vivo agora
         </p>
         <a
           href={fr24Url(from, to, distanceNm)}

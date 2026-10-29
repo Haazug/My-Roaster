@@ -16,7 +16,7 @@ export default function RouteMap({
   const color = cancelled ? '#ef4444' : '#22c55e'
   
   return (
-    <div className="mt-6 rounded-2xl border border-white/10 bg-[#111217cc] p-6">
+    <div className="mt-6 rounded-2xl border border-white/10 bg-[#0a0a0acc] p-6">
       <p className="text-xs font-semibold uppercase tracking-[.2em] text-white/40">Rota</p>
       <svg
         viewBox="0 0 400 200"

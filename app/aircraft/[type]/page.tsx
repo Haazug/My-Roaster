@@ -132,43 +132,43 @@ export default function AircraftDetailPage() {
 
       {/* Specifications Grid */}
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <div className="rounded-2xl border border-white/10 bg-[#111217cc] p-6">
+        <div className="rounded-2xl border border-white/10 bg-[#0a0a0acc] p-6">
           <p className="text-xs font-semibold uppercase tracking-[.2em] text-white/60">Engines</p>
           <p className="mt-3 text-3xl font-bold">{aircraft.engines}</p>
           <p className="mt-1 text-sm text-white/45">turbofan engines</p>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[#111217cc] p-6">
+        <div className="rounded-2xl border border-white/10 bg-[#0a0a0acc] p-6">
           <p className="text-xs font-semibold uppercase tracking-[.2em] text-white/60">Capacity</p>
           <p className="mt-3 text-3xl font-bold">{aircraft.maxPassengers}</p>
           <p className="mt-1 text-sm text-white/45">maximum passengers</p>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[#111217cc] p-6">
+        <div className="rounded-2xl border border-white/10 bg-[#0a0a0acc] p-6">
           <p className="text-xs font-semibold uppercase tracking-[.2em] text-white/60">Range</p>
           <p className="mt-3 text-3xl font-bold">{aircraft.range}</p>
           <p className="mt-1 text-sm text-white/45">nautical miles</p>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[#111217cc] p-6">
+        <div className="rounded-2xl border border-white/10 bg-[#0a0a0acc] p-6">
           <p className="text-xs font-semibold uppercase tracking-[.2em] text-white/60">Cruise Speed</p>
           <p className="mt-3 text-3xl font-bold">{aircraft.cruiseSpeed}</p>
           <p className="mt-1 text-sm text-white/45">knots</p>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[#111217cc] p-6">
+        <div className="rounded-2xl border border-white/10 bg-[#0a0a0acc] p-6">
           <p className="text-xs font-semibold uppercase tracking-[.2em] text-white/60">Service Ceiling</p>
           <p className="mt-3 text-3xl font-bold">FL{Math.round(aircraft.maxAltitude / 100)}</p>
           <p className="mt-1 text-sm text-white/45">{aircraft.maxAltitude.toLocaleString()} feet</p>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[#111217cc] p-6">
+        <div className="rounded-2xl border border-white/10 bg-[#0a0a0acc] p-6">
           <p className="text-xs font-semibold uppercase tracking-[.2em] text-white/60">Production</p>
           <p className="mt-3 text-2xl font-bold">
             {aircraft.inProduction ? (
-              <span className="text-[#4caf50]">Active</span>
+              <span className="text-[#55a7ff]">Active</span>
             ) : (
-              <span className="text-[#facc15]">Legacy</span>
+              <span className="text-[#55a7ff]">Legacy</span>
             )}
           </p>
           <p className="mt-1 text-sm text-white/45">
@@ -178,7 +178,7 @@ export default function AircraftDetailPage() {
       </div>
 
       {/* Performance Data */}
-      <div className="mt-8 rounded-2xl border border-white/10 bg-[#111217cc] p-6">
+      <div className="mt-8 rounded-2xl border border-white/10 bg-[#0a0a0acc] p-6">
         <h2 className="text-xl font-semibold mb-4">Performance Data</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="border-l-4 border-[#1f88ff] pl-4">
@@ -192,7 +192,7 @@ export default function AircraftDetailPage() {
               {aircraft.code === 'B789' && '242,450 kg'}
             </p>
           </div>
-          <div className="border-l-4 border-[#4caf50] pl-4">
+          <div className="border-l-4 border-[#55a7ff] pl-4">
             <p className="text-sm text-white/60">Fuel Capacity</p>
             <p className="mt-1 font-semibold text-white">
               {aircraft.code === 'A320' && '27,200 L'}

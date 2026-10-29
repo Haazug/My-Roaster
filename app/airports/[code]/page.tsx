@@ -67,7 +67,7 @@ export default function AirportDetailPage() {
       </Link>
       <header className="mt-8 border-b border-white/10 pb-7">
         <div className="flex items-start gap-4">
-          <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-[#facc15]/15 text-sm font-black text-[#facc15]">
+          <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-[#55a7ff]/15 text-sm font-black text-[#55a7ff]">
             {airport.iata}
           </div>
           <div>
@@ -81,16 +81,16 @@ export default function AirportDetailPage() {
 
       {liveFlights.length > 0 && (
         <div className="mt-8">
-          <h2 className="mb-4 flex items-center gap-2 text-xl font-semibold"><span className="size-2 animate-pulse rounded-full bg-[#4caf50]" />Live now</h2>
+          <h2 className="mb-4 flex items-center gap-2 text-xl font-semibold"><span className="size-2 animate-pulse rounded-full bg-[#1f88ff]" />Live now</h2>
           <div className="flex flex-col gap-2">
             {liveFlights.map((f) => (
-              <Link key={f.hex} href={`/route/${f.airlineIata || f.airlineIcao}/${f.from}-${f.to}`} className="flex items-center gap-3 rounded-2xl border border-[#4caf50]/30 bg-[#4caf50]/5 p-4 transition hover:border-[#4caf50]/60">
+              <Link key={f.hex} href={`/route/${f.airlineIata || f.airlineIcao}/${f.from}-${f.to}`} className="flex items-center gap-3 rounded-2xl border border-[#55a7ff]/30 bg-[#1f88ff]/5 p-4 transition hover:border-[#55a7ff]/60">
                 <AirlineLogo iata={f.airlineIata} icao={f.airlineIcao} name={f.airlineName} size="sm" showText={false} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 font-semibold"><span>{f.from}</span><span className="text-[#1f88ff]">→</span><span>{f.to}</span><span className="text-xs font-normal text-white/45">{f.callsign}</span></div>
                   <p className="mt-1 truncate text-sm text-white/45">{f.airlineName} · {f.fromCity} → {f.toCity}</p>
                 </div>
-                <span className="shrink-0 text-xs text-[#4caf50]">{f.onGround ? 'On ground' : f.altFt != null ? `FL${Math.round(f.altFt / 100)}` : 'Airborne'}</span>
+                <span className="shrink-0 text-xs text-[#55a7ff]">{f.onGround ? 'On ground' : f.altFt != null ? `FL${Math.round(f.altFt / 100)}` : 'Airborne'}</span>
               </Link>
             ))}
           </div>
@@ -102,7 +102,7 @@ export default function AirportDetailPage() {
           <h2 className="text-xl font-semibold mb-4">Departures & Arrivals</h2>
           <div className="flex flex-col gap-2">
             {routes.map((route, idx) => (
-              <div key={idx} style={{ contentVisibility: 'auto', containIntrinsicSize: '0 120px' }} className="rounded-2xl border border-white/10 bg-[#111217cc] p-4">
+              <div key={idx} style={{ contentVisibility: 'auto', containIntrinsicSize: '0 120px' }} className="rounded-2xl border border-white/10 bg-[#0a0a0acc] p-4">
                 <div className="flex items-center gap-3 font-semibold">
                   <span>{route.from}</span><span className="text-[#1f88ff]">↔</span><span>{route.to}</span>
                 </div>
@@ -131,8 +131,8 @@ export default function AirportDetailPage() {
           <h2 className="text-xl font-semibold mb-4">Nearby Airports</h2>
           <div className="flex flex-col gap-2">
             {nearby.slice(0, 8).map((a) => (
-              <Link key={a.iata} href={`/airports/${a.iata}`} className="flex items-center gap-4 rounded-2xl border border-white/10 bg-[#111217cc] p-4 hover:border-white/20">
-                <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[#facc15]/15 text-xs font-bold text-[#facc15]">{a.iata}</span>
+              <Link key={a.iata} href={`/airports/${a.iata}`} className="flex items-center gap-4 rounded-2xl border border-white/10 bg-[#0a0a0acc] p-4 hover:border-white/20">
+                <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[#55a7ff]/15 text-xs font-bold text-[#55a7ff]">{a.iata}</span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold">{a.city} · {a.name}</p>
                   <p className="mt-1 text-sm text-white/45">{a.icao}</p>

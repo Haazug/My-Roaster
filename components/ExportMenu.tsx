@@ -80,7 +80,7 @@ export function ExportMenu({ flight }: { flight: ExportFlight }) {
               className="flex w-full items-start gap-3 rounded-xl p-3 text-left transition hover:bg-white/[.08]"
               aria-label="Export to Volanta"
             >
-              <Share2 className="size-5 shrink-0 text-[#4caf50] mt-0.5" />
+              <Share2 className="size-5 shrink-0 text-[#55a7ff] mt-0.5" />
               <div>
                 <p className="font-semibold text-sm">Volanta</p>
                 <p className="text-xs text-white/40 mt-1">Copies flight details and opens the map</p>
@@ -92,7 +92,7 @@ export function ExportMenu({ flight }: { flight: ExportFlight }) {
               className="flex w-full items-start gap-3 rounded-xl p-3 text-left transition hover:bg-white/[.08]"
               aria-label="Export to MSFS"
             >
-              <FileDown className="size-5 shrink-0 text-[#facc15] mt-0.5" />
+              <FileDown className="size-5 shrink-0 text-[#55a7ff] mt-0.5" />
               <div>
                 <p className="font-semibold text-sm">MSFS Flight Planner</p>
                 <p className="text-xs text-white/40 mt-1">Downloads a .pln file and opens the planner</p>

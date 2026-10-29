@@ -41,7 +41,7 @@ export function CustomRoutes({ airlineKey }: { airlineKey: string }) {
   const input = 'min-h-11 w-full rounded-xl border border-white/10 bg-white/5 px-3 text-sm uppercase outline-none placeholder:normal-case placeholder:text-white/35 focus:border-[#1f88ff]'
 
   return (
-    <div className="mt-7 rounded-2xl border border-white/10 bg-[#111217cc] p-4">
+    <div className="mt-7 rounded-2xl border border-white/10 bg-[#0a0a0acc] p-4">
       <p className="text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">Your routes</p>
       {mine.length > 0 && (
         <div className="mt-3 flex flex-col gap-2">

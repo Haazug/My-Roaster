@@ -66,7 +66,7 @@ export default function BookAction({ data }: { data: PassData }) {
 
   return done ? (
     <div className="mt-6 text-center">
-      <div className="w-full rounded-full bg-[#4caf50]/20 py-4 text-base font-semibold text-[#4caf50]">Booked ✓</div>
+      <div className="w-full rounded-full bg-[#1f88ff]/20 py-4 text-base font-semibold text-[#55a7ff]">Booked ✓</div>
       <Link href="/logs" className="mt-3 inline-block text-sm text-[#55a7ff] underline">View in My Logs</Link>
     </div>
   ) : (

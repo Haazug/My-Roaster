@@ -64,7 +64,7 @@ export default function InvitePage() {
       <p className={label}>Convite de amizade</p>
       <h1 className="mt-2 text-3xl font-semibold">Foste convidado!</h1>
 
-      <div className="mt-6 rounded-2xl border border-white/10 bg-[#111217cc] p-6 text-center">
+      <div className="mt-6 rounded-2xl border border-white/10 bg-[#0a0a0acc] p-6 text-center">
         <div className="mx-auto flex size-24 items-center justify-center overflow-hidden rounded-full bg-[#1f88ff]/20 text-3xl font-semibold text-[#1f88ff]">
           {pilot.avatar ? (
             <img src={pilot.avatar} alt="Avatar" className="h-full w-full object-cover" />
