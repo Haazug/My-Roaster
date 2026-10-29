@@ -12,6 +12,7 @@ import { useT, useLang } from '@/lib/i18n'
 import { CABIN } from '@/lib/extra-i18n'
 import * as sound from '@/lib/sound'
 import { useLocalStorage } from '@/lib/use-local-storage'
+import { supabase } from '@/lib/supabase'
 
 type Status = 'done' | 'skipped'
 
@@ -93,6 +94,15 @@ export default function FlyNowPage() {
   const holdCount = useRef(0)
   const goArounds = useRef(0)
   const [goAroundCount, setGoAroundCount] = useState(0)
+  const [sessionId, setSessionId] = useState('')
+  const [crew, setCrew] = useState<string[]>([])
+  const uid = useRef('')
+  const seen = useRef<Set<number>>(new Set())
+  const applyRef = useRef<(key: string, status: Status, at?: number) => void>(() => {})
+  const goAroundRef = useRef<(remote?: boolean) => void>(() => {})
+  useEffect(() => {
+    setSessionId(new URLSearchParams(window.location.search).get('session') || '')
+  }, [])
   const lang = useLang((s) => s.lang)
 
   // Load the plan saved by the Flight Plan page (for flights that are not samples)
@@ -270,6 +280,15 @@ export default function FlyNowPage() {
     } catch {}
   }
 
+  // shared flight: tell the other pilots what happened
+  const send = (kind: string, step: string, status: string) => {
+    if (!sessionId || !uid.current) return
+    supabase
+      .from('flight_session_events')
+      .insert({ session_id: sessionId, user_id: uid.current, kind, step, status })
+      .then(({ error }) => { if (error) console.error('send failed', error) })
+  }
+
   const endHolding = () => {
     if (holdSince.current !== null) {
       holdTotal.current += Date.now() - holdSince.current
@@ -292,7 +311,7 @@ export default function FlyNowPage() {
     }
   }
 
-  const goAround = () => {
+  const goAround = (remote = false) => {
     sound.unlock()
     sound.play('dingdong')
     const from = STEPS.findIndex((x) => x.key === 'Descent')
@@ -306,23 +325,25 @@ export default function FlyNowPage() {
     goArounds.current += 1
     setGoAroundCount(goArounds.current)
     toast('Go around', { description: 'Back to descent' })
+    if (!remote) send('goaround', '', '')
   }
 
-  const mark = (key: string, status: Status) => {
+  const mark = (key: string, status: Status, remote = false, at?: number) => {
     sound.unlock()
     if (holdSince.current !== null) endHolding()
     askPermission()
-    sound.play(kindFor(key))
-    stepLog.current[key] = { status, at: Date.now() }
+    if (at === undefined) sound.play(kindFor(key))
+    stepLog.current[key] = { status, at: at ?? Date.now() }
     setStatuses((prev) => ({ ...prev, [key]: status }))
     if (key === 'Takeoff') {
-      const t0 = Date.now()
+      const t0 = at ?? Date.now()
       setTakeoffAt(t0)
       setNow(t0)
       sound.setBed('cabin') // background music out, cabin noise in
       toast.success(tr('fly.takeoffToast'))
     }
     if (key === 'Landing') sound.setBed('music') // flight over: music is back
+    if (!remote) send('step', key, status)
   }
 
   const skipToTakeoff = () => {
@@ -335,6 +356,72 @@ export default function FlyNowPage() {
       return next
     })
   }
+
+  // apply what another pilot did (earlier steps that are still open are marked as skipped)
+  const applyRemote = (key: string, status: Status, at?: number) => {
+    const idx = STEPS.findIndex((x) => x.key === key)
+    if (idx < 0) return
+    if (stepLog.current[key]?.status === status) return
+    STEPS.slice(0, idx).forEach((x) => {
+      if (!stepLog.current[x.key]) stepLog.current[x.key] = { status: 'skipped', at: at ?? Date.now() }
+    })
+    setStatuses((prev) => {
+      const next = { ...prev }
+      STEPS.slice(0, idx).forEach((x) => { if (!next[x.key]) next[x.key] = 'skipped' })
+      return next
+    })
+    mark(key, status, true, at)
+  }
+  applyRef.current = applyRemote
+  goAroundRef.current = goAround
+
+  // shared flight: listen to the others, and replay what already happened (late join / reload)
+  useEffect(() => {
+    if (!sessionId) return
+    let live = true
+    let channel: any
+
+    const loadCrew = async () => {
+      const { data } = await supabase.from('flight_session_members').select('name').eq('session_id', sessionId).order('joined_at')
+      if (live && data) setCrew(data.map((m: any) => m.name))
+    }
+
+    ;(async () => {
+      const { data: s } = await supabase.auth.getSession()
+      const me = s.session?.user.id
+      if (!me || !live) return
+      uid.current = me
+
+      const apply = (e: any, replay: boolean) => {
+        if (seen.current.has(e.id)) return
+        seen.current.add(e.id)
+        const at = replay ? Date.parse(e.created_at) : undefined
+        if (e.kind === 'step') applyRef.current(e.step, e.status, at)
+        else if (e.kind === 'goaround') goAroundRef.current(true)
+      }
+
+      channel = supabase
+        .channel('flight-' + sessionId)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'flight_session_events', filter: `session_id=eq.${sessionId}` }, (p: any) => {
+          if (p.new?.user_id !== me) apply(p.new, false)
+        })
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'flight_session_members', filter: `session_id=eq.${sessionId}` }, (p: any) => {
+          toast(`${p.new?.name || 'Pilot'} entrou no voo`)
+          loadCrew()
+        })
+        .subscribe()
+
+      await loadCrew()
+      const { data: old } = await supabase.from('flight_session_events').select('*').eq('session_id', sessionId).order('id')
+      if (!live) return
+      ;(old || []).forEach((e: any) => apply(e, true))
+    })()
+
+    return () => {
+      live = false
+      if (channel) supabase.removeChannel(channel)
+    }
+  }, [sessionId])
 
   const rate = (n: number) => {
     const v = n === rating ? 0 : n
@@ -389,6 +476,12 @@ export default function FlyNowPage() {
           {info.orig} → {info.dest} · {info.aircraft} · {info.durationMin} {tr('fly.min')}
         </p>
       </header>
+
+      {sessionId && crew.length > 0 && (
+        <p className="mt-4 rounded-xl border border-[#4caf50]/30 bg-[#4caf50]/10 px-4 py-3 text-sm text-[#4caf50]">
+          👥 Voo em grupo · {crew.join(', ')}
+        </p>
+      )}
 
       {finished ? (
         <div className="mt-8 rounded-2xl border border-[#4caf50]/30 bg-[#4caf50]/10 p-6 text-center">
@@ -487,7 +580,7 @@ export default function FlyNowPage() {
                     </button>
                   )}
                   {isCurrent && (s.key === 'Approach' || s.key === 'Landing') && (
-                    <button onClick={goAround} className="mt-3 w-full rounded-lg border border-orange-400/40 bg-orange-400/10 px-3 py-2 text-sm font-medium text-orange-200">
+                    <button onClick={() => goAround()} className="mt-3 w-full rounded-lg border border-orange-400/40 bg-orange-400/10 px-3 py-2 text-sm font-medium text-orange-200">
                       Go around{goAroundCount > 0 ? ` (${goAroundCount})` : ''}
                     </button>
                   )}

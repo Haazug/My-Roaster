@@ -18,10 +18,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
     const routes = db.routesByAirport.get(upperCode) || []
     const groups = new Map<string, any>()
     for (const r of routes) {
-      const key = `${r.from}-${r.to}`
+      const key = [r.from, r.to].sort().join('-')
       let g = groups.get(key)
       if (!g) {
-        g = { from: r.from, to: r.to, fromAirport: db.airports.get(r.from), toAirport: db.airports.get(r.to), codeshare: r.codeshare, equip: r.equip, airlines: [] as any[] }
+        const flip = r.to === upperCode
+        g = { from: flip ? r.to : r.from, to: flip ? r.from : r.to, fromAirport: db.airports.get(flip ? r.to : r.from), toAirport: db.airports.get(flip ? r.from : r.to), codeshare: r.codeshare, equip: r.equip, airlines: [] as any[] }
         groups.set(key, g)
       }
       const al = db.airlines.get(r.airlineId)

@@ -161,3 +161,7 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* nothing may push the page wider than the screen (fixes the shrunken page on iPhone) */
+html, body { max-width: 100%; overflow-x: clip; }
+main { overflow-x: clip; }

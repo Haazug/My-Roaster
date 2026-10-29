@@ -109,7 +109,18 @@ export default function FlightPlanPage() {
         })
       )
     } catch {}
-    router.push(`/flights/${id}/fly`)
+    const sid = new URLSearchParams(window.location.search).get('session')
+    if (sid) {
+      ;(async () => {
+        try {
+          const raw = localStorage.getItem('myroster.activePlan')
+          const { data: s } = await supabase.auth.getSession()
+          const uid = s.session?.user.id
+          if (uid && raw) await supabase.from('flight_session_events').insert({ session_id: sid, user_id: uid, kind: 'start', payload: JSON.parse(raw) })
+        } catch {}
+      })()
+    }
+    router.push(`/flights/${id}/fly${sid ? `?session=${encodeURIComponent(sid)}` : ''}`)
   }
 
   const createPlan = () => {

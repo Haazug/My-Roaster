@@ -101,7 +101,7 @@ export default function SearchClient() {
             </Group>
           )}
           {show('Flights') && (
-            <Group title="Live flights" count={data.flights.length} empty={data.aircraftTypes.length ? `No live ${data.aircraftTypes[0].name} found right now.` : 'No live aircraft match. Flight numbers resolve to live callsigns while airborne.'}>
+            <Group title="Live flights" count={data.flights.length} empty={data.aircraftTypes.length ? `No live ${data.aircraftTypes[0].name} found right now.` : 'No live aircraft match. Try a flight number (LH400), a callsign (DLH4XY) or an airline name while its aircraft are airborne.'}>
               {data.flights.map((f) => (
                 <Row key={f.hex} href={`/live/${f.hex}`}>
                   <p className="flex items-center gap-2 font-semibold"><Radio className="size-4 text-cyan-300" aria-hidden="true" />{f.callsign || f.hex}</p>
@@ -113,7 +113,7 @@ export default function SearchClient() {
           {show('Airports') && (
             <Group title="Airports" count={data.airports.length}>
               {data.airports.map((a) => (
-                <Row key={a.iata} href={`/search?q=${a.iata}`} onClick={() => setInput(a.iata)}>
+                <Row key={a.iata} href={`/airports/${a.iata}`}>
                   <p className="font-semibold">{a.city} · {a.iata}</p>
                   <p className="mt-1 text-sm text-white/45">{a.icao} · {a.name} · {a.country}</p>
                 </Row>

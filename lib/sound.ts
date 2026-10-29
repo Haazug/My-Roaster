@@ -4,13 +4,13 @@
 // Everything goes through Web Audio, so volume also works on iPhone/iPad (where audio.volume is read-only).
 
 export type Channel = 'music' | 'cabin'
-export type Kind = 'ding' | 'dingdong'
+export type Kind = 'ding' | 'dingdong' | 'jingle'
 export type SoundState = { volume: number; muted: boolean; bed: Channel; playing: boolean }
 
 const SRC: Record<Channel, string> = { music: '/aviao_es-e-mu_sicas.mp3', cabin: '/cabin-noise.mp3' }
 const BOOST: Record<Channel, number> = { music: 1, cabin: 1.1 }
 const CHANNELS: Channel[] = ['music', 'cabin']
-const CHIME_SRC: Record<Kind, string> = { ding: '/ding-single.mp3', dingdong: '/ding.mp3' }
+const CHIME_SRC: Record<Kind, string> = { ding: '/ding-single.mp3', dingdong: '/ding.mp3', jingle: '/jingle.mp3' }
 
 let ctx: AudioContext | null = null
 let unlocked = false
@@ -127,7 +127,7 @@ export async function play(kind: Kind) {
   const src = c.createBufferSource()
   src.buffer = b.buf
   const g = c.createGain()
-  g.gain.value = 0.7
+  g.gain.value = kind === 'jingle' ? 0.4 : 0.7
   src.connect(g)
   g.connect(c.destination)
   src.onended = () => {
@@ -152,6 +152,7 @@ export function unlock() {
     CHANNELS.forEach(connect)
     loadChime('ding')
     loadChime('dingdong')
+    loadChime('jingle')
   }
   ctx?.resume().catch(() => {})
   apply()

@@ -104,7 +104,7 @@ export default function AirportDetailPage() {
             {routes.map((route, idx) => (
               <div key={idx} style={{ contentVisibility: 'auto', containIntrinsicSize: '0 120px' }} className="rounded-2xl border border-white/10 bg-[#111217cc] p-4">
                 <div className="flex items-center gap-3 font-semibold">
-                  <span>{route.from}</span><span className="text-[#1f88ff]">→</span><span>{route.to}</span>
+                  <span>{route.from}</span><span className="text-[#1f88ff]">↔</span><span>{route.to}</span>
                 </div>
                 <p className="mt-1 text-sm text-white/45">{route.fromAirport?.city} → {route.toAirport?.city}</p>
                 {route.airlines?.length ? (

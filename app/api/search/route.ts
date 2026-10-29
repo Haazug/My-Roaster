@@ -24,11 +24,29 @@ export async function GET(req: Request) {
     let flights: LiveAircraft[] = []
     const reg = upper.match(/^[A-Z0-9]{1,2}-[A-Z0-9]{2,5}$/)
     const code = upper.replace(/\s+/g, '').match(/^([A-Z0-9]{2,3}?)(\d{1,4})$/)
+    const hubFlights = async (airlineId: string, icao: string) => {
+      const ids: string[] = ((db as any).hubs?.get(airlineId) || []).slice(0, 2)
+      const lists = await Promise.all(
+        ids.map((c) => {
+          const a = db.airports.get(c)
+          return a ? timeout(live(`/point/${a.lat}/${a.lon}/250`), 9000, [] as LiveAircraft[]) : Promise.resolve([] as LiveAircraft[])
+        })
+      )
+      const m = new Map<string, LiveAircraft>()
+      for (const l of lists) for (const ac of l) if (ac.callsign.toUpperCase().startsWith(icao)) m.set(ac.hex, ac)
+      return Array.from(m.values())
+    }
     if (reg) {
-      flights = await timeout(live(`/reg/${encodeURIComponent(upper)}`), 6000, [])
+      flights = await timeout(live(`/reg/${encodeURIComponent(upper)}`), 9000, [])
     } else if (code) {
       const airline = findAirline(db, code[1])
-      if (airline?.icao) flights = await timeout(live(`/callsign/${airline.icao}${code[2]}`), 6000, [])
+      if (airline?.icao) {
+        flights = await timeout(live(`/callsign/${airline.icao}${code[2]}`), 9000, [])
+        if (!flights.length) flights = await hubFlights(airline.id, airline.icao)
+      }
+    } else if (q.length >= 3) {
+      const al = searchAirlines(db, q, 1)[0]
+      if (al?.icao) flights = await hubFlights(al.id, al.icao)
     }
     const aircraftTypes = Object.values(aircraft)
       .filter(([name, icao]) => icao === upper || name.toUpperCase().replace(/\s/g, '').includes(upper.replace(/\s/g, '')))

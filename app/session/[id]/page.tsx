@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { Copy, Plane, Users } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { getProfile } from '@/lib/pilot-profile'
@@ -15,12 +16,15 @@ export default function SessionPage() {
   const router = useRouter()
   const [flightKey, setFlightKey] = useState('')
   const [members, setMembers] = useState<Member[]>([])
+  const [meId, setMeId] = useState('')
   const [state, setState] = useState<'loading' | 'ok' | 'missing' | 'error'>('loading')
   const [copied, setCopied] = useState(false)
+  const went = useRef(false)
 
   useEffect(() => {
     let live = true
     let timer: ReturnType<typeof setInterval> | undefined
+    let channel: any
 
     const loadMembers = async () => {
       const { data } = await supabase
@@ -38,23 +42,58 @@ export default function SessionPage() {
         router.replace(`/login?next=${encodeURIComponent(`/session/${id}`)}`)
         return
       }
+      setMeId(user.id)
+
       const { data: sess, error } = await supabase.from('flight_sessions').select('flight_key').eq('id', id).maybeSingle()
       if (!live) return
       if (error) return setState('error')
       if (!sess) return setState('missing')
       setFlightKey(sess.flight_key)
 
+      const startFrom = (payload: any) => {
+        if (!live || went.current || !payload?.id) return
+        went.current = true
+        try { localStorage.setItem('myroster.activePlan', JSON.stringify(payload)) } catch {}
+        router.push(`/flights/${encodeURIComponent(payload.id)}/fly?session=${encodeURIComponent(id)}`)
+      }
+
+      // realtime: friends joining and the host starting the flight
+      channel = supabase
+        .channel('session-' + id)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'flight_session_events', filter: `session_id=eq.${id}` }, (p: any) => {
+          if (p.new?.kind === 'start' && p.new.user_id !== user.id) startFrom(p.new.payload)
+        })
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'flight_session_members', filter: `session_id=eq.${id}` }, (p: any) => {
+          if (p.new?.user_id !== user.id) toast(`${p.new?.name || 'Pilot'} entrou na sessão`)
+          loadMembers()
+        })
+        .subscribe()
+
       const name = getProfile()?.name || user.email?.split('@')[0] || 'Pilot'
       await supabase.from('flight_session_members').upsert({ session_id: id, user_id: user.id, name })
       await loadMembers()
       if (!live) return
       setState('ok')
-      timer = setInterval(loadMembers, 4000)
+
+      // someone already started this flight (joining late)
+      const { data: last } = await supabase
+        .from('flight_session_events')
+        .select('user_id,payload,created_at')
+        .eq('session_id', id)
+        .eq('kind', 'start')
+        .order('id', { ascending: false })
+        .limit(1)
+      const ev = last?.[0]
+      if (ev && ev.user_id !== user.id && Date.now() - Date.parse(ev.created_at) < 6 * 3600_000) startFrom(ev.payload)
+
+      // fallback in case realtime is not enabled
+      timer = setInterval(loadMembers, 8000)
     })()
 
     return () => {
       live = false
       if (timer) clearInterval(timer)
+      if (channel) supabase.removeChannel(channel)
     }
   }, [id, router])
 
@@ -94,10 +133,17 @@ export default function SessionPage() {
               <span className="flex size-8 items-center justify-center rounded-full bg-[#1f88ff]/20 text-sm font-semibold text-[#1f88ff]">
                 {m.name.charAt(0).toUpperCase()}
               </span>
-              <span className="text-sm font-medium">{m.name}</span>
+              <span className="flex-1 text-sm font-medium">{m.name}{m.user_id === meId ? ' (tu)' : ''}</span>
+              <span className="flex items-center gap-1.5 text-xs text-[#4caf50]">
+                <span className="size-2 rounded-full bg-[#4caf50]" /> conectado
+              </span>
             </li>
           ))}
         </ul>
+
+        <p className="mt-4 text-xs text-white/45">
+          Quando alguém iniciar o voo, ele abre sozinho em todos os telemóveis ligados a esta sessão.
+        </p>
 
         <button
           onClick={copyLink}
@@ -107,7 +153,7 @@ export default function SessionPage() {
         </button>
 
         <Link
-          href={`/flights/${encodeURIComponent(flightKey)}/flight-plan`}
+          href={`/flights/${encodeURIComponent(flightKey)}/flight-plan?session=${encodeURIComponent(id)}`}
           className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-[#1f88ff] py-3 font-semibold"
         >
           <Plane className="size-4" /> Iniciar voo

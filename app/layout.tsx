@@ -6,6 +6,8 @@ import BottomNav from '@/components/BottomNav'
 import BackgroundMusic from '@/components/BackgroundMusic'
 import CookieBanner from '@/components/CookieBanner'
 import PlnDrop from '@/components/PlnDrop'
+import JingleOnClick from '@/components/JingleOnClick'
+import ExternalOpen from '@/components/ExternalOpen'
 import LanguageGate from '@/components/LanguageGate'
 import LegalFooter from '@/components/LegalFooter'
 
@@ -36,6 +38,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
          <BackgroundMusic />
         <LanguageGate />
         <PlnDrop />
+        <JingleOnClick />
+        <ExternalOpen />
         <CookieBanner />
         <Toaster theme="dark" position="top-center" richColors />
       </body>

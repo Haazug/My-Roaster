@@ -7,6 +7,7 @@ import { ArrowLeft, ChevronRight, Plane } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useMapStore, type Point } from '@/lib/map-store'
 import { AirlineLogo } from '@/components/AirlineLogo'
+import AirlineAbout from '@/components/AirlineAbout'
 import { CustomRoutes } from '@/components/CustomRoutes'
 import { fixName } from '@/lib/airline-names'
 
@@ -49,7 +50,15 @@ export default function AirlineDetailPage() {
   }
 
   const airline = data.airline as Airline
-  const allRoutes = data.routes as Route[]
+  const allRoutes = (() => {
+    const seen = new Set<string>()
+    return (data.routes as Route[]).filter((r) => {
+      const k = [r.from, r.to].sort().join('-')
+      if (seen.has(k)) return false
+      seen.add(k)
+      return true
+    })
+  })()
   const nq = q.trim().toLowerCase()
   const routes = nq
     ? allRoutes.filter((r) =>
@@ -73,6 +82,7 @@ export default function AirlineDetailPage() {
           </div>
         </div>
       </header>
+      <AirlineAbout id={String(id)} />
       <CustomRoutes airlineKey={airline.iata || id} />
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search routes (city, airport or code)" className="mt-7 min-h-12 w-full rounded-2xl border border-white/10 bg-white/[.06] px-4 outline-none placeholder:text-white/35 focus:border-[#1f88ff]" />
       {nq && <p className="mt-3 text-xs text-white/40">{routes.length} of {allRoutes.length} routes</p>}

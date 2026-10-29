@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import useSWR from 'swr'
+import { matchAirline } from '@/lib/airline-aliases'
 import { TOP_ICAO } from '@/lib/top-airlines'
 import { fixName } from '@/lib/airline-names'
 import Link from 'next/link'
@@ -19,7 +20,7 @@ export default function Airlines() {
   const top = TOP_ICAO.map((c) => list.filter((a) => a.icao === c).sort((x, y) => Number(y.active) - Number(x.active) || y.numRoutes - x.numRoutes)[0]).filter(Boolean) as Airline[]
   const rows = useMemo(() => {
     const n = norm(q.trim())
-    return n ? list.filter((a) => norm(`${fixName(a.name)} ${a.name} ${a.iata} ${a.icao} ${a.country}`).includes(n)) : list
+    return n ? list.filter((a) => matchAirline(a, q)) : list
   }, [list, q])
 
   return (

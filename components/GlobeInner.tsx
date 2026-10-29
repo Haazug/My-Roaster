@@ -1,6 +1,6 @@
 'use client'
 import Globe, { type GlobeMethods } from 'react-globe.gl'
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useMapStore, type Point } from '@/lib/map-store'
 import LiveTraffic from './LiveTraffic'
 
@@ -19,6 +19,22 @@ function routeCamera(a: Point, b: Point) {
   const alt = Math.min(3, Math.max(0.35, 0.25 + th * 1.2))
   return { lat, lng, alt }
 }
+
+// airports of an airline ordered by how many routes touch them (first = hub)
+function topAirports(routes: { from: Point; to: Point }[]) {
+  const n = new Map<string, { p: Point; c: number }>()
+  for (const r of routes) {
+    for (const p of [r.from, r.to]) {
+      const k = p.lat + ',' + p.lon
+      const e = n.get(k)
+      if (e) e.c++
+      else n.set(k, { p, c: 1 })
+    }
+  }
+  return Array.from(n.values()).sort((a, b) => b.c - a.c)
+}
+
+type Cam = { key: string; lat: number; lng: number; alt: number }
 
 export default function GlobeInner() {
   const ref = useRef<GlobeMethods | undefined>(undefined)
@@ -53,61 +69,47 @@ export default function GlobeInner() {
     return () => clearInterval(t)
   }, [view.mode, lock])
 
-  // camera: zooms once per place. Swapping the direction of the same route (outbound/return) does NOT zoom again.
+  const hubs = useMemo(() => (view.mode === 'airline' ? topAirports(view.routes) : []), [view])
+
+  // where the camera should be for the current view (null = leave it alone)
+  const cam: Cam | null = useMemo(() => {
+    if (view.mode === 'airline' && hubs.length) {
+      const h = hubs[0].p
+      return { key: 'a:' + h.lat.toFixed(2) + ',' + h.lon.toFixed(2), lat: h.lat, lng: h.lon, alt: 0.9 }
+    }
+    if (view.mode === 'route') {
+      const k1 = `${view.from.lat.toFixed(3)},${view.from.lon.toFixed(3)}`
+      const k2 = `${view.to.lat.toFixed(3)},${view.to.lon.toFixed(3)}`
+      const c = routeCamera(view.from, view.to)
+      return { key: 'r:' + [k1, k2].sort().join('|'), lat: c.lat, lng: c.lng, alt: c.alt }
+    }
+    return null
+  }, [view, hubs])
+  const camRef = useRef<Cam | null>(cam)
+  camRef.current = cam
+  const camKey = cam?.key ?? ''
+
+  // one smooth move per place. Outbound/return of the same route, data refreshes and quick page swaps do not zoom again.
   useEffect(() => {
-    let key = ''
-    let start: (() => boolean) | null = null
-    if (view.mode === 'airline' && view.routes.length) {
-      const n = new Map<string, { p: Point; c: number }>()
-      for (const r of view.routes) {
-        for (const p of [r.from, r.to]) {
-          const k = p.lat + ',' + p.lon
-          const e = n.get(k)
-          if (e) e.c++
-          else n.set(k, { p, c: 1 })
-        }
-      }
-      let best: { p: Point; c: number } | null = null
-      for (const e of Array.from(n.values())) if (!best || e.c > best.c) best = e
-      if (best) {
-        const hub = best.p
-        key = 'a:' + hub.lat + ',' + hub.lon
-        start = () => {
-          const g = ref.current
-          if (!g) return false
-          g.pointOfView({ lat: hub.lat * 0.5, lng: hub.lon - 70, altitude: 2.8 }, 0)
-          later(() => g.pointOfView({ lat: hub.lat, lng: hub.lon, altitude: 0.9 }, 2600), 80)
-          return true
-        }
-      }
-    } else if (view.mode === 'route') {
-      const a = view.from
-      const b = view.to
-      const k1 = `${a.lat.toFixed(3)},${a.lon.toFixed(3)}`
-      const k2 = `${b.lat.toFixed(3)},${b.lon.toFixed(3)}`
-      key = 'r:' + [k1, k2].sort().join('|')
-      const c = routeCamera(a, b)
-      start = () => {
-        const g = ref.current
-        if (!g) return false
-        g.pointOfView({ lat: c.lat * 0.6, lng: c.lng - 60, altitude: Math.min(3.2, c.alt + 1) }, 0)
-        later(() => g.pointOfView({ lat: c.lat, lng: c.lng, altitude: c.alt }, 2200), 80)
-        return true
-      }
+    if (!camKey) {
+      const t = setTimeout(() => { zoomKey.current = '' }, 1200)
+      return () => clearTimeout(t)
     }
-    if (!key || !start) {
-      zoomKey.current = ''
-      return
-    }
-    if (zoomKey.current === key) return
-    zoomKey.current = key
+    if (zoomKey.current === camKey) return
+    zoomKey.current = camKey
     clearTimers()
     let tries = 0
     const go = () => {
-      if (start!() === false && ++tries < 12) later(go, 300)
+      const g = ref.current
+      const c = camRef.current
+      if (!g || !c) {
+        if (++tries < 12) later(go, 300)
+        return
+      }
+      g.pointOfView({ lat: c.lat, lng: c.lng, altitude: c.alt }, 1800)
     }
-    later(go, 250)
-  }, [view])
+    later(go, 150)
+  }, [camKey])
 
   useEffect(() => clearTimers, [])
 
@@ -118,13 +120,19 @@ export default function GlobeInner() {
       ? view.routes.slice(0, 600).map((r) => ({ startLat: r.from.lat, startLng: r.from.lon, endLat: r.to.lat, endLng: r.to.lon }))
       : []
   const paths = wps ? [{ pts: wps.map((w) => [w.lat, w.lon]) }] : []
-  const points = view.mode === 'airports'
-    ? view.airports
-    : view.mode === 'point'
-      ? [view.point, ...view.nearby]
-      : wps
-        ? wps
-        : []
+
+  const points: any[] =
+    view.mode === 'airports'
+      ? view.airports.map((p) => ({ ...p, r: 0.22 }))
+      : view.mode === 'point'
+        ? [{ ...view.point, r: 0.3 }, ...view.nearby.map((p) => ({ ...p, r: 0.18 }))]
+        : view.mode === 'route'
+          ? wps
+            ? wps.map((w) => ({ ...w, r: 0.1 }))
+            : [{ ...view.from, r: 0.25 }, { ...view.to, r: 0.25 }]
+          : view.mode === 'airline'
+            ? hubs.slice(0, 3).map((h, i) => ({ ...h.p, r: i === 0 ? 0.45 : 0.25, color: i === 0 ? '#ff9f1c' : '#facc15' }))
+            : []
 
   return (
     <div className="relative size-full">
@@ -138,22 +146,22 @@ export default function GlobeInner() {
         atmosphereColor="#1f88ff"
         atmosphereAltitude={0.16}
         arcsData={arcs}
-        arcColor={() => '#1f88ff'}
-        arcStroke={view.mode === 'route' ? 1.2 : 0.3}
-        arcAltitudeAutoScale={0.3}
+        arcColor={() => ['rgba(85,167,255,0.10)', 'rgba(31,136,255,0.85)']}
+        arcStroke={view.mode === 'route' ? 0.35 : 0.1}
+        arcAltitudeAutoScale={view.mode === 'route' ? 0.25 : 0.2}
         pathsData={paths}
         pathPoints="pts"
         pathPointLat={(p: any) => p[0]}
         pathPointLng={(p: any) => p[1]}
         pathColor={() => '#4caf50'}
-        pathStroke={1.4}
+        pathStroke={0.5}
         pathPointAlt={0.012}
         pointsData={points}
         pointLat="lat"
         pointLng="lon"
-        pointColor={() => '#facc15'}
+        pointColor={(p: any) => p.color || '#facc15'}
         pointAltitude={0.02}
-        pointRadius={wps ? 0.18 : 0.35}
+        pointRadius={(p: any) => p.r ?? 0.25}
       />
       <LiveTraffic getCenter={() => (view.mode === 'idle' ? LUANDA : ref.current?.pointOfView())} />
     </div>
