@@ -4,7 +4,15 @@ import { EXTRA_AIRLINES } from '@/lib/extra-airlines'
 function addExtras(db: Db) {
   const all = Array.from(db.airlines.values())
   for (const ex of EXTRA_AIRLINES) {
-    let al = all.find((a) => a.icao === ex.icao && a.active) || all.find((a) => a.icao === ex.icao)
+    // remove airlines from other countries that reuse this airline's codes (e.g. City Connexion, Burundi, also coded G3/GLO)
+    for (const o of all) {
+      if (o.country === ex.country) continue
+      if ((ex.icao && o.icao === ex.icao) || (ex.iata && o.iata === ex.iata)) {
+        db.airlines.delete(o.id)
+        db.routesByAirline.delete(o.id)
+      }
+    }
+    let al = all.find((a) => a.icao === ex.icao && a.country === ex.country && a.active) || all.find((a) => a.icao === ex.icao && a.country === ex.country)
     if (!al) {
       al = { id: 'x-' + ex.icao, iata: ex.iata, icao: ex.icao, name: ex.name, country: ex.country, active: true }
       db.airlines.set(al.id, al)
