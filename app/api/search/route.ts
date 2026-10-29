@@ -22,31 +22,35 @@ export async function GET(req: Request) {
     ])
     const upper = q.toUpperCase()
     let flights: LiveAircraft[] = []
+    const compact = upper.replace(/\s+/g, '')
     const reg = upper.match(/^[A-Z0-9]{1,2}-[A-Z0-9]{2,5}$/)
-    const code = upper.replace(/\s+/g, '').match(/^([A-Z0-9]{2,3}?)(\d{1,4})$/)
-    const hubFlights = async (airlineId: string, icao: string) => {
-      const ids: string[] = ((db as any).hubs?.get(airlineId) || []).slice(0, 2)
-      const lists = await Promise.all(
-        ids.map((c) => {
-          const a = db.airports.get(c)
-          return a ? timeout(live(`/point/${a.lat}/${a.lon}/250`), 9000, [] as LiveAircraft[]) : Promise.resolve([] as LiveAircraft[])
-        })
-      )
+    const code = compact.match(/^([A-Z0-9]{2,3}?)(\d{1,4})$/)
+    const merge = (lists: LiveAircraft[][]) => {
       const m = new Map<string, LiveAircraft>()
-      for (const l of lists) for (const ac of l) if (ac.callsign.toUpperCase().startsWith(icao)) m.set(ac.hex, ac)
-      return Array.from(m.values())
+      for (const l of lists) for (const a of l) m.set(a.hex, a)
+      return [...m.values()].sort((a, b) => Number(a.onGround) - Number(b.onGround))
+    }
+    const callsignQuery = async (icao: string, num: string) => {
+      const forms = Array.from(new Set([num, num.padStart(4, '0'), num.padStart(3, '0')])).map((n) => icao + n)
+      return merge(await Promise.all(forms.map((c) => timeout(live(`/callsign/${c}`), 10000, [] as LiveAircraft[]))))
     }
     if (reg) {
-      flights = await timeout(live(`/reg/${encodeURIComponent(upper)}`), 9000, [])
+      flights = await timeout(live(`/reg/${encodeURIComponent(upper)}`), 10000, [])
     } else if (code) {
-      const airline = findAirline(db, code[1])
-      if (airline?.icao) {
-        flights = await timeout(live(`/callsign/${airline.icao}${code[2]}`), 9000, [])
-        if (!flights.length) flights = await hubFlights(airline.id, airline.icao)
-      }
-    } else if (q.length >= 3) {
+      // IATA (LH) and ICAO (DLH) prefixes are both tried
+      const al = findAirline(db, code[1])
+      const icao = al?.icao || (code[1].length === 3 ? code[1] : '')
+      if (icao) flights = await callsignQuery(icao, code[2])
+    }
+    if (!flights.length && !reg) {
+      // airline by name or code: its aircraft that are airborne right now (callsign prefix = ICAO)
       const al = searchAirlines(db, q, 1)[0]
-      if (al?.icao) flights = await hubFlights(al.id, al.icao)
+      if (al?.icao) {
+        const hubs: string[] = ((db as any).hubs?.get(al.id) || []).slice(0, 3)
+        const pts = hubs.map((h) => db.airports.get(h)).filter(Boolean) as any[]
+        const lists = await Promise.all(pts.map((pt) => timeout(live(`/point/${pt.lat}/${pt.lon}/250`), 10000, [] as LiveAircraft[])))
+        flights = merge(lists.map((l) => l.filter((a) => a.callsign.startsWith(al.icao)))).slice(0, 25)
+      }
     }
     const aircraftTypes = Object.values(aircraft)
       .filter(([name, icao]) => icao === upper || name.toUpperCase().replace(/\s/g, '').includes(upper.replace(/\s/g, '')))
