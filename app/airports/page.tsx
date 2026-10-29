@@ -3,13 +3,15 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import useSWR from 'swr'
-import { ArrowLeft, ChevronRight, Search } from 'lucide-react'
+import { ArrowLeft, Search } from 'lucide-react'
 import { useMapStore } from '@/lib/map-store'
 import { Flag } from '@/components/Flag'
+import { Board, BoardHead, BoardRow, boardText } from '@/components/Board'
 
 type Airport = { iata: string; icao: string; name: string; city: string; country: string; lat: number; lon: number; routes: number }
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+const COLS = '64px minmax(0,1fr) 64px'
 
 export default function AirportsPage() {
   const { data, error } = useSWR<Airport[] | { error: string }>('/api/airports', fetcher)
@@ -43,22 +45,22 @@ export default function AirportsPage() {
       ) : !data ? (
         <p className="mt-6 text-white/40" aria-busy="true">Loading airports…</p>
       ) : (
-        <div className="mt-6 flex flex-col gap-2">
+        <Board className="mt-6">
+          <BoardHead cols={COLS}><span>Code</span><span>Airport</span><span className="text-right">Routes</span></BoardHead>
           {rows.map((a) => (
-            <Link href={`/airports/${a.iata}`} key={a.iata} className="flex min-h-14 items-center gap-4 rounded-2xl border border-white/10 bg-[#0a0a0acc] p-4 hover:border-white/30">
-              <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-bold text-white">{a.iata}</span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-semibold">{a.city} · {a.name}</p>
-                <p className="mt-1 flex items-center gap-2 text-sm text-white/45">
-                  <Flag country={a.country} size={16} />
-                  <span className="truncate">{a.icao} · {a.country} · <span className="text-[#55a7ff]">{a.routes} routes</span></span>
-                </p>
-              </div>
-              <ChevronRight className="size-5 shrink-0 text-white/30" aria-hidden="true" />
+            <Link key={a.iata} href={`/airports/${a.iata}`} className="block transition hover:bg-[#facc15]/[.06]">
+              <BoardRow cols={COLS} className="min-h-14">
+                <span className={`${boardText} text-lg font-bold`}>{a.iata}</span>
+                <div className="min-w-0">
+                  <p className="truncate font-semibold">{a.city} <span className="font-normal text-white/40">· {a.name}</span></p>
+                  <p className="mt-1 flex items-center gap-2 font-mono text-xs uppercase tracking-wider text-white/45"><Flag country={a.country} size={16} /><span className="truncate">{a.icao} · {a.country}</span></p>
+                </div>
+                <span className={`${boardText} text-right text-sm`}>{a.routes}</span>
+              </BoardRow>
             </Link>
           ))}
-          {!rows.length && <p className="rounded-2xl border border-dashed border-white/10 p-5 text-sm text-white/40">No airports match “{q}”.</p>}
-        </div>
+          {!rows.length && <p className="p-5 text-sm text-white/40">No airports match “{q}”.</p>}
+        </Board>
       )}
     </section>
   )

@@ -1,4 +1,4 @@
-export type Share = { a: string; f: string; t: string; ac?: string; n?: string; an?: string; m?: 'solo' | 'duo'; s?: number }
+export type Share = { a: string; f: string; t: string; ac?: string; n?: string; an?: string; m?: 'solo' | 'duo'; s?: number; sid?: string }
 
 const b64 = (s: string) => btoa(unescape(encodeURIComponent(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 const unb64 = (s: string) => decodeURIComponent(escape(atob(s.replace(/-/g, '+').replace(/_/g, '/'))))

@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { decodeShare, type Share } from '@/lib/share'
 import { AirlineLogo } from '@/components/AirlineLogo'
 
@@ -10,6 +11,10 @@ export default function SharedRoutePage() {
   useEffect(() => {
     setS(decodeShare(new URLSearchParams(window.location.search).get('d') || ''))
   }, [])
+  const router = useRouter()
+  useEffect(() => {
+    if (s && s.sid) router.replace(`/session/${s.sid}`)
+  }, [s, router])
 
   if (s === undefined) return <section className="min-h-screen p-5 text-white/40 sm:p-8">Loading…</section>
   if (!s)
@@ -20,6 +25,7 @@ export default function SharedRoutePage() {
       </section>
     )
 
+  if (s.sid) return <section className="min-h-screen p-5 text-white/40 sm:p-8">Opening the lounge…</section>
   const when = s.s ? new Date(s.s) : null
   return (
     <section className="min-h-screen p-5 pb-32 sm:p-8">

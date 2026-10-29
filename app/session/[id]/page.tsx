@@ -15,6 +15,7 @@ export default function SessionPage() {
   const id = String(params?.id ?? '')
   const router = useRouter()
   const [flightKey, setFlightKey] = useState('')
+  const [hostId, setHostId] = useState('')
   const [members, setMembers] = useState<Member[]>([])
   const [meId, setMeId] = useState('')
   const [state, setState] = useState<'loading' | 'ok' | 'missing' | 'error'>('loading')
@@ -44,11 +45,12 @@ export default function SessionPage() {
       }
       setMeId(user.id)
 
-      const { data: sess, error } = await supabase.from('flight_sessions').select('flight_key').eq('id', id).maybeSingle()
+      const { data: sess, error } = await supabase.from('flight_sessions').select('flight_key,host_id').eq('id', id).maybeSingle()
       if (!live) return
       if (error) return setState('error')
       if (!sess) return setState('missing')
       setFlightKey(sess.flight_key)
+      setHostId(sess.host_id)
 
       const startFrom = (payload: any) => {
         if (!live || went.current || !payload?.id) return
@@ -120,7 +122,7 @@ export default function SessionPage() {
 
   return (
     <section className="min-h-screen p-5 pb-32 text-white sm:p-8">
-      <p className={label}>Voo em grupo</p>
+      <p className={label}>Lounge de espera</p>
       <h1 className="mt-2 text-4xl font-semibold">{flightKey}</h1>
 
       <div className="mt-6 rounded-2xl border border-white/10 bg-[#0a0a0acc] p-6">
@@ -133,7 +135,7 @@ export default function SessionPage() {
               <span className="flex size-8 items-center justify-center rounded-full bg-[#1f88ff]/20 text-sm font-semibold text-[#1f88ff]">
                 {m.name.charAt(0).toUpperCase()}
               </span>
-              <span className="flex-1 text-sm font-medium">{m.name}{m.user_id === meId ? ' (tu)' : ''}</span>
+              <span className="flex-1 text-sm font-medium">{m.name}{m.user_id === meId ? ' (tu)' : ''}{m.user_id === hostId ? ' · anfitrião' : ''}</span>
               <span className="flex items-center gap-1.5 text-xs text-[#55a7ff]">
                 <span className="size-2 rounded-full bg-[#1f88ff]" /> conectado
               </span>
@@ -152,12 +154,18 @@ export default function SessionPage() {
           <Copy className="size-4" /> {copied ? 'Link copiado!' : 'Copiar link para convidar'}
         </button>
 
-        <Link
-          href={`/flights/${encodeURIComponent(flightKey)}/flight-plan?session=${encodeURIComponent(id)}`}
-          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-[#1f88ff] py-3 font-semibold"
-        >
-          <Plane className="size-4" /> Iniciar voo
-        </Link>
+        {meId === hostId ? (
+          <Link
+            href={`/flights/${encodeURIComponent(flightKey)}/flight-plan?session=${encodeURIComponent(id)}`}
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-[#1f88ff] py-3 font-semibold"
+          >
+            <Plane className="size-4" /> Iniciar voo
+          </Link>
+        ) : (
+          <div className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 py-3 text-sm text-white/60">
+            <span className="size-2 animate-pulse rounded-full bg-[#facc15]" /> À espera do anfitrião iniciar o voo…
+          </div>
+        )}
       </div>
     </section>
   )

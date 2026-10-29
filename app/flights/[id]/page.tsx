@@ -1,15 +1,16 @@
 'use client'
 
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, MapPin, Clock, Plane } from 'lucide-react'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMapStore, type Point } from '@/lib/map-store'
 import { ExportMenu } from '@/components/ExportMenu'
 import { AirlineLogo } from '@/components/AirlineLogo'
 import { simbriefUrl, type ExportFlight } from '@/lib/export'
 import { useNow } from '@/lib/use-now'
 import { FlyWithFriends } from '@/components/FlyWithFriends'
+import FlyChoiceDialog from '@/components/FlyChoiceDialog'
 
 const SAMPLE_FLIGHTS: Record<string, any> = {
   'DT-653': {
@@ -69,6 +70,8 @@ export default function FlightDetailPage() {
   const { id } = useParams<{ id: string }>()
   const setView = useMapStore((s) => s.setView)
   const now = useNow()
+  const router = useRouter()
+  const [flyOpen, setFlyOpen] = useState(false)
 
   const flight = useMemo(() => {
     const key = id ? (id as string).toUpperCase() : ''
@@ -127,6 +130,22 @@ export default function FlightDetailPage() {
     distanceNm: flight.distanceNm,
   }
 
+  const flyWith = (simbrief: boolean) => {
+    try {
+      localStorage.setItem('myroster.routeSeed', JSON.stringify({
+        id: String(id),
+        airlineName: flight.airline, airlineIata: flight.airlineIata, airlineIcao: flight.airlineIcao,
+        orig: flight.from, dest: flight.to, fromIcao: flight.fromIcao, toIcao: flight.toIcao,
+        fromCity: flight.fromCity, toCity: flight.toCity,
+        fromLat: flight.fromLat, fromLon: flight.fromLon, toLat: flight.toLat, toLon: flight.toLon,
+        distanceNm: flight.distanceNm, durationMin: flight.durationMin, aircraft: flight.aircraftIcao,
+      }))
+    } catch {}
+    setFlyOpen(false)
+    if (simbrief) window.open(simbriefUrl(exportData), '_blank', 'noopener,noreferrer')
+    router.push(`/flights/${id}/flight-plan`)
+  }
+
   return (
     <section className="min-h-screen p-5 sm:p-8">
       <Link href="/airlines" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
@@ -176,15 +195,13 @@ export default function FlightDetailPage() {
       </div>
 
       <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-        <Link
-          href={`/flights/${id}/flight-plan`} onClick={() => window.open(simbriefUrl(exportData), "_blank", "noopener,noreferrer")}
-          className="flex min-h-12 items-center justify-center rounded-xl bg-[#1f88ff] px-6 font-semibold text-white transition hover:bg-[#1f88ff]/90"
-        >
+        <button type="button" onClick={() => setFlyOpen(true)} className="flex min-h-12 items-center justify-center rounded-xl bg-[#1f88ff] px-6 font-semibold text-white transition hover:bg-[#1f88ff]/90">
           <Plane className="mr-2 size-5" /> Fly Now
-        </Link>
+        </button>
         <ExportMenu flight={exportData} />
         <FlyWithFriends flightKey={String(id).toUpperCase()} />
       </div>
+      <FlyChoiceDialog open={flyOpen} onClose={() => setFlyOpen(false)} onSimbrief={() => flyWith(true)} onManual={() => flyWith(false)} />
 
       <div className="mt-8 rounded-2xl border border-white/10 bg-white/[.02] p-6">
         <p className="text-sm text-white/60">

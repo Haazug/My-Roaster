@@ -6,7 +6,7 @@ const RATE_LIMIT_MS = 1100
 const CACHE_TTL_MS = 15000
 const MAX_RESULTS = 1500
 
-interface LiveAircraft {
+export interface LiveAircraft {
   hex: string
   callsign: string
   lat: number

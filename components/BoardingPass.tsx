@@ -6,6 +6,8 @@ import { usePathname } from 'next/navigation'
 import * as sound from '@/lib/sound'
 import { encodeShare } from '@/lib/share'
 import { useT } from '@/lib/i18n'
+import { supabase } from '@/lib/supabase'
+import { getProfile } from '@/lib/pilot-profile'
 
 export type PassData = {
   from: string
@@ -20,6 +22,7 @@ export type PassData = {
   durationMin?: number
   seat?: string
   date?: string
+  booked?: boolean
 }
 
 const hash = (s: string) => {
@@ -297,6 +300,32 @@ export function BoardingPass({
   const [qrSoft, setQrSoft] = useState('')
   const [copiedRoute, setCopiedRoute] = useState(false)
   const [duoStart] = useState(() => Math.ceil((Date.now() + 10 * 60000) / 60000) * 60000)
+  const [sid, setSid] = useState('')
+  const creating = useRef(false)
+  // shared flight: reuse the session from the URL, or create one when the pass is shared in Duo mode
+  useEffect(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get('session') || ''
+    if (fromUrl) { setSid(fromUrl); return }
+    if (mode !== 'duo' || creating.current) return
+    creating.current = true
+    ;(async () => {
+      try {
+        const { data } = await supabase.auth.getSession()
+        const user = data.session?.user
+        const key = decodeURIComponent(pathname?.match(/\/flights\/([^/]+)/)?.[1] || '').toUpperCase()
+        if (!user || !key) { creating.current = false; return }
+        const id = crypto.randomUUID().replace(/-/g, '').slice(0, 8)
+        const name = getProfile()?.name || user.email?.split('@')[0] || 'Pilot'
+        const a = await supabase.from('flight_sessions').insert({ id, host_id: user.id, flight_key: key })
+        if (a.error) { creating.current = false; return }
+        await supabase.from('flight_session_members').insert({ session_id: id, user_id: user.id, name })
+        const u = new URL(window.location.href)
+        u.searchParams.set('session', id)
+        window.history.replaceState(window.history.state, '', u.toString())
+        setSid(id)
+      } catch { creating.current = false }
+    })()
+  }, [mode, pathname])
   const airlineCode = (
     data.airlineIata ||
     (pathname?.match(/\/flights\/([^/]+)/)?.[1] || '').split('-')[0] ||
@@ -305,8 +334,8 @@ export function BoardingPass({
   ).toUpperCase()
   const shareLink = useMemo(() => {
     if (!airlineCode || typeof window === 'undefined') return ''
-    return `${window.location.origin}/s?d=${encodeShare({ a: airlineCode, f: data.from, t: data.to, ac: data.aircraft || '', n: data.flight || '', an: data.airline || '', m: mode, s: mode === 'duo' ? duoStart : undefined })}`
-  }, [airlineCode, data.from, data.to, data.aircraft, data.flight, mode, duoStart])
+    return `${window.location.origin}/s?d=${encodeShare({ a: airlineCode, f: data.from, t: data.to, ac: data.aircraft || '', n: data.flight || '', an: data.airline || '', m: mode, s: mode === 'duo' ? duoStart : undefined, sid: sid || undefined })}`
+  }, [airlineCode, data.from, data.to, data.aircraft, data.flight, mode, duoStart, sid])
   useEffect(() => {
     if (!shareLink) return
     import('qrcode').then((Q: any) => (Q.default || Q).toDataURL(shareLink, { margin: 3, width: 720, errorCorrectionLevel: 'L' })).then(setQr).catch(() => {})

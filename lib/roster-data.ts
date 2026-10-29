@@ -1,4 +1,5 @@
 export type RosterFlight = {
+  booked?: boolean;
   id: string
   airlineIata: string
   airlineName: string

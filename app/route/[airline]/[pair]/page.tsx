@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import useSWR from 'swr'
 import { ArrowLeft, Check, Plane, Star } from 'lucide-react'
@@ -18,6 +18,7 @@ import { estimateBlockMinutes } from '@/lib/flight-time'
 import { useNow } from '@/lib/use-now'
 import { useT } from '@/lib/i18n'
 import BookDialog from '@/components/BookDialog'
+import FlyChoiceDialog from '@/components/FlyChoiceDialog'
 
 type Airport = { iata: string; icao: string; name: string; city: string; country: string; lat: number; lon: number }
 type RouteData = {
@@ -43,6 +44,8 @@ export default function RoutePage() {
   const { has, toggle } = useFavourites()
   const setView = useMapStore((s) => s.setView)
   const [bookOpen, setBookOpen] = useState(false)
+  const [flyOpen, setFlyOpen] = useState(false)
+  const router = useRouter()
   const now = useNow()
   const t = useT()
 
@@ -89,6 +92,27 @@ export default function RoutePage() {
     depMin: now ? now.getMinutes() : 0,
     durationMin: estimateBlockMinutes(data.distanceNm, type?.name ?? ''),
     distanceNm: data.distanceNm,
+  }
+
+  const saveSeed = () => {
+    try {
+      localStorage.setItem('myroster.routeSeed', JSON.stringify({
+        free: new URLSearchParams(window.location.search).has('free'),
+        id: `${params.airline}-${params.pair}`,
+        airlineName: data?.airline.name, airlineIata: data?.airline.iata, airlineIcao: data?.airline.icao,
+        orig: data?.from.iata, dest: data?.to.iata, fromIcao: data?.from.icao, toIcao: data?.to.icao,
+        fromCity: data?.from.city, toCity: data?.to.city,
+        fromLat: data?.from.lat, fromLon: data?.from.lon, toLat: data?.to.lat, toLon: data?.to.lon,
+        distanceNm: data?.distanceNm, durationMin: exportFlight.durationMin,
+        aircraft: data?.aircraft?.[0]?.icao || '',
+      }))
+    } catch {}
+  }
+  const flyWith = (simbrief: boolean) => {
+    saveSeed()
+    setFlyOpen(false)
+    if (simbrief) window.open(simbriefUrl(exportFlight), '_blank', 'noopener,noreferrer')
+    router.push(`/flights/${params.airline}-${params.pair}/flight-plan`)
   }
 
   function book() {
@@ -165,38 +189,15 @@ export default function RoutePage() {
       <p className="mt-3 text-xs text-white/35">{t('route.note')}</p>
 
       <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-        <Link
-          href={`/flights/${params.airline}-${params.pair}/flight-plan`}
-          onClick={() => {
-            try {
-              localStorage.setItem('myroster.routeSeed', JSON.stringify({
-                free: new URLSearchParams(window.location.search).has('free'),
-                id: `${params.airline}-${params.pair}`,
-                airlineName: data?.airline.name,
-                airlineIata: data?.airline.iata,
-                airlineIcao: data?.airline.icao,
-                orig: data?.from.iata,
-                dest: data?.to.iata,
-                fromIcao: data?.from.icao,
-                toIcao: data?.to.icao,
-                fromCity: data?.from.city,
-                toCity: data?.to.city,
-                distanceNm: data?.distanceNm,
-                durationMin: exportFlight.durationMin,
-                aircraft: data?.aircraft?.[0]?.icao || '',
-              }))
-            } catch {}
-            window.open(simbriefUrl(exportFlight), '_blank', 'noopener,noreferrer')
-          }}
-          className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#1f88ff] font-medium text-white hover:bg-[#1674db]"
-        >
+        <button type="button" onClick={() => setFlyOpen(true)} className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#1f88ff] font-medium text-white hover:bg-[#1674db]">
           <Plane className="size-4" />{t('route.fly')}
-        </Link>
+        </button>
         <button onClick={() => setBookOpen(true)} className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 font-medium hover:bg-white/15">
           <Check className="size-4" />{t('route.book')}
         </button>
         <ExportMenu flight={exportFlight} />
       </div>
+    <FlyChoiceDialog open={flyOpen} onClose={() => setFlyOpen(false)} onSimbrief={() => flyWith(true)} onManual={() => flyWith(false)} />
     <BookDialog open={bookOpen} onClose={() => setBookOpen(false)} onSaveRoute={book} onPlan={() => {
           try {
             localStorage.setItem('myroster.routeSeed', JSON.stringify({
