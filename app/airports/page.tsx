@@ -3,8 +3,9 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import useSWR from 'swr'
-import { ArrowLeft, ChevronRight, RadioTower, Search } from 'lucide-react'
+import { ArrowLeft, ChevronRight, Search } from 'lucide-react'
 import { useMapStore } from '@/lib/map-store'
+import { Flag } from '@/components/Flag'
 
 type Airport = { iata: string; icao: string; name: string; city: string; country: string; lat: number; lon: number; routes: number }
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -28,12 +29,9 @@ export default function AirportsPage() {
   return (
     <section className="min-h-screen p-5 sm:p-8">
       <Link href="/" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/50"><ArrowLeft className="size-4" />MyRoster</Link>
-      <div className="mt-4 flex items-center gap-3">
-        <RadioTower className="size-5 text-[#55a7ff]" aria-hidden="true" />
-        <div>
-          <h1 className="text-4xl font-semibold">Airports</h1>
-          <p className="mt-2 text-white/45">{list.length ? `${list.length.toLocaleString('en-US')} airports with scheduled routes` : 'Browse worldwide airports'}</p>
-        </div>
+      <div className="mt-4">
+        <h1 className="text-4xl font-semibold">Airports</h1>
+        <p className="mt-2 text-white/45">{list.length ? `${list.length.toLocaleString('en-US')} airports with scheduled routes` : 'Browse worldwide airports'}</p>
       </div>
       <label className="mt-8 flex min-h-14 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4">
         <Search className="size-5 text-white/40" aria-hidden="true" />
@@ -47,11 +45,14 @@ export default function AirportsPage() {
       ) : (
         <div className="mt-6 flex flex-col gap-2">
           {rows.map((a) => (
-            <Link href={`/airports/${a.iata}`} key={a.iata} className="flex min-h-14 items-center gap-4 rounded-2xl border border-white/10 bg-[#0a0a0acc] p-4 hover:border-[#55a7ff]/50">
-              <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[#55a7ff]/15 text-xs font-bold text-[#55a7ff]">{a.iata}</span>
+            <Link href={`/airports/${a.iata}`} key={a.iata} className="flex min-h-14 items-center gap-4 rounded-2xl border border-white/10 bg-[#0a0a0acc] p-4 hover:border-white/30">
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-bold text-white">{a.iata}</span>
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold">{a.city} · {a.name}</p>
-                <p className="mt-1 text-sm text-white/45">{a.icao} · {a.country} · <span className="text-[#55a7ff]">{a.routes} routes</span></p>
+                <p className="mt-1 flex items-center gap-2 text-sm text-white/45">
+                  <Flag country={a.country} size={16} />
+                  <span className="truncate">{a.icao} · {a.country} · <span className="text-[#55a7ff]">{a.routes} routes</span></span>
+                </p>
               </div>
               <ChevronRight className="size-5 shrink-0 text-white/30" aria-hidden="true" />
             </Link>
