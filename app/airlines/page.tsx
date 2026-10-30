@@ -1,5 +1,6 @@
 'use client'
 
+import { useT } from '@/lib/i18n'
 import { useMemo, useState } from 'react'
 import useSWR from 'swr'
 import { matchAirline } from '@/lib/airline-aliases'
@@ -16,6 +17,7 @@ const fetcher = (u: string) => fetch(u).then((r) => r.json())
 const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 
 export default function Airlines() {
+  const tr=useT()
   const { data, error, mutate } = useSWR<Airline[] | { error: string }>('/api/airlines', fetcher)
   const [q, setQ] = useState('')
   const favA = useFavs('airline')
@@ -31,14 +33,14 @@ export default function Airlines() {
   return (
     <section className="min-h-screen p-5 sm:p-8">
       <header className="mb-8">
-        <p className="text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">Network directory</p>
-        <h1 className="mt-2 text-4xl font-semibold tracking-tight">Airline Rosters</h1>
-        <p className="mt-2 text-white/45">Every carrier with a route in OpenFlights.</p>
-        <Link href="/free" className="mt-4 inline-flex min-h-11 items-center rounded-xl border border-white/15 bg-white/10 px-4 text-sm font-medium">Free flight: any route</Link>
+        <p className="text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">{tr('airlines.directory')}</p>
+        <h1 className="mt-2 text-4xl font-semibold tracking-tight">{tr('airlines.title')}</h1>
+        <p className="mt-2 text-white/45">{tr('airlines.subtitle')}</p>
+        <Link href="/free" className="mt-4 inline-flex min-h-11 items-center rounded-xl border border-white/15 bg-white/10 px-4 text-sm font-medium">{tr('nav.free')}</Link>
       </header>
       {(top.length > 0 || favList.length > 0) && !q && (
         <div className="mb-5">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[.2em] text-white/40">Top airlines</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[.2em] text-white/40">{tr('airlines.top')}</p>
           <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-2">
             {[...favList, ...top.filter((t) => !favA.has(t.id))].map((a) => (
               <Link key={a.id} href={`/airlines/${a.id}`} className="flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-[#0a0a0acc] py-1.5 pl-1.5 pr-4 text-sm hover:border-[#1f88ff]/60">
@@ -51,17 +53,17 @@ export default function Airlines() {
       )}
       <label className="mb-5 flex min-h-12 items-center gap-3 rounded-2xl border border-white/10 bg-white/[.06] px-4">
         <Search className="size-4 text-white/40" aria-hidden="true" />
-        <span className="sr-only">Filter airlines</span>
-        <input value={q} onChange={(e) => setQ(e.target.value)} className="min-h-11 w-full min-w-0 bg-transparent outline-none placeholder:text-white/35" placeholder="Filter airlines" />
+        <span className="sr-only">{tr('airlines.filter')}</span>
+        <input value={q} onChange={(e) => setQ(e.target.value)} className="min-h-11 w-full min-w-0 bg-transparent outline-none placeholder:text-white/35" placeholder={tr('airlines.filter')} />
       </label>
       <FlightNumberHit q={q} />
       {error || (data && !Array.isArray(data)) ? (
         <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-red-400/20 bg-red-400/10 p-5">
-          Could not load OpenFlights data.
-          <button onClick={() => mutate()} className="min-h-11 rounded-lg bg-white px-4 text-sm text-black">Retry</button>
+          {tr('airlines.error')}
+          <button onClick={() => mutate()} className="min-h-11 rounded-lg bg-white px-4 text-sm text-black">{tr('live.refresh')}</button>
         </div>
       ) : !data ? (
-        <p className="text-white/40" aria-busy="true">Loading airline rosters…</p>
+        <p className="text-white/40" aria-busy="true">{tr('airlines.loading')}</p>
       ) : (
         <div className="flex flex-col divide-y divide-white/[.06]">
           {rows.map((a) => (
@@ -69,12 +71,12 @@ export default function Airlines() {
               <AirlineLogo iata={a.iata} icao={a.icao} name={fixName(a.name)} size="md" showText={false} />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold">{fixName(a.name)}</p>
-                <p className="text-sm text-[#55a7ff]">Available Routes: {a.numRoutes}{!a.active && <span className="ml-2 text-xs text-amber-300">Historical</span>}</p>
+                <p className="text-sm text-[#55a7ff]">{tr('airlines.routes',{n:a.numRoutes})}{!a.active && <span className="ml-2 text-xs text-amber-300">{tr('airlines.historical')}</span>}</p>
               </div>
               <ChevronRight className="size-5 shrink-0 text-white/30" aria-hidden="true" />
             </Link>
           ))}
-          {!rows.length && <p className="rounded-2xl border border-dashed border-white/10 p-5 text-sm text-white/40">No airlines match “{q}”.</p>}
+          {!rows.length && <p className="rounded-2xl border border-dashed border-white/10 p-5 text-sm text-white/40">{tr('airlines.none')}</p>}
         </div>
       )}
     </section>

@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useT } from '@/lib/i18n'
 import { useParams } from 'next/navigation'
 import useSWR from 'swr'
 import { ArrowLeft, ChevronRight } from 'lucide-react'
@@ -26,6 +27,7 @@ type Tab = 'all' | 'domestic' | 'international'
 const isDomestic = (r: Route) => !!r.fromAirport?.country && r.fromAirport.country === r.toAirport?.country
 
 export default function AirlineDetailPage() {
+  const tr=useT()
   const { id } = useParams<{ id: string }>()
   const { data, error } = useSWR(id ? `/api/airlines/${id}` : null, fetcher)
   const setView = useMapStore((s) => s.setView)
@@ -81,32 +83,32 @@ export default function AirlineDetailPage() {
     return (
       <section className="min-h-screen p-5 sm:p-8">
         <Link href="/airlines" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
-          <ArrowLeft className="size-4" /> Back to airlines
+          <ArrowLeft className="size-4" /> {tr('airlines.back')}
         </Link>
-        <div className="mt-10 rounded-2xl border border-red-400/20 bg-red-400/10 p-5 text-red-100">This airline could not be loaded.</div>
+        <div className="mt-10 rounded-2xl border border-red-400/20 bg-red-400/10 p-5 text-red-100">{tr('airlines.error')}</div>
       </section>
     )
   }
 
-  if (!data) return <section className="min-h-screen p-5 text-white/45 sm:p-8">Loading airline routes…</section>
+  if (!data) return <section className="min-h-screen p-5 text-white/45 sm:p-8">{tr('airlines.loading')}</section>
 
   const airline = data.airline as Airline
   const tabs: { key: Tab; label: string }[] = [
-    { key: 'all', label: 'All' },
-    { key: 'domestic', label: 'Domestic' },
-    { key: 'international', label: 'International' },
+    { key: 'all', label: tr('live.all') },
+    { key: 'domestic', label: tr('airlines.domestic') },
+    { key: 'international', label: tr('airlines.international') },
   ]
 
   return (
     <section className="min-h-screen p-5 pb-32 sm:p-8">
       <Link href="/airlines" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
-        <ArrowLeft className="size-4" /> Back to airlines
+        <ArrowLeft className="size-4" /> {tr('airlines.back')}
       </Link>
       <header className="mt-8 border-b border-white/10 pb-7">
         <div className="flex items-start gap-4">
           <AirlineLogo iata={airline.iata} icao={airline.icao} name={airline.name} size="lg" showText={false} />
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">Airline route network</p>
+            <p className="text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">{tr('airlines.directory')}</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight">{fixName(airline.name)}</h1>
             <p className="mt-2 flex items-center gap-2 text-sm text-white/45">
               <Flag country={airline.country} size={24} />
@@ -134,7 +136,7 @@ export default function AirlineDetailPage() {
         ))}
       </div>
 
-      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search routes (city, airport or code)" className="mt-4 min-h-12 w-full rounded-2xl border border-white/10 bg-white/[.06] px-4 outline-none placeholder:text-white/35 focus:border-[#1f88ff]" />
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr('airlines.routeSearch')} className="mt-4 min-h-12 w-full rounded-2xl border border-white/10 bg-white/[.06] px-4 outline-none placeholder:text-white/35 focus:border-[#1f88ff]" />
       {(nq || tab !== 'all') && <p className="mt-3 text-xs text-white/40">{routes.length} of {counts.all} routes</p>}
 
       <div className="mt-4 flex flex-col divide-y divide-white/[.06]">
@@ -147,7 +149,7 @@ export default function AirlineDetailPage() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-3 font-semibold">
                   <span>{route.from}</span><span className="text-[#55a7ff]">⇄</span><span>{route.to}</span>
-                  {tab === 'all' && <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${dom ? 'border-white/20 text-white/50' : 'border-[#1f88ff]/40 text-[#55a7ff]'}`}>{dom ? 'Domestic' : 'Intl'}</span>}
+                  {tab === 'all' && <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${dom ? 'border-white/20 text-white/50' : 'border-[#1f88ff]/40 text-[#55a7ff]'}`}>{tr(dom?'airlines.domestic':'airlines.international')}</span>}
                 </div>
                 <p className="mt-1 flex items-center gap-2 truncate text-sm text-white/45">
                   <Flag country={from?.country} size={16} />
@@ -162,7 +164,7 @@ export default function AirlineDetailPage() {
             </Link>
           )
         })}
-        {!routes.length && <p className="rounded-2xl border border-dashed border-white/10 p-5 text-sm text-white/40">No routes in this view.</p>}
+        {!routes.length && <p className="rounded-2xl border border-dashed border-white/10 p-5 text-sm text-white/40">{tr('live.noMatch')}</p>}
       </div>
     </section>
   )

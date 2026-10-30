@@ -145,7 +145,7 @@ function RouteContent() {
             {data.operated ? (data.codeshare ? t('route.codeshare') : t('route.operated')) : t('route.notListed')}
           </p>
           <h1 className="mt-2 text-balance text-3xl font-semibold sm:text-4xl">{t('route.title', { from: data.from.city, to: data.to.city })}</h1>
-          <p className="mt-2 text-sm text-white/45">{fixName(data.airline.name)} · {flightCode || 'Flight number unavailable'}</p>
+          <p className="mt-2 text-sm text-white/45">{fixName(data.airline.name)} · {flightCode || t('route.numberUnknown')}</p>
         </div>
         <button
           aria-label={has(flight.id) ? t('route.favRemove') : t('route.favAdd')}
@@ -178,7 +178,7 @@ function RouteContent() {
         <div className="flex items-center gap-3 border-b border-white/10 p-4">
           <AirlineLogo iata={data.airline.iata} icao={data.airline.icao} name={fixName(data.airline.name)} size="md" showText={false} />
           <div className="min-w-0">
-            <p className="text-sm text-white/50">{flightCode || 'Flight number unavailable'} · {data.from.icao} → {data.to.icao}</p>
+            <p className="text-sm text-white/50">{flightCode || t('route.numberUnknown')} · {data.from.icao} → {data.to.icao}</p>
             <p className="truncate text-xl font-semibold">{t('route.title', { from: data.from.city, to: data.to.city })}</p>
           </div>
         </div>
@@ -188,7 +188,7 @@ function RouteContent() {
           <div className="mt-6 flex items-center justify-between text-lg font-semibold"><span>{data.from.icao}</span><span>{data.to.icao}</span></div>
           <div className="mt-2 flex items-center gap-2"><span className="size-2 rounded-full bg-white/30" /><span className="h-px flex-1 bg-white/15" /><span className="size-2 rounded-full bg-white/30" /></div>
           <p className="mt-3 text-sm text-white/60">{data.distanceNm.toLocaleString('en-US')} nm</p>
-          <p className="mt-4 text-xs text-white/35">Simulation timing estimate</p>
+          <p className="mt-4 text-xs text-white/35">{t('route.simulation')}</p>
           <div className="mt-2 grid grid-cols-3 rounded-2xl bg-white/[.04] p-4 text-center">
             <div><p className="text-[11px] uppercase text-white/40">{t('route.dep')}</p><p className="mt-1 text-xl font-semibold">{now ? hhmm(exportFlight.depHour * 60 + exportFlight.depMin) : '--:--'}</p></div>
             <div><p className="text-[11px] uppercase text-white/40">{t('route.dur')}</p><p className="mt-1 text-xl font-semibold">{Math.floor(exportFlight.durationMin / 60)}h {String(exportFlight.durationMin % 60).padStart(2, '0')}m</p></div>

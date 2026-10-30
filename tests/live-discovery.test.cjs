@@ -13,6 +13,7 @@ function load(file, adapters) {
   const history = { write: async list => list.forEach(f => rows.set(f.id, f)), read: async () => [...rows.values()], getSync: async scope => sync.get(scope) || null, setSync: async (scope, state) => sync.set(scope, state) }
   const localRequire = name => {
     if (name === 'server-only') return {}
+    if (Object.hasOwn(adapters, name)) return adapters[name]
     if (name === '@/lib/live-geo') return load('lib/live-geo.ts', {})
     if (name === '@/lib/live-history') return { getLiveHistory: () => history }
     if (name === '@/lib/live-timetable') return load('lib/live-timetable.ts', {})
@@ -119,4 +120,20 @@ test('the global feed discovers flights beyond fixed satellite airports and pres
  const airport=await discovery.discoverFlights('LAX')
  assert.equal(airport.data[0].kind,'departing')
  assert.equal(airport.data[0].from,'LAX')
+})
+
+
+test('Vercel without database credentials still discovers flights and truthfully reports device-only history', async () => {
+ const discovery=load('lib/live-discovery.ts',{
+  '@/lib/live-model':load('lib/live-model.ts',{}),
+  '@/lib/live-history':{getLiveHistory:()=>{throw new Error('server database not configured')}},
+  '@/lib/db':{getDb:async()=>({airports:new Map([['NBJ',{iata:'NBJ',lat:-9,lon:13}],['LIS',{iata:'LIS',lat:38,lon:-9}]])})},
+  '@/lib/live':{live:async()=>[{hex:'ABC123',callsign:'DTA653',lat:-9,lon:13,altFt:35000,onGround:false}],liveGlobal:async()=>{throw new Error('optional global feed unavailable')}},
+  '@/lib/route-lookup':{lookupCallsign:async()=>({from:'NBJ',to:'LIS',airlineIata:'DT',airlineIcao:'DTA',airlineName:'TAAG'})},
+  '@/lib/airline-lookup':{parseCallsign:()=>null},
+ })
+ const result=await discovery.discoverFlights('NBJ')
+ assert.equal(result.history.persistent,false)
+ assert.equal(result.data[0].flightNumber,'DT653')
+ assert.equal(result.availability.live,'partial','an optional global source failure must not mean all traffic is unavailable')
 })

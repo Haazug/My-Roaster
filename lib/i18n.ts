@@ -4,6 +4,7 @@ import { useCallback } from 'react'
 import { create } from 'zustand'
 import { supabase } from '@/lib/supabase'
 import { canStorePreferences } from '@/lib/consent'
+import { interfaceText, interfaceLanguages } from '@/lib/interface-i18n'
 import { en, pt, it, fr, es, type Dict } from '@/lib/i18n-dict'
 
 export const LANGS = [
@@ -15,7 +16,8 @@ export const LANGS = [
 ] as const
 export type Lang = (typeof LANGS)[number]['code']
 
-const DICTS: Record<Lang, Dict> = { en, pt, it, fr, es }
+const DICTS: Record<Lang, Dict> = { en: { ...en }, pt: { ...pt }, it: { ...it }, fr: { ...fr }, es: { ...es } }
+for (const [key, values] of Object.entries(interfaceText)) interfaceLanguages.forEach((lang, i) => { DICTS[lang][key] = values[i] })
 const KEY = 'myroster.lang'
 const valid = (v: unknown): v is Lang => LANGS.some((l) => l.code === v)
 
@@ -39,9 +41,9 @@ export function useT() {
 
 function readLocal(): Lang | null {
   try {
-    const a = window.localStorage.getItem(KEY)
+    const a = window.sessionStorage.getItem(KEY)
     if (valid(a)) return a
-    const b = window.sessionStorage.getItem(KEY)
+    const b = window.localStorage.getItem(KEY)
     if (valid(b)) return b
   } catch {}
   return null
@@ -88,7 +90,7 @@ export async function syncLang() {
       pushCloud(local)
     } else {
       const cloud = await pullCloud(uid)
-      if (cloud) {
+      if (cloud && !useLang.getState().chosen) {
         useLang.getState().apply(cloud)
         writeLocal(cloud)
       }

@@ -1,4 +1,4 @@
-import { DatabaseSync } from 'node:sqlite'
+import type { DatabaseSync } from 'node:sqlite'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import type { ResolvedFlight } from './live-model'
@@ -15,6 +15,8 @@ export interface LiveHistory {
 export class SqliteHistory implements LiveHistory {
   private db: DatabaseSync
   constructor(filename: string) {
+    // Only load SQLite on hosts that use it; serverless Supabase must also work on older Node runtimes.
+    const { DatabaseSync } = require('node:sqlite') as typeof import('node:sqlite')
     mkdirSync(dirname(filename), { recursive: true })
     this.db = new DatabaseSync(filename)
     this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;

@@ -15,8 +15,9 @@ export function LanguageSelect({ className = '' }: { className?: string }) {
           <button
             key={l.code}
             type="button"
+            aria-pressed={lang === l.code}
             onClick={() => chooseLang(l.code)}
-            className={`min-h-11 rounded-xl border px-4 text-sm font-medium ${lang === l.code ? 'border-[#1f88ff] bg-[#1f88ff]/20' : 'border-white/10 bg-white/5'}`}
+            className={`min-h-11 rounded-xl border px-4 text-sm font-medium ${lang === l.code ? 'border-white bg-white text-black' : 'border-white/10 bg-transparent'}`}
           >
             {l.label}
           </button>
@@ -54,13 +55,14 @@ export default function LanguageGate() {
   if (!ready || chosen) return null
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Language" className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-5 backdrop-blur-sm">
+    <div role="dialog" aria-modal="true" aria-label={t('lang.label')} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-5 backdrop-blur-sm">
       <div className="w-full max-w-sm rounded-3xl border border-white/10 bg-[#111217] p-6 text-white shadow-2xl">
-        <h2 className="text-xl font-semibold">Choose your language</h2>
+        <h2 className="text-xl font-semibold">{t('lang.title')}</h2>
         <p className="mt-1 text-sm text-white/45">Escolhe a tua língua · Scegli la lingua · Choisissez la langue · Elige el idioma</p>
         <div className="mt-5 grid gap-2">
           {LANGS.map((l) => (
-            <button key={l.code} type="button" onClick={() => chooseLang(l.code)} className="min-h-12 rounded-xl border border-white/10 bg-white/5 px-4 text-left text-base font-medium hover:border-[#1f88ff]">
+            <button key={l.code} type="button" aria-pressed={lang === l.code}
+            onClick={() => chooseLang(l.code)} className="min-h-12 rounded-xl border border-white/10 bg-white/5 px-4 text-left text-base font-medium hover:border-[#1f88ff]">
               {l.label}
             </button>
           ))}

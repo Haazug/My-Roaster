@@ -6,10 +6,12 @@ import { ArrowLeft, RefreshCw, ExternalLink } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { getAircraftByHex, formatAltitude, formatSpeed, formatVerticalRate, formatTrack } from '@/lib/live-traffic'
 import type { LiveAircraft } from '@/lib/live-traffic'
+import { useT } from '@/lib/i18n'
 import { flightIdentity } from '@/lib/live-model'
 import { AirlineLogo } from '@/components/AirlineLogo'
 
 export default function LiveAircraftPage() {
+  const t=useT()
   const { hex } = useParams<{ hex: string }>()
   const [aircraft, setAircraft] = useState<LiveAircraft | null>(null)
   const [loading, setLoading] = useState(true)
@@ -47,9 +49,9 @@ export default function LiveAircraftPage() {
     return (
       <section className="min-h-screen p-5 sm:p-8">
         <Link href="/airlines" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55">
-          <ArrowLeft className="size-4" /> Back
+          <ArrowLeft className="size-4" /> {t('back')}
         </Link>
-        <div className="mt-10 text-white/40">Loading live aircraft data…</div>
+        <div className="mt-10 text-white/40">{t('live.loading')}</div>
       </section>
     )
   }
@@ -58,10 +60,10 @@ export default function LiveAircraftPage() {
     return (
       <section className="min-h-screen p-5 sm:p-8">
         <Link href="/airlines" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55">
-          <ArrowLeft className="size-4" /> Back
+          <ArrowLeft className="size-4" /> {t('back')}
         </Link>
         <div className="mt-10 rounded-2xl border border-red-400/20 bg-red-400/10 p-5 text-red-100">
-          {String(hex).toUpperCase()} is no longer in live traffic. The aircraft may have landed or left the coverage area.
+          {String(hex).toUpperCase()} · {t('live.lost')}
         </div>
       </section>
     )
@@ -71,7 +73,7 @@ export default function LiveAircraftPage() {
     <section className="min-h-screen p-5 sm:p-8">
       <div className="flex items-center justify-between">
         <Link href="/airlines" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
-          <ArrowLeft className="size-4" /> Back
+          <ArrowLeft className="size-4" /> {t('back')}
         </Link>
         <div className="flex items-center gap-2 text-xs text-white/40">
           <button
@@ -79,7 +81,7 @@ export default function LiveAircraftPage() {
             className={`flex items-center gap-1 rounded px-2 py-1 ${autoRefresh ? 'text-[#55a7ff]' : 'text-white/40'}`}
           >
             <RefreshCw className={`size-3 ${autoRefresh ? 'animate-spin' : ''}`} />
-            {autoRefresh ? 'Live' : 'Paused'}
+            {t(autoRefresh?'live.title':'live.paused')}
           </button>
           {lastUpdate && <span>{lastUpdate}</span>}
         </div>
@@ -91,12 +93,12 @@ export default function LiveAircraftPage() {
             {aircraft.hex.substring(0, 3).toUpperCase()}
           </div>}
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">Live Aircraft</p>
+            <p className="text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">{t('live.aircraft')}</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight font-mono">
               {flightIdentity(aircraft.callsign, fr?.airlineIata, fr?.flightNumber) || aircraft.hex.toUpperCase()}
             </h1>
             <p className="mt-2 text-sm text-white/45">
-              {aircraft.type || 'Unknown type'} · {aircraft.onGround ? '🟠 On Ground' : '🟢 Airborne'}
+              {aircraft.type || t('live.unknownType')} · {t(aircraft.onGround?'live.ground':'live.airborne')}
             </p>
           </div>
         </div>
@@ -108,23 +110,23 @@ export default function LiveAircraftPage() {
             <p className="text-xs text-white/40">{fr.airlineName}</p>
             <p className="truncate font-semibold">{fr.from} → {fr.to} <span className="font-normal text-white/45">{fr.fromCity} → {fr.toCity}</span></p>
           </div>
-          <Link href={`/route/${fr.airlineIata || fr.airlineIcao}/${fr.from}-${fr.to}?flight=${encodeURIComponent(flightIdentity(aircraft.callsign, fr.airlineIata, fr.flightNumber))}`} className="shrink-0 rounded-full border border-white/15 px-4 py-3 text-sm font-medium">Fly this route</Link>
+          <Link href={`/route/${fr.airlineIata || fr.airlineIcao}/${fr.from}-${fr.to}?flight=${encodeURIComponent(flightIdentity(aircraft.callsign, fr.airlineIata, fr.flightNumber))}`} className="shrink-0 rounded-full border border-white/15 px-4 py-3 text-sm font-medium">{t('live.flyRoute')}</Link>
         </div>
       )}
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div className="rounded-2xl border border-white/10 bg-[#0a0a0acc] p-6">
-          <p className="text-xs font-semibold uppercase tracking-[.2em] text-white/60">Altitude</p>
-          <p className="mt-3 font-bold text-white">{formatAltitude(aircraft.alt)}</p>
+          <p className="text-xs font-semibold uppercase tracking-[.2em] text-white/60">{t('live.altitude')}</p>
+          <p className="mt-3 font-bold text-white">{aircraft.onGround?t('live.ground'):aircraft.alt==null?t('live.unknownAltitude'):formatAltitude(aircraft.alt)}</p>
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-[#0a0a0acc] p-6">
-          <p className="text-xs font-semibold uppercase tracking-[.2em] text-white/60">Ground Speed</p>
+          <p className="text-xs font-semibold uppercase tracking-[.2em] text-white/60">{t('live.speed')}</p>
           <p className="mt-3 font-bold text-white">{formatSpeed(aircraft.gs)}</p>
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-[#0a0a0acc] p-6">
-          <p className="text-xs font-semibold uppercase tracking-[.2em] text-white/60">Heading</p>
+          <p className="text-xs font-semibold uppercase tracking-[.2em] text-white/60">{t('live.heading')}</p>
           <p className="mt-3 font-bold text-white">{formatTrack(aircraft.track)}</p>
         </div>
       </div>
@@ -136,7 +138,7 @@ export default function LiveAircraftPage() {
           rel="noopener noreferrer"
           className="flex min-h-11 items-center gap-2 rounded-lg border border-white/20 px-4 text-sm font-semibold transition hover:bg-white/[.08]"
         >
-          Open on airplanes.live <ExternalLink className="size-4" />
+          {t('live.openMap')} <ExternalLink className="size-4" />
         </a>
       </div>
     </section>

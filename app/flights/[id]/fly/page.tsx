@@ -76,6 +76,7 @@ export default function FlyNowPage() {
 
   const [info, setInfo] = useState<FlightInfo | null>(SAMPLES[flightKey] || null)
   const [checked, setChecked] = useState(false)
+  const [showChecklist,setShowChecklist] = useState(false)
   const [statuses, setStatuses] = useState<Record<string, Status>>({})
   const [takeoffAt, setTakeoffAt] = useState<number | null>(null)
   const [now, setNow] = useState(0)
@@ -302,12 +303,12 @@ export default function FlyNowPage() {
     sound.play('ding')
     if (holdSince.current !== null) {
       endHolding()
-      toast('Holding ended', { description: 'Flight resumed' })
+      toast(tr('fly.holdingEnded'), { description: tr('fly.resumed') })
     } else {
       holdSince.current = Date.now()
       holdCount.current += 1
       setHolding(true)
-      toast('Holding', { description: 'The clock keeps running' })
+      toast(tr('fly.holding'), { description: tr('fly.clockContinues') })
     }
   }
 
@@ -324,7 +325,7 @@ export default function FlyNowPage() {
     })
     goArounds.current += 1
     setGoAroundCount(goArounds.current)
-    toast('Go around', { description: 'Back to descent' })
+    toast(tr('fly.goAround'), { description: tr('fly.backDescent') })
     if (!remote) send('goaround', '', '')
   }
 
@@ -406,7 +407,7 @@ export default function FlyNowPage() {
           if (p.new?.user_id !== me) apply(p.new, false)
         })
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'flight_session_members', filter: `session_id=eq.${sessionId}` }, (p: any) => {
-          toast(`${p.new?.name || 'Pilot'} entrou no voo`)
+          toast(tr('fly.joined',{name:p.new?.name || 'Pilot'}))
           loadCrew()
         })
         .subscribe()
@@ -452,7 +453,7 @@ export default function FlyNowPage() {
 
   return (
     <section
-      className="min-h-screen p-5 sm:p-8"
+      className="min-h-screen p-5 pb-32 sm:p-8"
       onClickCapture={() => sound.unlock()}
     >
       <div className="mb-6 flex items-center justify-between">
@@ -461,7 +462,7 @@ export default function FlyNowPage() {
         </Link>
         <Link
           href={`/flights/${id}/simbrief`}
-          className="flex min-h-11 items-center gap-2 rounded-lg border border-white/10 bg-white/[.08] px-4 text-sm text-white/60 transition hover:bg-white/[.12] hover:text-white"
+          className="flex min-h-11 items-center gap-2 text-xs text-white/45 transition hover:text-white"
         >
           <FileUp className="size-4" /> {tr('fly.importPlan')}
         </Link>
@@ -479,7 +480,7 @@ export default function FlyNowPage() {
 
       {sessionId && crew.length > 0 && (
         <p className="mt-4 rounded-xl border border-[#55a7ff]/30 bg-[#1f88ff]/10 px-4 py-3 text-sm text-[#55a7ff]">
-          👥 Voo em grupo · {crew.join(', ')}
+          {tr('fly.group')} · {crew.join(', ')}
         </p>
       )}
 
@@ -510,18 +511,18 @@ export default function FlyNowPage() {
         </div>
       ) : (
         <>
-          <div className="mt-8 rounded-2xl border border-white/10 bg-gradient-to-br from-[#0a0a0acc] to-[#0a0a0acc] p-8 text-center">
+          <div className="mt-10 border-b border-white/10 pb-8 text-center">
             {takeoffAt ? (
               <>
-                <div className="text-7xl font-semibold tabular-nums tracking-tight text-white">{fmt(elapsed)}</div>
+                <div className="text-6xl font-light tabular-nums tracking-tight sm:text-7xl text-white">{fmt(elapsed)}</div>
                 <p className="mt-4 text-sm text-white/45">
                   {tr('fly.remaining', { n: Math.ceil(remainingMs / 60_000), b: info.durationMin })}
                 </p>
                 {(holding || holdTotal.current > 0) && (
-                  <p className="mt-3 text-sm font-medium text-white">🔄 Holding: {fmt(holdMs)}</p>
+                  <p className="mt-3 text-sm font-medium text-white">{tr('fly.holding')}: {fmt(holdMs)}</p>
                 )}
                 {holding && elapsed >= totalMs && (
-                  <p className="mt-1 text-xs text-white/70">Autopilot at destination, circling until manual intervention.</p>
+                  <p className="mt-1 text-xs text-white/70">{tr('fly.autopilot')}</p>
                 )}
                 <div className="mt-6 h-[3px] overflow-hidden rounded-full bg-white/10">
                   <div className="h-full bg-white transition-all" style={{ width: `${airborneProgress}%` }} />
@@ -544,8 +545,10 @@ export default function FlyNowPage() {
             </button>
           )}
 
-          <ul className="mt-6 space-y-2">
+          <button type="button" aria-expanded={showChecklist} onClick={()=>setShowChecklist(!showChecklist)} className="mt-5 flex min-h-11 w-full items-center justify-between text-xs text-white/45">{tr('fly.checklist')}<span>{showChecklist?'−':'+'}</span></button>
+          <ul className="divide-y divide-white/[.06]">
             {STEPS.map((s) => {
+              if(!showChecklist && current?.key !== s.key) return null
               const st = statuses[s.key]
               const isCurrent = current?.key === s.key
               const eta = s.at !== null ? Math.round(s.at * airborneMin) : null
@@ -553,7 +556,7 @@ export default function FlyNowPage() {
               return (
                 <li
                   key={s.key}
-                  className={`rounded-xl border p-3 ${isCurrent ? 'border-[#1f88ff]/50 bg-[#1f88ff]/10' : 'border-white/10 bg-white/[.02]'} ${due ? 'ring-1 ring-white/60' : ''}`}
+                  className={`py-4 ${isCurrent ? 'text-white' : 'text-white/40'} ${due ? 'border-l border-white/40 pl-3' : ''}`}
                 >
                   <div className="flex items-center gap-3">
                     <span className="flex size-6 shrink-0 items-center justify-center">
@@ -566,7 +569,7 @@ export default function FlyNowPage() {
                       )}
                     </span>
                     <span className={`flex-1 text-sm ${st ? 'text-white/45' : 'text-white'} ${st === 'skipped' ? 'line-through' : ''}`}>
-                      {s.icon} {tr('step.' + s.key)}
+                      {tr('step.' + s.key)}
                       {s.key === 'Takeoff' && !st && <span className="ml-2 text-xs text-white/40">{tr('fly.startsClock')}</span>}
                     </span>
                     {eta !== null && <span className="text-xs text-white/40">+{eta} {tr('fly.min')}</span>}
@@ -576,17 +579,17 @@ export default function FlyNowPage() {
                       onClick={toggleHolding}
                       className={`mt-3 w-full rounded-lg border px-3 py-2 text-sm font-medium ${holding ? 'border-white/60 bg-white/15 text-white' : 'border-white/15 bg-white/10'}`}
                     >
-                      {holding ? 'Exit holding' : 'Holding'}
+                      {tr(holding ? 'fly.exitHolding' : 'fly.holding')}
                     </button>
                   )}
                   {isCurrent && (s.key === 'Approach' || s.key === 'Landing') && (
                     <button onClick={() => goAround()} className="mt-3 w-full rounded-lg border border-white/40 bg-white/10 px-3 py-2 text-sm font-medium text-white">
-                      Go around{goAroundCount > 0 ? ` (${goAroundCount})` : ''}
+                      {tr('fly.goAround')}{goAroundCount > 0 ? ` (${goAroundCount})` : ''}
                     </button>
                   )}
                   {isCurrent && (
                     <div className="mt-3 flex gap-2">
-                      <button onClick={() => mark(s.key, 'done')} className="flex-1 rounded-lg bg-[#1f88ff] px-3 py-2 text-sm font-semibold">
+                      <button onClick={() => mark(s.key, 'done')} className="flex-1 min-h-11 rounded-full bg-white px-4 py-2 text-sm font-medium text-black">
                         {s.key === 'Takeoff' ? tr('fly.takeoffBtn') : tr('fly.done')}
                       </button>
                       {s.key !== 'Takeoff' && (
@@ -601,7 +604,7 @@ export default function FlyNowPage() {
             })}
           </ul>
 
-          <button onClick={() => router.push('/')} className="mt-6 w-full rounded-full border border-red-400/30 px-4 py-2.5 text-sm text-red-300">
+          <button onClick={() => router.push('/')} className="mt-6 min-h-11 text-xs text-white/35 hover:text-red-300">
             {tr('fly.cancel')}
           </button>
         </>

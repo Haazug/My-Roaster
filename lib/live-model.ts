@@ -30,6 +30,9 @@ export class FlightObservations {
     this.entries.set(f.hex, f)
     while (this.entries.size > this.maxEntries) this.entries.delete(this.entries.keys().next().value!)
   }
+  snapshot(now = Date.now()) {
+    return [...this.entries.values()].filter(f => now < (f.expiresAt ?? f.observedAt + this.retentionMs))
+  }
   list(now = Date.now()) {
     const out: ResolvedFlight[] = []
     for (const [key, f] of this.entries) {

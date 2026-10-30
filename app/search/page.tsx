@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useT } from '@/lib/i18n'
 import { useMemo, useState } from 'react'
 import useSWR from 'swr'
 import { Search, Star, X } from 'lucide-react'
@@ -15,6 +16,7 @@ const fetcher = (u: string) => fetch(u).then((r) => r.json())
 const PAIR = /^([A-Za-z]{3})\s*(?:[-→>/]|\s)\s*([A-Za-z]{3})$/
 
 export default function SearchPage() {
+  const tr=useT()
   const [q, setQ] = useState('')
   const t = q.trim()
   const { data: airlines } = useSWR<any[]>('/api/airlines', fetcher)
@@ -43,20 +45,20 @@ export default function SearchPage() {
 
   return (
     <section className="min-h-screen p-5 pb-32 sm:p-8">
-      <h1 className="text-4xl font-semibold">Search</h1>
+      <h1 className="text-4xl font-semibold">{tr('nav.search')}</h1>
       <label className="mt-6 flex min-h-12 items-center gap-3 rounded-2xl bg-white/[.06] px-4">
         <Search className="size-4 text-white/40" aria-hidden="true" />
-        <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Airline, airport, route or flight number" className="min-h-11 w-full min-w-0 bg-transparent outline-none placeholder:text-white/35" />
-        {q && <button type="button" aria-label="Clear" onClick={() => setQ('')} className="text-white/40"><X className="size-4" /></button>}
+        <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr('search.placeholder')} className="min-h-11 w-full min-w-0 bg-transparent outline-none placeholder:text-white/35" />
+        {q && <button type="button" aria-label={tr('search.clear')} onClick={() => setQ('')} className="text-white/40"><X className="size-4" /></button>}
       </label>
 
-      {!t && <Link href="/live" className="mt-6 inline-flex min-h-11 items-center gap-2 text-sm text-white/65"><span className="size-1.5 rounded-full bg-green-400" />Live now · routes by airline</Link>}
+      {!t && <Link href="/live" className="mt-6 inline-flex min-h-11 items-center gap-2 text-sm text-white/65"><span className="size-1.5 rounded-full bg-green-400" />{tr('live.title')} · {tr('live.subtitle')}</Link>}
       {isLive && <LiveFlights />}
       {!t && (
         <>
           {(favA.items.length > 0 || favP.items.length > 0) && (
             <>
-              <p className={head}>Favourites</p>
+              <p className={head}>{tr('search.favourites')}</p>
               <div className="divide-y divide-white/[.06]">
                 {[...favA.items.map((f) => ({ ...f, k: 'airline' })), ...favP.items.map((f) => ({ ...f, k: 'airport' }))].map((f) => (
                   <Link key={`${f.k}:${f.id}`} href={f.href} className={row}>
@@ -71,8 +73,8 @@ export default function SearchPage() {
           {rec.items.length > 0 && (
             <>
               <div className="mt-8 flex items-center justify-between">
-                <p className="text-xs font-medium text-white/40">Recent</p>
-                <button type="button" onClick={rec.clear} className="text-xs text-white/40 hover:text-white">Clear</button>
+                <p className="text-xs font-medium text-white/40">{tr('search.recent')}</p>
+                <button type="button" onClick={rec.clear} className="text-xs text-white/40 hover:text-white">{tr('search.clear')}</button>
               </div>
               <div className="divide-y divide-white/[.06]">
                 {rec.items.map((r) => (
@@ -84,7 +86,7 @@ export default function SearchPage() {
               </div>
             </>
           )}
-          {!favA.items.length && !favP.items.length && !rec.items.length && <p className="mt-8 text-sm text-white/40">Try DT653, Air France, LIS or LIS MAD.</p>}
+          {!favA.items.length && !favP.items.length && !rec.items.length && <p className="mt-8 text-sm text-white/40">{tr('search.try')}</p>}
         </>
       )}
 
@@ -94,10 +96,10 @@ export default function SearchPage() {
           {pair && (
             <Link href={`/routes/${pair[1].toUpperCase()}-${pair[2].toUpperCase()}`} className="mt-3 flex items-center justify-between rounded-2xl bg-white/[.04] p-4">
               <span className="font-semibold">{pair[1].toUpperCase()} ↔ {pair[2].toUpperCase()}</span>
-              <span className="text-xs text-white/45">All airlines on this route</span>
+              <span className="text-xs text-white/45">{tr('search.allRoutes')}</span>
             </Link>
           )}
-          {airlineHits.length > 0 && <p className={head}>Airlines</p>}
+          {airlineHits.length > 0 && <p className={head}>{tr('nav.airlines')}</p>}
           <div className="divide-y divide-white/[.06]">
             {airlineHits.map((a) => (
               <Link key={a.id} href={`/airlines/${a.id}`} onClick={() => rec.add({ id: `airline:${a.id}`, kind: 'airline', label: fixName(a.name), sub: [a.iata, a.icao].filter(Boolean).join(' · '), href: `/airlines/${a.id}` })} className={row}>
@@ -108,7 +110,7 @@ export default function SearchPage() {
               </Link>
             ))}
           </div>
-          {airportHits.length > 0 && <p className={head}>Airports</p>}
+          {airportHits.length > 0 && <p className={head}>{tr('nav.airports')}</p>}
           <div className="divide-y divide-white/[.06]">
             {airportHits.map((a) => (
               <Link key={a.iata} href={`/airports/${a.iata}`} onClick={() => rec.add({ id: `airport:${a.iata}`, kind: 'airport', label: a.city || a.name, sub: a.name, href: `/airports/${a.iata}` })} className={row}>

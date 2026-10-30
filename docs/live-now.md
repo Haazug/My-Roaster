@@ -51,3 +51,10 @@ npm run build -- --webpack
 Tests include opening the same SQLite file from another Node process, timestamp ordering, service termination, cross-airport assignment, source failures, pagination/cache/cursor behaviour, and expiry after loss of long-haul coverage. A successful fixture or disk test is not proof of live upstream coverage.
 
 The cloud instance's network policy returned 403 for the real live feed. `re-api.adsb.lol` has been added to the environment draft alongside the existing providers, but the user must activate those settings. No real timetable credentials or production shared database are configured here. Full airport boards and guaranteed worldwide coverage cannot be supplied by the current free sources alone.
+
+
+## Browser history, languages and filters
+
+On Vercel without a configured shared database, discovery continues with a bounded per-worker cache and the browser persists identified flights in IndexedDB. The coverage panel distinguishes server history, device history, and session-only storage. Device history survives reloads but is not shared across devices. Ground/invalidated observations supersede older cached flight state; delayed responses cannot resurrect a newer retired flight. Source failure and optional global-feed failure are reported separately, so a working airport feed is not presented as a total outage. These changes do not grant network access to a blocked provider.
+
+Live lists support accent-insensitive searches and filters by airline and observed/estimated status. The main menu includes Settings with the five existing languages; the chosen session language takes precedence over older saved preferences. Live pages, navigation, search, airline lists, profile labels, and timer controls use the translation dictionary. The timer shows the current phase by default and expands the full checklist on request.
