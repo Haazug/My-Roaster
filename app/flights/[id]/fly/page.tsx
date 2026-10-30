@@ -513,7 +513,7 @@ export default function FlyNowPage() {
           <div className="mt-8 rounded-2xl border border-white/10 bg-gradient-to-br from-[#0a0a0acc] to-[#0a0a0acc] p-8 text-center">
             {takeoffAt ? (
               <>
-                <div className="text-6xl font-bold tabular-nums text-[#1f88ff]">{fmt(elapsed)}</div>
+                <div className="text-7xl font-semibold tabular-nums tracking-tight text-white">{fmt(elapsed)}</div>
                 <p className="mt-4 text-sm text-white/45">
                   {tr('fly.remaining', { n: Math.ceil(remainingMs / 60_000), b: info.durationMin })}
                 </p>
@@ -523,8 +523,8 @@ export default function FlyNowPage() {
                 {holding && elapsed >= totalMs && (
                   <p className="mt-1 text-xs text-white/70">Autopilot at destination, circling until manual intervention.</p>
                 )}
-                <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
-                  <div className="h-full bg-[#1f88ff] transition-all" style={{ width: `${airborneProgress}%` }} />
+                <div className="mt-6 h-[3px] overflow-hidden rounded-full bg-white/10">
+                  <div className="h-full bg-white transition-all" style={{ width: `${airborneProgress}%` }} />
                 </div>
               </>
             ) : (
@@ -538,7 +538,7 @@ export default function FlyNowPage() {
           {currentIdx < 3 && (
             <button
               onClick={skipToTakeoff}
-              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[.06] px-4 py-3 text-sm font-medium hover:bg-white/10"
+              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/15 px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10"
             >
               <SkipForward className="size-4" /> {tr('fly.skipToTakeoff')}
             </button>
@@ -590,7 +590,7 @@ export default function FlyNowPage() {
                         {s.key === 'Takeoff' ? tr('fly.takeoffBtn') : tr('fly.done')}
                       </button>
                       {s.key !== 'Takeoff' && (
-                        <button onClick={() => mark(s.key, 'skipped')} className="rounded-lg border border-white/15 bg-white/10 px-4 py-2 text-sm">
+                        <button onClick={() => mark(s.key, 'skipped')} className="rounded-full border border-white/15 px-5 py-2.5 text-sm text-white/70">
                           {tr('fly.skip')}
                         </button>
                       )}
@@ -601,7 +601,7 @@ export default function FlyNowPage() {
             })}
           </ul>
 
-          <button onClick={() => router.push('/')} className="mt-6 w-full rounded-xl border border-red-400/30 px-4 py-2 text-sm text-red-300">
+          <button onClick={() => router.push('/')} className="mt-6 w-full rounded-full border border-red-400/30 px-4 py-2.5 text-sm text-red-300">
             {tr('fly.cancel')}
           </button>
         </>

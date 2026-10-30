@@ -1,48 +1,44 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import useSWR from 'swr'
 import Link from 'next/link'
+import useSWR from 'swr'
 import { AirlineLogo } from '@/components/AirlineLogo'
 
+const fetcher = (u: string) => fetch(u).then((r) => r.json())
+const LABEL: Record<string, string> = { departing: 'Departing', arriving: 'Arriving', nearby: 'Nearby' }
+
 export default function AirportLiveNow({ code }: { code?: string }) {
-  const [hidden, setHidden] = useState(true)
-  const { data } = useSWR(hidden || !code ? null : `/api/airports/${code}/live`, (u) => fetch(u).then((r) => r.json()))
-
-  const flights = data?.data || []
+  const { data, isLoading } = useSWR(code ? `/api/airports/${code}/live` : null, fetcher, { refreshInterval: 45000 })
+  const flights: any[] = data?.data || []
+  if (isLoading) return <p className="mt-8 text-xs text-white/35">Looking for aircraft nearby…</p>
   if (!flights.length) return null
-
   return (
-    <div className="rounded-3xl border border-white/10 bg-[#0a0a0acc] p-4 sm:p-6">
-      <button
-        type="button"
-        onClick={() => setHidden(!hidden)}
-        className="mb-4 flex items-center justify-between w-full"
-      >
-        <h2 className="text-lg font-semibold">Live now</h2>
-        <div className="text-sm text-white/50">{hidden ? '▼' : '▲'}</div>
-      </button>
-
-      {!hidden && (
-        <div className="space-y-2 mt-2">
-          {flights.slice(0, 10).map((f: any, i: number) => (
-            <div key={i} className="rounded-2xl border border-white/10 bg-white/[.04] p-3 text-sm">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  {f.airline && <AirlineLogo iata={f.airline?.iata} icao={f.airline?.icao} name={f.airline?.name} size="sm" showText={false} />}
-                  <div className="min-w-0">
-                    <p className="font-semibold truncate">
-                      {f.from} → {f.to} <span className="text-white/50 font-normal">{f.callsign}</span>
-                    </p>
-                    <p className="text-xs text-white/40 truncate">{f.airlineName}</p>
-                  </div>
-                </div>
-                <p className="text-[#1f88ff] font-semibold shrink-0">{f.flightLevel}</p>
+    <div className="mt-8">
+      <h2 className="mb-1 flex items-center gap-2 text-sm font-medium text-white/60">
+        <span className="size-1.5 animate-pulse rounded-full bg-[#4caf50]" />Live now <span className="text-white/30">{flights.length}</span>
+      </h2>
+      <div className="divide-y divide-white/[.06]">
+        {flights.map((f) => {
+          const air = f.airlineIata || f.airlineIcao
+          const href = f.from && f.to && air ? `/route/${air}/${f.from}-${f.to}` : `/live/${f.hex}`
+          return (
+            <Link key={f.hex} href={href} className="flex items-center gap-3 py-3">
+              <AirlineLogo iata={f.airlineIata} icao={f.airlineIcao} name={f.airlineName || f.callsign} size="sm" showText={false} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium">
+                  {f.from && f.to ? `${f.from} → ${f.to}` : f.callsign}
+                  <span className="ml-2 text-xs font-normal text-white/40">{f.from ? f.callsign : f.type || ''}</span>
+                </p>
+                <p className="truncate text-xs text-white/40">{f.airlineName || 'Unknown airline'}{f.fromCity ? ` · ${f.fromCity} → ${f.toCity}` : ''}</p>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+              <div className="shrink-0 text-right text-xs">
+                <p className={f.kind === 'nearby' ? 'text-white/40' : 'text-[#55a7ff]'}>{LABEL[f.kind]}</p>
+                <p className="text-white/40">{f.onGround ? 'Ground' : f.altFt != null ? `FL${Math.round(f.altFt / 100)}` : '—'}</p>
+              </div>
+            </Link>
+          )
+        })}
+      </div>
     </div>
   )
 }

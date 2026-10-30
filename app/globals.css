@@ -180,3 +180,14 @@ main [class*="rounded-2xl"] { border-radius: 1rem; }
 main input, main select { border-radius: .75rem; }
 a, button { -webkit-tap-highlight-color: transparent; }
 /* minimal-ui-2:end */
+
+/* minimal-ui-3:start */
+html, body { overscroll-behavior-x: none; touch-action: pan-y; }
+body { background: #000; }
+main [class*="border-white/10"], main [class*="border-white/15"], main [class*="border-white/20"] { border-color: rgba(255,255,255,.07) !important; }
+main [class*="bg-[#111217"], main [class*="bg-[#0a0a0acc"], main [class*="bg-[#151619"], main [class*="from-[#111217cc]"] { background: rgba(255,255,255,.035) !important; backdrop-filter: blur(16px); }
+main [class*="uppercase"][class*="text-[#55a7ff]"], main [class*="uppercase"][class*="text-[#facc15]"] { color: rgba(255,255,255,.38) !important; }
+main h1 { font-size: clamp(2rem, 7vw, 2.9rem); line-height: 1.04; letter-spacing: -0.035em; }
+main a[class*="bg-[#1f88ff]"], main button[class*="bg-[#1f88ff]"] { border-radius: 9999px; box-shadow: none; }
+nav[class*="fixed"] { background: rgba(10,10,10,.8) !important; border-color: rgba(255,255,255,.06) !important; backdrop-filter: blur(20px); }
+/* minimal-ui-3:end */

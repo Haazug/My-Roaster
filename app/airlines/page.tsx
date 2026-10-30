@@ -3,6 +3,8 @@
 import { useMemo, useState } from 'react'
 import useSWR from 'swr'
 import { matchAirline } from '@/lib/airline-aliases'
+import FlightNumberHit from '@/components/FlightNumberHit'
+import { useFavs } from '@/lib/use-favs'
 import { TOP_ICAO } from '@/lib/top-airlines'
 import { fixName } from '@/lib/airline-names'
 import Link from 'next/link'
@@ -16,12 +18,15 @@ const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').t
 export default function Airlines() {
   const { data, error, mutate } = useSWR<Airline[] | { error: string }>('/api/airlines', fetcher)
   const [q, setQ] = useState('')
+  const favA = useFavs('airline')
   const list = Array.isArray(data) ? data : []
   const top = TOP_ICAO.map((c) => list.filter((a) => a.icao === c).sort((x, y) => Number(y.active) - Number(x.active) || y.numRoutes - x.numRoutes)[0]).filter(Boolean) as Airline[]
+  const favList = list.filter((a) => favA.has(a.id))
   const rows = useMemo(() => {
     const n = norm(q.trim())
-    return n ? list.filter((a) => matchAirline(a, q)) : list
-  }, [list, q])
+    const base = n ? list.filter((a) => matchAirline(a, q)) : list
+    return [...base].sort((x, y) => Number(favA.has(y.id)) - Number(favA.has(x.id)))
+  }, [list, q, favA.items])
 
   return (
     <section className="min-h-screen p-5 sm:p-8">
@@ -31,11 +36,11 @@ export default function Airlines() {
         <p className="mt-2 text-white/45">Every carrier with a route in OpenFlights.</p>
         <Link href="/free" className="mt-4 inline-flex min-h-11 items-center rounded-xl border border-white/15 bg-white/10 px-4 text-sm font-medium">Free flight: any route</Link>
       </header>
-      {top.length > 0 && !q && (
+      {(top.length > 0 || favList.length > 0) && !q && (
         <div className="mb-5">
           <p className="mb-2 text-xs font-semibold uppercase tracking-[.2em] text-white/40">Top airlines</p>
           <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-2">
-            {top.map((a) => (
+            {[...favList, ...top.filter((t) => !favA.has(t.id))].map((a) => (
               <Link key={a.id} href={`/airlines/${a.id}`} className="flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-[#0a0a0acc] py-1.5 pl-1.5 pr-4 text-sm hover:border-[#1f88ff]/60">
                 <AirlineLogo iata={a.iata} icao={a.icao} name={fixName(a.name)} size="sm" showText={false} />
                 <span className="whitespace-nowrap">{fixName(a.name)}</span>
@@ -49,6 +54,7 @@ export default function Airlines() {
         <span className="sr-only">Filter airlines</span>
         <input value={q} onChange={(e) => setQ(e.target.value)} className="min-h-11 w-full min-w-0 bg-transparent outline-none placeholder:text-white/35" placeholder="Filter airlines" />
       </label>
+      <FlightNumberHit q={q} />
       {error || (data && !Array.isArray(data)) ? (
         <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-red-400/20 bg-red-400/10 p-5">
           Could not load OpenFlights data.
