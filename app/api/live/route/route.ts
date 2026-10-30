@@ -1,1 +1,22 @@
-import { NextResponse } from 'next/server'; import { liveRoute } from '@/lib/live'; import { onRoute, pointsAlong } from '@/lib/live-geo'; export async function GET(req:Request){try{const u=new URL(req.url),airline=(u.searchParams.get('airline')||'').toUpperCase(),from={lat:Number(u.searchParams.get('fromLat')),lon:Number(u.searchParams.get('fromLon'))},to={lat:Number(u.searchParams.get('toLat')),lon:Number(u.searchParams.get('toLon'))};if(!airline||!Number.isFinite(from.lat)||!Number.isFinite(to.lat))return NextResponse.json({ok:false,error:'Missing route coordinates'},{status:400});const aircraft= (await liveRoute(pointsAlong(from,to,350,6))).filter(a=>onRoute(a,airline,from,to));return NextResponse.json({ok:true,data:{count:aircraft.length,aircraft,checkedAt:new Date().toISOString()}})}catch{return NextResponse.json({ok:false,error:'Live traffic unavailable'},{status:502})}}
+import { NextResponse } from 'next/server'
+import { getDb } from '@/lib/db'
+import { findAirport } from '@/lib/openflights-parse'
+import { discoverFlights } from '@/lib/live-discovery'
+
+export async function GET(req: Request) {
+  try {
+    const q = new URL(req.url).searchParams
+    const db = await getDb()
+    const from = findAirport(db, q.get('from') || '')
+    const to = findAirport(db, q.get('to') || '')
+    const airline = (q.get('airline') || '').toUpperCase()
+    if (!from || !to || !/^[A-Z0-9]{2,3}$/.test(airline)) return NextResponse.json({ ok: false, error: 'Valid airline, origin and destination codes required' }, { status: 400 })
+    const results = await Promise.all([discoverFlights(from.iata), discoverFlights(to.iata)])
+    const aircraft = [...new Map(results.flatMap(r => r.data).map(f => [f.hex, f])).values()].filter(f =>
+      (f.airlineIcao === airline || f.airlineIata === airline) &&
+      ((f.from === from.iata && f.to === to.iata) || (f.from === to.iata && f.to === from.iata)))
+    return NextResponse.json({ ok: true, data: { aircraft, count: aircraft.length }, degraded: results.some(r => r.degraded) })
+  } catch {
+    return NextResponse.json({ ok: false, error: 'Live traffic unavailable' }, { status: 502 })
+  }
+}

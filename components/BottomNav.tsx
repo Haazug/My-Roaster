@@ -1,37 +1,22 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BookOpen, Map, Search, UserRound, Plane, Star, Shuffle, QrCode } from 'lucide-react'
-import { useT } from '@/lib/i18n'
+import { useEffect, useRef } from 'react'
+import { Menu, Plane, Radio, Search } from 'lucide-react'
 
-const items = [
-  ['/', 'nav.myroster', Plane],
-  ['/logs', 'nav.logs', BookOpen],
-  ['/airports', 'nav.airports', Map],
-  ['/favourites', 'nav.favs', Star],
-  ['/random', 'nav.random', Shuffle],
-  ['/scan', 'Scan', QrCode],
-  ['/profile', 'nav.profile', UserRound],
-] as const
-
+const links = [['/airlines', 'Airlines'], ['/airports', 'Airports'], ['/logs', 'My logs'], ['/favourites', 'Favourites'], ['/random', 'Random route'], ['/free', 'Free flight'], ['/scan', 'Scan'], ['/profile', 'Profile']] as const
 export default function BottomNav() {
   const path = usePathname()
-  const t = useT()
-  return (
-    <nav className="fixed bottom-4 left-1/2 z-30 flex w-[calc(100%-24px)] max-w-xl -translate-x-1/2 items-center justify-around rounded-full border border-white/10 bg-black/90 p-1.5 shadow-2xl backdrop-blur-xl lg:bottom-6 lg:left-6 lg:w-[480px] lg:translate-x-0">
-      <Link href="/search" aria-label={t('nav.search')} className="flex size-11 shrink-0 items-center justify-center rounded-full bg-white text-black">
-        <Search className="size-5" />
-      </Link>
-      {items.map(([href, key, Icon]) => {
-        const on = path === href
-        return (
-          <Link key={href} href={href} className={`relative flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-full text-[9px] transition ${on ? 'text-white' : 'text-white/35 hover:text-white/70'}`}>
-            <Icon className="size-4" />
-            <span>{href === '/' ? 'MyRoster' : t(key)}</span>
-            {on && <span className="absolute bottom-0.5 size-1 rounded-full bg-white" />}
-          </Link>
-        )
-      })}
-    </nav>
-  )
+  const menu = useRef<HTMLDetailsElement>(null)
+  useEffect(() => { if (menu.current) menu.current.open = false }, [path])
+  return <nav aria-label="Main navigation" className="fixed bottom-4 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/10 bg-black/90 p-2 shadow-xl backdrop-blur-xl lg:bottom-6 lg:left-6 lg:translate-x-0">
+    {([['/', 'MyRoster', Plane], ['/search', 'Search', Search], ['/live', 'Live now', Radio]] as const).map(([href, label, Icon]) =>
+      <Link key={href} href={href} aria-label={label} title={label} aria-current={path === href ? 'page' : undefined} className={`flex size-11 items-center justify-center rounded-full transition ${path === href ? 'bg-white text-black' : 'text-white/50 hover:bg-white/10 hover:text-white'}`}><Icon className="size-5" /></Link>)}
+    <details ref={menu} className="relative" onKeyDown={e => { if (e.key === 'Escape' && menu.current) { menu.current.open = false; menu.current.querySelector('summary')?.focus() } }}>
+      <summary aria-label="More destinations" title="More destinations" className="flex size-11 cursor-pointer list-none items-center justify-center rounded-full text-white/50 hover:bg-white/10 [&::-webkit-details-marker]:hidden"><Menu className="size-5" /></summary>
+      <div className="absolute bottom-full right-0 mb-4 w-48 rounded-2xl border border-white/10 bg-[#101010] p-2 shadow-xl">
+        {links.map(([href, label]) => <Link onClick={() => { if (menu.current) menu.current.open = false }} key={href} href={href} aria-current={path.startsWith(href) ? 'page' : undefined} className="block rounded-lg px-3 py-2.5 text-sm text-white/65 hover:bg-white/5 hover:text-white">{label}</Link>)}
+      </div>
+    </details>
+  </nav>
 }

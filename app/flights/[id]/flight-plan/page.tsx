@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { parsePLNFile } from '@/lib/flight-plan-parser'
 import { matchAircraft } from '@/lib/aircraft-db'
 import { estimateBlockMinutes, parseSpeedAt } from '@/lib/flight-time'
+import { flightNumberPart } from '@/lib/live-model'
 import { useT } from '@/lib/i18n'
 import { BoardingPass } from '@/components/BoardingPass'
 import { AirportInput, nmBetween, type Ap } from '@/components/AirportInput'
@@ -65,7 +66,7 @@ export default function FlightPlanPage() {
       setSeed(s)
       setForm((f) => ({
         ...f,
-        flight: s.airlineIata || '',
+        flight: s.flightNumber ? `${s.airlineIata || s.airlineIcao || ''}${s.flightNumber}` : '',
         dep: s.orig || '',
         arr: s.dest || '',
         aircraft: s.aircraft || f.aircraft,
@@ -102,7 +103,7 @@ export default function FlightPlanPage() {
           ...(seed || {}),
           id,
           airlineIata: seed?.airlineIata || String(id).split('-')[0].toUpperCase(),
-          flightNumber: form.flight.replace(/^[A-Za-z]+/, ''),
+          flightNumber: flightNumberPart(form.flight, seed?.airlineIata || '', seed?.airlineIcao || ''),
           from: o.from, to: o.to, fromCity: o.fromCity, toCity: o.toCity,
           aircraft: o.aircraft, altitude: o.fl * 100, distanceNm: o.distanceNm, durationMin: o.durationMin,
           fromLat: o.fromLat, fromLon: o.fromLon, toLat: o.toLat, toLon: o.toLon, waypoints: o.waypoints,

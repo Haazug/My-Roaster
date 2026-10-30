@@ -37,7 +37,7 @@ export default function FlightNumberHit({ q }: { q: string }) {
 
   if (mine) {
     return (
-      <Link href={`/route/${mine.airlineKey}/${mine.from}-${mine.to}`} className="mt-3 flex items-center gap-3 rounded-2xl bg-white/[.04] p-4">
+      <Link href={`/route/${mine.airlineKey}/${mine.from}-${mine.to}?flight=${encodeURIComponent(mine.flight)}`} className="mt-3 flex items-center gap-3 rounded-2xl bg-white/[.04] p-4">
         <AirlineLogo iata={mine.airlineKey} name={mine.airlineName || mine.airlineKey} size="sm" showText={false} />
         <div className="min-w-0 flex-1">
           <p className="font-semibold">{mine.flight} · {mine.from} → {mine.to}</p>
@@ -52,7 +52,7 @@ export default function FlightNumberHit({ q }: { q: string }) {
     const r = hit.route
     const al = hit.airline
     const code = r?.airlineIata || r?.airlineIcao || al.iata || al.icao
-    const href = r ? `/route/${code}/${r.from}-${r.to}` : hit.live ? `/live/${hit.live.hex}` : `/airlines/${al.id}`
+    const href = r ? `/route/${code}/${r.from}-${r.to}?flight=${encodeURIComponent(hit.number)}` : hit.live ? `/live/${hit.live.hex}` : `/airlines/${al.id}`
     return (
       <div className="mt-3 rounded-2xl bg-white/[.04] p-4">
         <Link

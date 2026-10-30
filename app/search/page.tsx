@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react'
 import useSWR from 'swr'
 import { Search, Star, X } from 'lucide-react'
 import { AirlineLogo } from '@/components/AirlineLogo'
+import LiveFlights from '@/components/LiveFlights'
 import FlightNumberHit from '@/components/FlightNumberHit'
 import { matchAirline } from '@/lib/airline-aliases'
 import { fixName } from '@/lib/airline-names'
@@ -35,6 +36,7 @@ export default function SearchPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [airports, favP.items]
   )
+  const isLive = /^(live(?: now)?|ao vivo|agora)$/i.test(t)
   const pair = t.match(PAIR)
   const row = 'flex items-center gap-3 py-3'
   const head = 'mt-8 text-xs font-medium text-white/40'
@@ -48,6 +50,8 @@ export default function SearchPage() {
         {q && <button type="button" aria-label="Clear" onClick={() => setQ('')} className="text-white/40"><X className="size-4" /></button>}
       </label>
 
+      {!t && <Link href="/live" className="mt-6 inline-flex min-h-11 items-center gap-2 text-sm text-white/65"><span className="size-1.5 rounded-full bg-green-400" />Live now · routes by airline</Link>}
+      {isLive && <LiveFlights />}
       {!t && (
         <>
           {(favA.items.length > 0 || favP.items.length > 0) && (
@@ -84,7 +88,7 @@ export default function SearchPage() {
         </>
       )}
 
-      {t && (
+      {t && !isLive && (
         <>
           <FlightNumberHit q={t} />
           {pair && (

@@ -195,7 +195,7 @@ export default function FlightDetailPage() {
       </div>
 
       <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-        <button type="button" onClick={() => setFlyOpen(true)} className="flex min-h-12 items-center justify-center rounded-xl bg-[#1f88ff] px-6 font-semibold text-white transition hover:bg-[#1f88ff]/90">
+        <button type="button" onClick={() => setFlyOpen(true)} className="flex min-h-12 items-center justify-center rounded-full bg-white px-6 font-medium text-black transition hover:bg-white/90">
           <Plane className="mr-2 size-5" /> Fly Now
         </button>
         <ExportMenu flight={exportData} />

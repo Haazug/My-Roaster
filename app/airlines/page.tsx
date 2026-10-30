@@ -63,9 +63,9 @@ export default function Airlines() {
       ) : !data ? (
         <p className="text-white/40" aria-busy="true">Loading airline rosters…</p>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col divide-y divide-white/[.06]">
           {rows.map((a) => (
-            <Link href={`/airlines/${a.id}`} key={a.id} className="flex min-h-[76px] items-center gap-4 rounded-2xl border border-white/10 bg-[#0a0a0acc] p-3 transition hover:border-[#1f88ff]/60">
+            <Link href={`/airlines/${a.id}`} key={a.id} className="flex min-h-[76px] items-center gap-4 py-3 transition hover:bg-white/[.02]">
               <AirlineLogo iata={a.iata} icao={a.icao} name={fixName(a.name)} size="md" showText={false} />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold">{fixName(a.name)}</p>

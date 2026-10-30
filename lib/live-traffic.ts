@@ -210,7 +210,7 @@ export async function getAircraftByRegistration(
 }
 
 export function formatAltitude(alt: number | null | undefined): string {
-  if (alt === null || alt === undefined) return 'Ground'
+  if (alt === null || alt === undefined) return 'Unknown altitude'
   const fl = Math.round(alt / 100)
   return `FL${fl.toString().padStart(3, '0')} (${alt.toLocaleString()} ft)`
 }

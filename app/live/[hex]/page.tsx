@@ -6,6 +6,7 @@ import { ArrowLeft, RefreshCw, ExternalLink } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { getAircraftByHex, formatAltitude, formatSpeed, formatVerticalRate, formatTrack } from '@/lib/live-traffic'
 import type { LiveAircraft } from '@/lib/live-traffic'
+import { flightIdentity } from '@/lib/live-model'
 import { AirlineLogo } from '@/components/AirlineLogo'
 
 export default function LiveAircraftPage() {
@@ -17,8 +18,11 @@ export default function LiveAircraftPage() {
   const [fr, setFr] = useState<any>(null)
   useEffect(() => {
     const cs = aircraft?.callsign
+    setFr(null)
     if (!cs) return
-    fetch(`/api/live/flight/${encodeURIComponent(cs)}`).then((r) => r.json()).then((j) => setFr(j?.data || null)).catch(() => {})
+    const controller = new AbortController()
+    fetch(`/api/live/flight/${encodeURIComponent(cs)}`, { signal: controller.signal }).then((r) => r.json()).then((j) => setFr(j?.data || null)).catch(() => {})
+    return () => controller.abort()
   }, [aircraft?.callsign])
 
   useEffect(() => {
@@ -89,7 +93,7 @@ export default function LiveAircraftPage() {
           <div>
             <p className="text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">Live Aircraft</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight font-mono">
-              {aircraft.callsign || aircraft.hex.toUpperCase()}
+              {flightIdentity(aircraft.callsign, fr?.airlineIata, fr?.flightNumber) || aircraft.hex.toUpperCase()}
             </h1>
             <p className="mt-2 text-sm text-white/45">
               {aircraft.type || 'Unknown type'} · {aircraft.onGround ? '🟠 On Ground' : '🟢 Airborne'}
@@ -104,7 +108,7 @@ export default function LiveAircraftPage() {
             <p className="text-xs text-white/40">{fr.airlineName}</p>
             <p className="truncate font-semibold">{fr.from} → {fr.to} <span className="font-normal text-white/45">{fr.fromCity} → {fr.toCity}</span></p>
           </div>
-          <Link href={`/route/${fr.airlineIata || fr.airlineIcao}/${fr.from}-${fr.to}`} className="shrink-0 rounded-xl bg-[#1f88ff] px-4 py-3 text-sm font-semibold">Fly this route</Link>
+          <Link href={`/route/${fr.airlineIata || fr.airlineIcao}/${fr.from}-${fr.to}?flight=${encodeURIComponent(flightIdentity(aircraft.callsign, fr.airlineIata, fr.flightNumber))}`} className="shrink-0 rounded-full border border-white/15 px-4 py-3 text-sm font-medium">Fly this route</Link>
         </div>
       )}
 

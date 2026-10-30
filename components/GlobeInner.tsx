@@ -191,7 +191,7 @@ export default function GlobeInner() {
         labelAltitude={0.03}
         labelResolution={2}
       />
-      <LiveTraffic getCenter={() => (view.mode === 'idle' ? LUANDA : ref.current?.pointOfView())} />
+      <div className="hidden lg:block"><LiveTraffic getCenter={() => (view.mode === 'idle' ? LUANDA : ref.current?.pointOfView())} /></div>
     </div>
   )
 }

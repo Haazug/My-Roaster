@@ -49,7 +49,7 @@ export function ExportMenu({ flight }: { flight: ExportFlight }) {
     <div className="relative inline-block">
       <button
         onClick={() => setOpen(!open)}
-        className="flex min-h-11 min-w-32 items-center justify-center gap-2 rounded-xl bg-[#1f88ff] px-4 text-sm font-semibold text-white transition hover:bg-[#1f88ff]/90"
+        className="flex min-h-11 min-w-32 items-center justify-center gap-2 rounded-full border border-white/15 bg-transparent px-4 text-sm font-medium text-white transition hover:bg-white/5"
         aria-label="Export flight"
       >
         Export <ChevronDown className="size-4" />

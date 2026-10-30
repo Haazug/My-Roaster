@@ -16,7 +16,7 @@ export function ExportMenu({ flight }: { flight: ExportFlight }) {
   const copy = async () => { const ok = await copyText(flightSummary(flight)); toast(ok ? "Copied" : "Could not copy flight details") }
 
   return <DropdownMenu open={open} onOpenChange={setOpen}>
-    <DropdownMenuTrigger render={<Button className="h-11 rounded-xl bg-[#1f88ff] px-5 font-semibold text-white hover:bg-[#1674db]" aria-label="Export flight" />}>Export <ChevronDown data-icon="inline-end" /></DropdownMenuTrigger>
+    <DropdownMenuTrigger render={<Button className="h-11 rounded-full border border-white/15 bg-transparent px-5 font-medium text-white hover:bg-white/5" aria-label="Export flight" />}>Export <ChevronDown data-icon="inline-end" /></DropdownMenuTrigger>
     <DropdownMenuContent align="end" className="w-72 rounded-2xl border-white/10 bg-[#17181b] p-2 text-white">
       <DropdownMenuItem onClick={() => run(simbrief)} className="items-start gap-3 rounded-xl px-3 py-3 focus:bg-white/10">
         <Plane className="mt-0.5 text-[#55a7ff]" /><span><strong className="block font-medium">SimBrief Dispatch</strong><small className="text-white/50">Opens with the flight pre-filled</small></span>

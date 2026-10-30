@@ -57,7 +57,7 @@ export function AirlineLogo({
   const containerClasses = { sm: 'gap-2', md: 'gap-3', lg: 'gap-4' }
 
   const icaoCode = ((icao || '').trim() || lookupIcao(data, iata)).toUpperCase()
-  const label = (iata || icaoCode || name || '?').toUpperCase().slice(0, 2)
+  const label = (iata || icaoCode || (name || '?').split(/\s+/).slice(0, 2).map(w => w[0]).join('')).toUpperCase()
   const sources = icaoCode ? FOLDERS.map((f) => `${BASE}/${f}/${icaoCode}.png`) : []
   const src = sources[srcIndex]
 

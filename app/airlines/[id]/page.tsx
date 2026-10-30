@@ -7,6 +7,7 @@ import { ArrowLeft, ChevronRight } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useMapStore, type Point } from '@/lib/map-store'
 import { AirlineLogo } from '@/components/AirlineLogo'
+import LiveFlights from '@/components/LiveFlights'
 import AirlineAbout from '@/components/AirlineAbout'
 import { CustomRoutes } from '@/components/CustomRoutes'
 import { Flag } from '@/components/Flag'
@@ -114,6 +115,7 @@ export default function AirlineDetailPage() {
           </div>
         </div>
       </header>
+      <LiveFlights airline={airline.icao || airline.iata} />
       <AirlineAbout id={String(id)} />
       <AirlineFav />
       <CustomRoutes airlineKey={airline.iata || id} />
@@ -125,9 +127,9 @@ export default function AirlineDetailPage() {
             role="tab"
             aria-selected={tab === t.key}
             onClick={() => setTab(t.key)}
-            className={`min-h-10 shrink-0 rounded-full px-4 text-sm font-medium transition ${tab === t.key ? 'bg-white text-black' : 'border border-white/15 text-white/60 hover:text-white'}`}
+            className={`min-h-11 shrink-0 px-3 text-sm font-medium transition ${tab === t.key ? 'border-b border-white text-white' : 'border-b border-transparent text-white/40 hover:text-white'}`}
           >
-            {t.label} <span className={tab === t.key ? 'text-black/50' : 'text-white/30'}>{counts[t.key]}</span>
+            {t.label} <span className={tab === t.key ? 'text-white/60' : 'text-white/30'}>{counts[t.key]}</span>
           </button>
         ))}
       </div>
@@ -135,13 +137,13 @@ export default function AirlineDetailPage() {
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search routes (city, airport or code)" className="mt-4 min-h-12 w-full rounded-2xl border border-white/10 bg-white/[.06] px-4 outline-none placeholder:text-white/35 focus:border-[#1f88ff]" />
       {(nq || tab !== 'all') && <p className="mt-3 text-xs text-white/40">{routes.length} of {counts.all} routes</p>}
 
-      <div className="mt-4 flex flex-col gap-2">
+      <div className="mt-4 flex flex-col divide-y divide-white/[.06]">
         {routes.map((route) => {
           const from = route.fromAirport
           const to = route.toAirport
           const dom = isDomestic(route)
           return (
-            <Link key={`${route.from}-${route.to}`} href={`/route/${airline.iata || id}/${route.from}-${route.to}`} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#0a0a0acc] p-4 transition hover:border-[#1f88ff]/60">
+            <Link key={`${route.from}-${route.to}`} href={`/route/${airline.iata || id}/${route.from}-${route.to}`} className="flex items-center gap-3 py-4 transition hover:bg-white/[.02]">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-3 font-semibold">
                   <span>{route.from}</span><span className="text-[#55a7ff]">⇄</span><span>{route.to}</span>
