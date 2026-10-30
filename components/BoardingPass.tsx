@@ -98,6 +98,7 @@ export function BoardingPass({
   const [dragging, setDragging] = useState(false)
   const [torn, setTorn] = useState(false)
   const [showBtn, setShowBtn] = useState(false)
+  const [gone, setGone] = useState(false)
   const [collapse, setCollapse] = useState<number | null>(null)
   const start = useRef<{ x: number; y: number; a: number } | null>(null)
   const dragRef = useRef(0)
@@ -151,6 +152,7 @@ export function BoardingPass({
     setCollapse(px)
     requestAnimationFrame(() => requestAnimationFrame(() => setCollapse(0)))
     setTimeout(() => setShowBtn(true), 520)
+    setTimeout(() => setGone(true), 1300)
     onTorn?.()
   }
   ripRef.current = rip
@@ -273,7 +275,7 @@ export function BoardingPass({
   const rightClip = span && hi < 0.998 ? `polygon(${[...edgePts(hi, nzHi), '100% 100%', '100% 0%'].join(',')})` : null
   const tipPct = bF * 100
 
-  const stubTransform = torn ? `translate(${dir * 90}px, 380px) rotate(${dir * 18}deg)` : 'none'
+  const stubTransform = torn ? `translate(${dir * 40}px, 300px) rotate(${dir * 14}deg)` : 'none'
   const stubTransition = torn
     ? 'transform .9s cubic-bezier(.55,.06,.85,.4), opacity .7s ease .2s, visibility 0s linear .95s'
     : 'none'
@@ -349,7 +351,7 @@ export function BoardingPass({
   }, [shareLink])
 
   return (
-    <div ref={box} className="w-full select-none text-white">
+    <div ref={box} className="w-full select-none overflow-x-clip text-white">
       <div className="relative overflow-hidden rounded-t-3xl bg-[#232325] px-6 pb-6 pt-6 shadow-xl" style={mask(notchTop)}>
         <div
           className="pointer-events-none absolute inset-0 opacity-70"
@@ -413,6 +415,7 @@ export function BoardingPass({
             transition: stubTransition,
             opacity: torn ? 0 : 1,
             visibility: torn ? 'hidden' : 'visible',
+            display: gone ? 'none' : undefined,
             touchAction: 'none',
             willChange: 'transform',
           }}

@@ -27,7 +27,7 @@ export const metadata: Metadata = {
   title: 'MyRoster — Flight planning, simplified',
   description: 'Explore airline networks and routes around the world.',
 }
-export const viewport: Viewport = { themeColor: '#0a0a0a', colorScheme: 'dark' }
+export const viewport: Viewport = { themeColor: '#0a0a0a', colorScheme: 'dark', width: 'device-width', initialScale: 1, maximumScale: 1 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

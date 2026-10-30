@@ -1,80 +1,74 @@
-"use client";
-import { useEffect, useState } from "react";
-import { Volume2, Volume1, VolumeX } from "lucide-react";
-import { canStorePreferences } from "@/lib/consent";
-import { useT } from "@/lib/i18n";
-import * as sound from "@/lib/sound";
+'use client'
 
-const save = (k: string, v: string) => {
-  try {
-    if (canStorePreferences()) localStorage.setItem(k, v);
-  } catch {}
-};
+import { useEffect, useRef, useState } from 'react'
+import { Volume2, VolumeX } from 'lucide-react'
+import * as sound from '@/lib/sound'
 
 export default function BackgroundMusic() {
-  const t = useT();
-  const [s, setS] = useState<sound.SoundState>(sound.getState());
+  const [s, setS] = useState<sound.SoundState>(sound.getState())
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => sound.subscribe(setS), [])
+
+  // browsers only allow sound after a first touch
+  useEffect(() => {
+    const first = () => sound.unlock()
+    window.addEventListener('pointerdown', first, { once: true })
+    return () => window.removeEventListener('pointerdown', first)
+  }, [])
 
   useEffect(() => {
-    try {
-      const v = parseFloat(localStorage.getItem("myroster.music.volume") || "");
-      if (!isNaN(v)) sound.setVolume(v);
-      if (localStorage.getItem("myroster.music.muted") === "1") sound.setMuted(true);
-    } catch {}
+    if (!open) return
+    const out = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('pointerdown', out)
+    return () => document.removeEventListener('pointerdown', out)
+  }, [open])
 
-    const events = ["pointerup", "touchend", "click", "keydown"];
-    const onGesture = () => sound.unlock();
-    const removeGesture = () => events.forEach((e) => window.removeEventListener(e, onGesture));
-    events.forEach((e) => window.addEventListener(e, onGesture));
-
-    const off = sound.subscribe((st) => {
-      setS(st);
-      if (st.playing) removeGesture();
-    });
-    setS(sound.getState());
-    sound.start();
-    return () => {
-      off();
-      removeGesture();
-    };
-  }, []);
-
-  const changeVolume = (v: number) => {
-    sound.unlock();
-    sound.setVolume(v);
-    save("myroster.music.volume", String(v));
-  };
-  const toggleMute = () => {
-    sound.unlock();
-    const next = !s.muted;
-    sound.setMuted(next);
-    save("myroster.music.muted", next ? "1" : "0");
-  };
-
-  const label = s.muted ? "🔇 " + t("music.muted") : s.playing ? "🔊 " + t("music.on") : "▶ " + t("music.play");
+  const off = s.muted || s.volume === 0
 
   return (
-    <div className="fixed bottom-20 right-4 md:bottom-24 md:right-8 z-40">
-      <div className="bg-[#1a1a1a] border border-[#333] rounded-lg p-3 shadow-lg backdrop-blur">
-        <div className="flex items-center gap-3 mb-2">
-          {s.muted ? <VolumeX className="w-4 h-4 text-gray-400" /> : s.volume < 0.3 ? <Volume1 className="w-4 h-4 text-[#55a7ff]" /> : <Volume2 className="w-4 h-4 text-[#1f88ff]" />}
+    <div
+      ref={ref}
+      className="fixed z-40 flex items-center gap-1"
+      style={{ top: 'calc(env(safe-area-inset-top, 0px) + 13px)', right: 68 }}
+    >
+      {open && (
+        <div className="flex h-9 items-center gap-3 rounded-full border border-white/10 bg-black/80 pl-4 pr-1 backdrop-blur">
           <input
             type="range"
-            min="0"
-            max="1"
-            step="0.01"
+            min={0}
+            max={0.4}
+            step={0.01}
             value={s.volume}
-            onChange={(e) => changeVolume(parseFloat(e.target.value))}
-            className="w-24 h-1 bg-[#333] rounded-lg appearance-none cursor-pointer accent-[#1f88ff]"
-            disabled={s.muted}
             aria-label="Volume"
+            onChange={(e) => {
+              sound.unlock()
+              sound.setMuted(false)
+              sound.setVolume(Number(e.target.value))
+            }}
+            className="h-1 w-24 accent-white"
           />
+          <button
+            type="button"
+            onClick={() => { sound.unlock(); sound.setMuted(!s.muted) }}
+            className="flex h-8 items-center rounded-full px-3 text-[11px] font-medium text-white/60 hover:text-white"
+          >
+            {s.muted ? 'On' : 'Off'}
+          </button>
         </div>
-        <button onClick={toggleMute} className={`w-full min-h-9 px-3 py-2 rounded text-xs font-medium transition-all ${s.muted ? "bg-red-600 hover:bg-red-700 text-white" : "bg-[#1f88ff] hover:bg-blue-600 text-white"}`}>
-          {label}
-        </button>
-        <p className="text-xs text-gray-500 mt-2 text-center">{t("music.volume", { n: Math.round(s.volume * 100) })}</p>
-      </div>
+      )}
+      <button
+        type="button"
+        aria-label="Music"
+        aria-expanded={open}
+        onClick={() => { sound.unlock(); setOpen((v) => !v) }}
+        className="flex size-9 items-center justify-center rounded-full text-white/60 transition hover:text-white"
+      >
+        {off ? <VolumeX className="size-5" /> : <Volume2 className="size-5" />}
+      </button>
     </div>
-  );
+  )
 }
