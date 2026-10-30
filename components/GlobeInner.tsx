@@ -92,6 +92,7 @@ export default function GlobeInner() {
   // one smooth move per place. Outbound/return of the same route, data refreshes and quick page swaps do not zoom again.
   useEffect(() => {
     if (!camKey) {
+      clearTimers()
       // back to a menu: after a short wait (so quick page swaps do not bounce) show the whole globe again
       const t = setTimeout(() => {
         if (!zoomKey.current) return
@@ -105,7 +106,6 @@ export default function GlobeInner() {
       return () => clearTimeout(t)
     }
     if (zoomKey.current === camKey) return
-    zoomKey.current = camKey
     clearTimers()
     let tries = 0
     const go = () => {
@@ -115,9 +115,12 @@ export default function GlobeInner() {
         if (++tries < 12) later(go, 300)
         return
       }
-      g.pointOfView({ lat: c.lat, lng: c.lng, altitude: c.alt }, 1800)
+      zoomKey.current = c.key
+      const pv = g.pointOfView()
+      const near = Math.abs(pv.lat - c.lat) < 1.5 && Math.abs(pv.lng - c.lng) < 1.5 && Math.abs(pv.altitude - c.alt) < 0.15
+      if (!near) g.pointOfView({ lat: c.lat, lng: c.lng, altitude: c.alt }, 1800)
     }
-    later(go, 150)
+    later(go, 450)
   }, [camKey])
 
   useEffect(() => clearTimers, [])
@@ -140,7 +143,7 @@ export default function GlobeInner() {
             ? wps.map((w) => ({ ...w, r: 0.1 }))
             : [{ ...view.from, r: 0.25 }, { ...view.to, r: 0.25 }]
           : view.mode === 'airline'
-            ? hubs.slice(0, 3).map((h, i) => ({ ...h.p, r: i === 0 ? 0.45 : 0.25, color: i === 0 ? '#ff9f1c' : '#facc15' }))
+            ? hubs.slice(0, 3).map((h, i) => ({ ...h.p, r: i === 0 ? 0.3 : 0.16, color: i === 0 ? '#ffffff' : '#55a7ff' }))
             : []
 
   return (
@@ -156,14 +159,14 @@ export default function GlobeInner() {
         atmosphereAltitude={0.16}
         arcsData={arcs}
         arcColor={() => (view.mode === 'route' ? ['rgba(255,255,255,0.9)', 'rgba(31,136,255,1)'] : ['rgba(85,167,255,0.18)', 'rgba(130,195,255,0.9)'])}
-        arcStroke={view.mode === 'route' ? 0.7 : 0.26}
+        arcStroke={view.mode === 'route' ? 0.32 : 0.12}
         arcAltitudeAutoScale={view.mode === 'route' ? 0.25 : 0.2}
         pathsData={paths}
         pathPoints="pts"
         pathPointLat={(p: any) => p[0]}
         pathPointLng={(p: any) => p[1]}
         pathColor={() => '#4caf50'}
-        pathStroke={0.9}
+        pathStroke={0.45}
         pathPointAlt={0.012}
         pointsData={points}
         pointLat="lat"
@@ -171,6 +174,22 @@ export default function GlobeInner() {
         pointColor={(p: any) => p.color || '#facc15'}
         pointAltitude={0.02}
         pointRadius={(p: any) => p.r ?? 0.25}
+        ringsData={hubs.slice(0, 1).map((h) => h.p)}
+        ringLat="lat"
+        ringLng="lon"
+        ringColor={() => (t: number) => `rgba(255,255,255,${1 - t})`}
+        ringMaxRadius={4}
+        ringPropagationSpeed={1.6}
+        ringRepeatPeriod={1800}
+        labelsData={hubs.slice(0, 3).map((h) => h.p)}
+        labelLat="lat"
+        labelLng="lon"
+        labelText="iata"
+        labelSize={0.9}
+        labelDotRadius={0}
+        labelColor={() => 'rgba(255,255,255,0.9)'}
+        labelAltitude={0.03}
+        labelResolution={2}
       />
       <LiveTraffic getCenter={() => (view.mode === 'idle' ? LUANDA : ref.current?.pointOfView())} />
     </div>

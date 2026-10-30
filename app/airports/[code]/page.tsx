@@ -10,6 +10,8 @@ import { AirlineLogo } from '@/components/AirlineLogo'
 import { Flag } from '@/components/Flag'
 import { Board, BoardHead, BoardRow, boardText } from '@/components/Board'
 import { fixName } from '@/lib/airline-names'
+import AirportExtras from '@/components/AirportExtras'
+import { useFavs } from '@/lib/use-favs'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -24,9 +26,10 @@ export default function AirportDetailPage() {
   const { code } = useParams<{ code: string }>()
   const decoded = code ? decodeURIComponent(code).toUpperCase() : ''
   const { data, error } = useSWR(decoded ? `/api/airports/${decoded}` : null, fetcher)
-  const { data: liveData } = useSWR(decoded ? `/api/airports/${decoded}/live` : null, fetcher, { refreshInterval: 60000 })
   const setView = useMapStore((s) => s.setView)
   const [q, setQ] = useState('')
+  const favAp = useFavs('airport')
+  const favAl = useFavs('airline')
 
   useEffect(() => {
     if (!data?.airport) return
@@ -35,13 +38,19 @@ export default function AirportDetailPage() {
   }, [data, setView])
 
   const allRoutes = ((data?.routes as Route[]) || [])
-  const routes = useMemo(() => {
+  const filtered = useMemo(() => {
     const n = norm(q.trim())
     if (!n) return allRoutes
     return allRoutes.filter((r) =>
       norm([r.from, r.to, r.toAirport?.city, r.toAirport?.name, r.toAirport?.country, ...(r.airlines || []).map((a) => `${a.name} ${a.iata} ${a.icao}`)].filter(Boolean).join(' ')).includes(n)
     )
   }, [allRoutes, q])
+
+  const routes = useMemo(() => {
+    const score = (r: Route) => ((r.airlines || []).some((a) => favAl.has(a.id)) ? 2 : 0) + (favAp.has(r.to) ? 1 : 0)
+    return [...filtered].sort((a, b) => score(b) - score(a))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, favAl.items, favAp.items])
 
   if (error || data?.error) {
     return (
@@ -58,7 +67,6 @@ export default function AirportDetailPage() {
 
   const airport = data.airport as Airport
   const nearby = (data.nearby as Airport[]) || []
-  const liveFlights: any[] = liveData?.data || []
 
   return (
     <section className="min-h-screen p-5 pb-32 sm:p-8">
@@ -79,30 +87,7 @@ export default function AirportDetailPage() {
           </div>
         </div>
       </header>
-
-      {liveFlights.length > 0 && (
-        <div className="mt-8">
-          <h2 className="mb-4 flex items-center gap-2 text-xl font-semibold"><span className="size-2 animate-pulse rounded-full bg-[#facc15]" />Live now</h2>
-          <Board>
-            <BoardHead cols={LIVE_COLS}><span>Flight</span><span>Route</span><span className="text-right">Status</span></BoardHead>
-            {liveFlights.map((f) => (
-              <Link key={f.hex} href={`/route/${f.airlineIata || f.airlineIcao}/${f.from}-${f.to}`} className="block transition hover:bg-[#facc15]/[.06]">
-                <BoardRow cols={LIVE_COLS}>
-                  <span className={`${boardText} truncate text-sm font-bold`}>{f.callsign || '—'}</span>
-                  <div className="min-w-0">
-                    <p className="flex items-center gap-2 font-mono text-sm font-semibold"><span>{f.from}</span><span className="text-[#facc15]">→</span><span>{f.to}</span></p>
-                    <p className="mt-1 flex items-center gap-2 truncate text-xs text-white/45">
-                      <AirlineLogo iata={f.airlineIata} icao={f.airlineIcao} name={f.airlineName} size="sm" showText={false} />
-                      <span className="truncate">{f.airlineName} · {f.fromCity} → {f.toCity}</span>
-                    </p>
-                  </div>
-                  <span className={`${boardText} text-right text-xs`}>{f.onGround ? 'On ground' : f.altFt != null ? `FL${Math.round(f.altFt / 100)}` : 'Airborne'}</span>
-                </BoardRow>
-              </Link>
-            ))}
-          </Board>
-        </div>
-      )}
+      <AirportExtras />
 
       {allRoutes.length > 0 && (
         <div className="mt-8">

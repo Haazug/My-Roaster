@@ -11,6 +11,9 @@ import AirlineAbout from '@/components/AirlineAbout'
 import { CustomRoutes } from '@/components/CustomRoutes'
 import { Flag } from '@/components/Flag'
 import { fixName } from '@/lib/airline-names'
+import AirlineFav from '@/components/AirlineFav'
+import { useFavourites } from '@/lib/use-favourites'
+import { useFavs } from '@/lib/use-favs'
 
 const fetcher = (url: string) => fetch(url).then((response) => response.json())
 
@@ -27,6 +30,8 @@ export default function AirlineDetailPage() {
   const setView = useMapStore((s) => s.setView)
   const [q, setQ] = useState('')
   const [tab, setTab] = useState<Tab>('all')
+  const favR = useFavourites()
+  const favAp = useFavs('airport')
 
   useEffect(() => {
     if (!data?.routes) return
@@ -53,7 +58,7 @@ export default function AirlineDetailPage() {
   }, [allRoutes])
 
   const nq = q.trim().toLowerCase()
-  const routes = useMemo(() => {
+  const filtered = useMemo(() => {
     const byTab = tab === 'all' ? allRoutes : allRoutes.filter((r) => (tab === 'domestic') === isDomestic(r))
     if (!nq) return byTab
     return byTab.filter((r) =>
@@ -61,6 +66,15 @@ export default function AirlineDetailPage() {
         .filter(Boolean).join(' ').toLowerCase().includes(nq)
     )
   }, [allRoutes, tab, nq])
+
+  const airKey = String(data?.airline?.iata || id)
+  const routes = useMemo(() => {
+    const score = (r: Route) =>
+      (favR.items.some((f) => f.airlineIata === airKey && ((f.orig === r.from && f.dest === r.to) || (f.orig === r.to && f.dest === r.from))) ? 2 : 0) +
+      (favAp.has(r.from) || favAp.has(r.to) ? 1 : 0)
+    return [...filtered].sort((a, b) => score(b) - score(a))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, favR.items, favAp.items, airKey])
 
   if (error || data?.error) {
     return (
@@ -101,6 +115,7 @@ export default function AirlineDetailPage() {
         </div>
       </header>
       <AirlineAbout id={String(id)} />
+      <AirlineFav />
       <CustomRoutes airlineKey={airline.iata || id} />
 
       <div className="mt-7 flex gap-2 overflow-x-auto pb-1" role="tablist">
