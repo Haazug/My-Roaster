@@ -147,8 +147,8 @@ export default function AirlineDetailPage() {
           return (
             <Link key={`${route.from}-${route.to}`} href={`/route/${airline.iata || id}/${route.from}-${route.to}`} className="flex items-center gap-3 py-4 transition hover:bg-white/[.02]">
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-3 font-semibold">
-                  <span>{route.from}</span><span className="text-[#55a7ff]">⇄</span><span>{route.to}</span>
+                <div className="flex items-center gap-3 font-mono font-medium tracking-wide">
+                  <span>{route.from}</span><span className="text-white/30">⇄</span><span>{route.to}</span>
                   {tab === 'all' && <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${dom ? 'border-white/20 text-white/50' : 'border-[#1f88ff]/40 text-[#55a7ff]'}`}>{tr(dom?'airlines.domestic':'airlines.international')}</span>}
                 </div>
                 <p className="mt-1 flex items-center gap-2 truncate text-sm text-white/45">

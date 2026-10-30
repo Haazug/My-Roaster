@@ -2,6 +2,7 @@
 import Globe, { type GlobeMethods } from 'react-globe.gl'
 import { useEffect, useMemo, useRef } from 'react'
 import { useMapStore, type Point } from '@/lib/map-store'
+import { splitRoute, interpolateRoute } from '@/lib/flight-workflow'
 import LiveTraffic from './LiveTraffic'
 
 const R = Math.PI / 180
@@ -126,12 +127,17 @@ export default function GlobeInner() {
   useEffect(() => clearTimers, [])
 
   const wps = view.mode === 'route' && view.waypoints && view.waypoints.length > 1 ? view.waypoints : null
-  const arcs = view.mode === 'route' && !wps
+  const arcs = view.mode === 'route' && view.progress === undefined && !wps
     ? [{ startLat: view.from.lat, startLng: view.from.lon, endLat: view.to.lat, endLng: view.to.lon }]
     : view.mode === 'airline'
       ? view.routes.slice(0, 600).map((r) => ({ startLat: r.from.lat, startLng: r.from.lon, endLat: r.to.lat, endLng: r.to.lon }))
       : []
-  const paths = wps ? [{ pts: wps.map((w) => [w.lat, w.lon]) }] : []
+  const routePoints=view.mode==='route' ? wps || Array.from({length:65},(_,i)=>interpolateRoute(view.from,view.to,i/64)) : []
+  const segments=splitRoute(routePoints,view.mode==='route'?view.progress??0:0)
+  const paths = view.mode==='route'&&view.progress!==undefined ? [
+    {pts:segments.remaining.map(w=>[w.lat,w.lon]),color:'rgba(255,255,255,0.25)'},
+    {pts:segments.done.map(w=>[w.lat,w.lon]),color:'#4ade80'},
+  ].filter(p=>p.pts.length>1) : wps ? [{pts:wps.map(w=>[w.lat,w.lon]),color:'rgba(255,255,255,0.65)'}] : []
 
   const points: any[] =
     view.mode === 'airports'
@@ -165,7 +171,7 @@ export default function GlobeInner() {
         pathPoints="pts"
         pathPointLat={(p: any) => p[0]}
         pathPointLng={(p: any) => p[1]}
-        pathColor={() => '#4caf50'}
+        pathColor={(p:any)=>p.color}
         pathStroke={0.45}
         pathPointAlt={0.012}
         pointsData={points}

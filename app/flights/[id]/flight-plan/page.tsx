@@ -1,14 +1,17 @@
 'use client'
 
 import { useParams, usePathname, useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { ArrowLeft, Upload } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { parsePLNFile } from '@/lib/flight-plan-parser'
 import { matchAircraft } from '@/lib/aircraft-db'
 import { estimateBlockMinutes, parseSpeedAt } from '@/lib/flight-time'
 import { flightNumberPart } from '@/lib/live-model'
-import { useT } from '@/lib/i18n'
+import {departureChoice} from '@/lib/flight-workflow'
+import {useLocalStorage} from '@/lib/use-local-storage'
+import type {RosterFlight} from '@/lib/roster-data'
+import {useT,useLang} from '@/lib/i18n'
 import { BoardingPass } from '@/components/BoardingPass'
 import { AirportInput, nmBetween, type Ap } from '@/components/AirportInput'
 
@@ -34,6 +37,11 @@ export default function FlightPlanPage() {
   const router = useRouter()
   const pathname = usePathname()
   const t = useT()
+  const launchLock=useRef(false)
+  const [launching,setLaunching]=useState(false)
+  const lang=useLang(s=>s.lang)
+  const [bookings,setBookings]=useLocalStorage<RosterFlight[]>('myroster.bookings',[])
+  const [pending,setPending]=useState<{options:any;at:number}|null>(null)
   const [authed, setAuthed] = useState(false)
   const [seed, setSeed] = useState<any>(null)
   const [geo, setGeo] = useState<Geo | null>(null)
@@ -95,21 +103,21 @@ export default function FlightPlanPage() {
     }
   }, [geo, acName, form.speed, form.fl])
 
-  const launch = (o: { from: string; to: string; fromCity: string; toCity: string; aircraft: string; fl: number; distanceNm: number; durationMin: number; fromLat?: number; fromLon?: number; toLat?: number; toLon?: number; waypoints?: { id?: string; lat: number; lon: number }[] }) => {
+  const executeLaunch = async (o: { from: string; to: string; fromCity: string; toCity: string; aircraft: string; fl: number; distanceNm: number; durationMin: number; fromLat?: number; fromLon?: number; toLat?: number; toLon?: number; waypoints?: { id?: string; lat: number; lon: number }[] }, scheduledAt?:number) => {
+    if(launchLock.current)return
+    launchLock.current=true;setLaunching(true)
     try {
-      localStorage.setItem(
-        'myroster.activePlan',
-        JSON.stringify({
-          ...(seed || {}),
-          id,
-          airlineIata: seed?.airlineIata || String(id).split('-')[0].toUpperCase(),
-          flightNumber: flightNumberPart(form.flight, seed?.airlineIata || '', seed?.airlineIcao || ''),
-          from: o.from, to: o.to, fromCity: o.fromCity, toCity: o.toCity,
-          aircraft: o.aircraft, altitude: o.fl * 100, distanceNm: o.distanceNm, durationMin: o.durationMin,
-          fromLat: o.fromLat, fromLon: o.fromLon, toLat: o.toLat, toLon: o.toLon, waypoints: o.waypoints,
-        })
-      )
-    } catch {}
+    const scheduleId=scheduledAt?crypto.randomUUID():undefined
+    const {data:session}=await supabase.auth.getSession()
+    const plan={...(seed||{}),createdAt:Date.now(),id:String(id),airlineIata:seed?.airlineIata||String(id).split('-')[0].toUpperCase(),flightNumber:flightNumberPart(form.flight,seed?.airlineIata||'',seed?.airlineIcao||''),from:o.from,to:o.to,fromCity:o.fromCity,toCity:o.toCity,aircraft:o.aircraft,altitude:o.fl*100,distanceNm:o.distanceNm,durationMin:o.durationMin,fromLat:o.fromLat,fromLon:o.fromLon,toLat:o.toLat,toLon:o.toLon,waypoints:o.waypoints,scheduledAt,scheduleId,accountId:session.session?.user.id}
+    if(scheduledAt){
+      setBookings([...bookings,{id:scheduleId!,planId:String(id),plan,airlineIata:plan.airlineIata,airlineName:plan.airlineName||plan.airlineIata,orig:o.from,dest:o.to,fromCity:o.fromCity,toCity:o.toCity,flightNumber:form.flight||String(id),aircraft:o.aircraft,departure:new Date(scheduledAt).toISOString(),distanceNm:o.distanceNm,scheduledAt,status:'scheduled',accountId:session.session?.user.id} as RosterFlight])
+      if(typeof Notification!=='undefined'&&Notification.permission==='default')await Notification.requestPermission().catch(()=>{})
+      setPending(null);router.push('/trips');return
+    }
+    try {
+      localStorage.setItem('myroster.activePlan',JSON.stringify(plan))
+    } catch {setError(t('schedule.failed'));return}
     const sid = new URLSearchParams(window.location.search).get('session')
     if (sid) {
       ;(async () => {
@@ -122,13 +130,16 @@ export default function FlightPlanPage() {
       })()
     }
     router.push(`/flights/${id}/fly${sid ? `?session=${encodeURIComponent(sid)}` : ''}`)
+    }catch{setError(t('schedule.failed'))}finally{launchLock.current=false;setLaunching(false)}
   }
+
+  const launch = (options:any) => {try{const choice=departureChoice(form.time);if(choice.differs)setPending({options,at:choice.scheduledAt});else executeLaunch(options)}catch{setError(t('schedule.invalidTime'))}}
 
   const createPlan = () => {
     if (!form.dep.trim() || !form.arr.trim()) return setError(t('plan.errAirports'))
     if (form.aircraft.trim() && ac.status === 'none') return setError(t('plan.unknownAc', { name: form.aircraft }))
     if (form.aircraft.trim() && !acName) return setError(t('plan.errConfirm'))
-    if (!form.duration) return setError(t('plan.errBlock'))
+    if (!Number.isFinite(form.duration)||form.duration<=0) return setError(t('plan.errBlock'))
     setError('')
     setReady(true)
   }
@@ -282,6 +293,13 @@ export default function FlightPlanPage() {
           />
         </div>
       )}
+      {pending&&<div role="dialog" aria-modal="true" aria-label={t('schedule.title')} className="fixed inset-0 z-[65] flex items-center justify-center bg-black/80 p-5 backdrop-blur-sm"><div className="w-full max-w-sm rounded-2xl border border-white/15 bg-[#101010] p-6">
+        <h2 className="text-xl font-medium">{t('schedule.title')}</h2><p className="mt-3 text-sm text-white/55">{t('schedule.different',{time:new Date(pending.at).toLocaleString(lang,{dateStyle:'medium',timeStyle:'short'})})}</p>
+        <p className="mt-3 text-xs text-white/40">{t('schedule.browserNote')}</p>
+        <button disabled={launching} onClick={()=>executeLaunch(pending.options)} className="mt-6 min-h-11 w-full rounded-full bg-white px-4 text-sm font-medium text-black">{t('schedule.now')}</button>
+        <button disabled={launching} onClick={()=>executeLaunch(pending.options,pending.at)} className="mt-2 min-h-11 w-full rounded-full border border-white/20 px-4 text-sm">{t('schedule.at')}</button>
+        <button onClick={()=>setPending(null)} className="mt-2 min-h-11 w-full text-xs text-white/45">{t('schedule.cancel')}</button>
+      </div></div>}
     </section>
   )
 }

@@ -43,7 +43,7 @@ export default function Airlines() {
           <p className="mb-2 text-xs font-semibold uppercase tracking-[.2em] text-white/40">{tr('airlines.top')}</p>
           <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-2">
             {[...favList, ...top.filter((t) => !favA.has(t.id))].map((a) => (
-              <Link key={a.id} href={`/airlines/${a.id}`} className="flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-[#0a0a0acc] py-1.5 pl-1.5 pr-4 text-sm hover:border-[#1f88ff]/60">
+              <Link key={a.id} href={`/airlines/${a.id}`} className="flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-transparent py-1.5 pl-1.5 pr-4 text-sm hover:border-[#1f88ff]/60">
                 <AirlineLogo iata={a.iata} icao={a.icao} name={fixName(a.name)} size="sm" showText={false} />
                 <span className="whitespace-nowrap">{fixName(a.name)}</span>
               </Link>
@@ -71,7 +71,7 @@ export default function Airlines() {
               <AirlineLogo iata={a.iata} icao={a.icao} name={fixName(a.name)} size="md" showText={false} />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold">{fixName(a.name)}</p>
-                <p className="text-sm text-[#55a7ff]">{tr('airlines.routes',{n:a.numRoutes})}{!a.active && <span className="ml-2 text-xs text-amber-300">{tr('airlines.historical')}</span>}</p>
+                <p className="font-mono text-xs text-white/45">{tr('airlines.routes',{n:a.numRoutes})}{!a.active && <span className="ml-2 text-xs text-amber-300">{tr('airlines.historical')}</span>}</p>
               </div>
               <ChevronRight className="size-5 shrink-0 text-white/30" aria-hidden="true" />
             </Link>

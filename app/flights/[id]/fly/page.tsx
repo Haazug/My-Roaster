@@ -11,6 +11,10 @@ import { useMapStore } from '@/lib/map-store'
 import { useT, useLang } from '@/lib/i18n'
 import { CABIN } from '@/lib/extra-i18n'
 import * as sound from '@/lib/sound'
+import {updateTripStatus} from '@/lib/trip-client'
+import {useFlightHandoff} from '@/lib/use-flight-handoff'
+import RouteProgressBar from '@/components/RouteProgressBar'
+import {progressFraction} from '@/lib/flight-workflow'
 import { useLocalStorage } from '@/lib/use-local-storage'
 import { supabase } from '@/lib/supabase'
 
@@ -34,6 +38,7 @@ const STEPS = [
 const kindFor = (k: string): sound.Kind => (['Takeoff', 'Approach', 'Cruise', 'Landing'].includes(k) ? 'dingdong' : 'ding')
 
 type FlightInfo = {
+  scheduleId?:string;scheduledAt?:number;accountId?:string
   free?: boolean
   airlineName: string
   airlineIata: string
@@ -76,7 +81,7 @@ export default function FlyNowPage() {
 
   const [info, setInfo] = useState<FlightInfo | null>(SAMPLES[flightKey] || null)
   const [checked, setChecked] = useState(false)
-  const [showChecklist,setShowChecklist] = useState(false)
+  const [showChecklist,setShowChecklist] = useState(true)
   const [statuses, setStatuses] = useState<Record<string, Status>>({})
   const [takeoffAt, setTakeoffAt] = useState<number | null>(null)
   const [now, setNow] = useState(0)
@@ -105,6 +110,19 @@ export default function FlyNowPage() {
     setSessionId(new URLSearchParams(window.location.search).get('session') || '')
   }, [])
   const lang = useLang((s) => s.lang)
+  const {ready:handoffReady,readOnly,syncError,controlAllowed,endControl,runId}=useFlightHandoff(flightKey,checked&&info?{
+    flightId:flightKey,plan:{...info,id:flightKey,from:info.orig,to:info.dest},statuses,takeoffAt,startedAt:startedAt.current,finished,holding,
+    holdSince:holdSince.current,holdTotal:holdTotal.current,holdCount:holdCount.current,goArounds:goArounds.current,stepLog:stepLog.current,fired:[...fired.current],savedLogId:logId,
+  }:null,f=>{
+    setInfo({...f.plan,orig:f.plan.orig||f.plan.from,dest:f.plan.dest||f.plan.to});setStatuses(f.statuses);setTakeoffAt(f.takeoffAt);setNow(Date.now());setFinished(f.finished);setHolding(f.holding)
+    holdSince.current=f.holdSince;holdTotal.current=f.holdTotal;holdCount.current=f.holdCount;goArounds.current=f.goArounds;setGoAroundCount(f.goArounds)
+    startedAt.current=f.startedAt;stepLog.current=f.stepLog;fired.current=new Set(f.fired);saved.current=f.finished;setLogId(f.savedLogId||null)
+  })
+  useEffect(()=>{
+   if(!checked||!handoffReady||readOnly)return
+   try{const plan=JSON.parse(localStorage.getItem('myroster.activePlan')||'null');if(plan?.scheduleId)updateTripStatus(plan.scheduleId,{startedAt:Date.now(),status:'running'})}catch{}
+  },[checked,handoffReady,readOnly])
+
 
   // Load the plan saved by the Flight Plan page (for flights that are not samples)
   useEffect(() => {
@@ -115,6 +133,7 @@ export default function FlyNowPage() {
           const p = JSON.parse(raw)
           if (String(p.id).toUpperCase() === flightKey) {
             setInfo({
+              scheduleId:p.scheduleId,scheduledAt:p.scheduledAt,accountId:p.accountId,
               airlineName: p.airlineName || p.airlineIata || 'Flight',
               airlineIata: p.airlineIata || '',
               airlineIcao: p.airlineIcao || '',
@@ -177,6 +196,7 @@ export default function FlyNowPage() {
   )
 
   const notify = (title: string, body: string, kind: sound.Kind = 'ding') => {
+    if(readOnly)return
     sound.play(kind)
     toast(title, { description: body })
     try {
@@ -234,10 +254,10 @@ export default function FlyNowPage() {
 
   // When every step is handled, save the flight to history
   useEffect(() => {
-    if (!info || saved.current) return
+    if (!info || saved.current || readOnly || !handoffReady) return
     if (!STEPS.every((s) => statuses[s.key])) return
     saved.current = true
-    const entryId = `${flightKey}-${Date.now()}`
+    const entryId = `${flightKey}-${runId}`
     const entry = {
       id: entryId,
       airlineIata: info.airlineIata,
@@ -269,9 +289,10 @@ export default function FlyNowPage() {
     setLogId(entryId)
     setFinished(true)
     sound.setBed('music')
+    try{const plan=JSON.parse(localStorage.getItem('myroster.activePlan')||'null');if(plan?.scheduleId)updateTripStatus(plan.scheduleId,{endedAt:Date.now(),status:'completed'})}catch{}
     toast.success(tr('fly.savedToast'))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statuses])
+  }, [statuses,readOnly,handoffReady])
 
   const askPermission = async () => {
     try {
@@ -298,7 +319,8 @@ export default function FlyNowPage() {
     setHolding(false)
   }
 
-  const toggleHolding = () => {
+  const toggleHolding = async () => {
+    if(readOnly||!handoffReady||!await controlAllowed())return
     sound.unlock()
     sound.play('ding')
     if (holdSince.current !== null) {
@@ -312,7 +334,8 @@ export default function FlyNowPage() {
     }
   }
 
-  const goAround = (remote = false) => {
+  const goAround = async (remote = false) => {
+    if(readOnly||!handoffReady||!await controlAllowed())return
     sound.unlock()
     sound.play('dingdong')
     const from = STEPS.findIndex((x) => x.key === 'Descent')
@@ -329,7 +352,8 @@ export default function FlyNowPage() {
     if (!remote) send('goaround', '', '')
   }
 
-  const mark = (key: string, status: Status, remote = false, at?: number) => {
+  const mark = async (key: string, status: Status, remote = false, at?: number) => {
+    if(readOnly||!handoffReady||!await controlAllowed())return
     sound.unlock()
     if (holdSince.current !== null) endHolding()
     askPermission()
@@ -347,7 +371,8 @@ export default function FlyNowPage() {
     if (!remote) send('step', key, status)
   }
 
-  const skipToTakeoff = () => {
+  const skipToTakeoff = async () => {
+    if(readOnly||!handoffReady||!await controlAllowed())return
     sound.play('ding')
     setStatuses((prev) => {
       const next = { ...prev }
@@ -430,6 +455,9 @@ export default function FlyNowPage() {
     setLogs(logs.map((l) => (l.id === logId ? { ...l, rating: v } : l)))
   }
 
+  const setProgress=useMapStore(s=>s.setProgress)
+  useEffect(()=>{setProgress(finished?1:progressFraction(elapsed,totalMs))},[elapsed,totalMs,finished,setProgress,info])
+
   if (!checked) {
     return <section className="min-h-screen p-5 sm:p-8 text-white/40">{tr('fly.loading')}</section>
   }
@@ -447,7 +475,6 @@ export default function FlyNowPage() {
     )
   }
 
-  const airborneProgress = totalMs ? Math.min(100, (elapsed / totalMs) * 100) : 0
   const remainingMs = Math.max(0, totalMs - elapsed)
   const holdMs = holdTotal.current + (holdSince.current !== null ? Math.max(0, now - holdSince.current) : 0)
 
@@ -478,6 +505,10 @@ export default function FlyNowPage() {
         </p>
       </header>
 
+      {readOnly&&<p role="status" className="mt-4 text-sm text-amber-200">{tr('handoff.readOnly')} <button className="underline" onClick={()=>window.dispatchEvent(new Event('myroster:request-handoff'))}>{tr('handoff.follow')}</button></p>}
+      {syncError&&<p role="status" className="mt-3 text-xs text-white/40">{tr('handoff.offline')}</p>}
+      <div className="mt-6 flex justify-between font-mono text-xs text-white/45"><span>{info.orig}</span><span>{info.dest}</span></div>
+      <RouteProgressBar label={tr('fly.progress')} elapsed={finished?totalMs:elapsed} total={totalMs} />
       {sessionId && crew.length > 0 && (
         <p className="mt-4 rounded-xl border border-[#55a7ff]/30 bg-[#1f88ff]/10 px-4 py-3 text-sm text-[#55a7ff]">
           {tr('fly.group')} · {crew.join(', ')}
@@ -524,9 +555,7 @@ export default function FlyNowPage() {
                 {holding && elapsed >= totalMs && (
                   <p className="mt-1 text-xs text-white/70">{tr('fly.autopilot')}</p>
                 )}
-                <div className="mt-6 h-[3px] overflow-hidden rounded-full bg-white/10">
-                  <div className="h-full bg-white transition-all" style={{ width: `${airborneProgress}%` }} />
-                </div>
+
               </>
             ) : (
               <>
@@ -538,6 +567,7 @@ export default function FlyNowPage() {
 
           {currentIdx < 3 && (
             <button
+              disabled={readOnly||!handoffReady}
               onClick={skipToTakeoff}
               className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/15 px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10"
             >
@@ -547,7 +577,7 @@ export default function FlyNowPage() {
 
           <button type="button" aria-expanded={showChecklist} onClick={()=>setShowChecklist(!showChecklist)} className="mt-5 flex min-h-11 w-full items-center justify-between text-xs text-white/45">{tr('fly.checklist')}<span>{showChecklist?'−':'+'}</span></button>
           <ul className="divide-y divide-white/[.06]">
-            {STEPS.map((s) => {
+            {STEPS.map((s,index) => {
               if(!showChecklist && current?.key !== s.key) return null
               const st = statuses[s.key]
               const isCurrent = current?.key === s.key
@@ -565,7 +595,7 @@ export default function FlyNowPage() {
                       ) : st === 'skipped' ? (
                         <SkipForward className="size-4 text-white/30" />
                       ) : (
-                        <span className="size-5 rounded-full border border-white/25" />
+                        <span className="flex size-5 items-center justify-center rounded-full border border-white/20 font-mono text-[10px] text-white/40">{index+1}</span>
                       )}
                     </span>
                     <span className={`flex-1 text-sm ${st ? 'text-white/45' : 'text-white'} ${st === 'skipped' ? 'line-through' : ''}`}>
@@ -589,11 +619,11 @@ export default function FlyNowPage() {
                   )}
                   {isCurrent && (
                     <div className="mt-3 flex gap-2">
-                      <button onClick={() => mark(s.key, 'done')} className="flex-1 min-h-11 rounded-full bg-white px-4 py-2 text-sm font-medium text-black">
+                      <button disabled={readOnly||!handoffReady} onClick={() => mark(s.key, 'done')} className="flex-1 min-h-11 rounded-full bg-white px-4 py-2 text-sm font-medium text-black">
                         {s.key === 'Takeoff' ? tr('fly.takeoffBtn') : tr('fly.done')}
                       </button>
                       {s.key !== 'Takeoff' && (
-                        <button onClick={() => mark(s.key, 'skipped')} className="rounded-full border border-white/15 px-5 py-2.5 text-sm text-white/70">
+                        <button disabled={readOnly||!handoffReady} onClick={() => mark(s.key, 'skipped')} className="rounded-full border border-white/15 px-5 py-2.5 text-sm text-white/70">
                           {tr('fly.skip')}
                         </button>
                       )}
@@ -604,7 +634,7 @@ export default function FlyNowPage() {
             })}
           </ul>
 
-          <button onClick={() => router.push('/')} className="mt-6 min-h-11 text-xs text-white/35 hover:text-red-300">
+          <button onClick={async()=>{if(await endControl()){if(info.scheduleId)await updateTripStatus(info.scheduleId,{status:'cancelled'});router.push('/')}}} className="mt-6 min-h-11 text-xs text-white/35 hover:text-red-300">
             {tr('fly.cancel')}
           </button>
         </>

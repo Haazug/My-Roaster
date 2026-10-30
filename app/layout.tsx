@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Toaster } from 'sonner'
 import './globals.css'
+import FlightCompanion from '@/components/FlightCompanion'
 import GlobeBackground from '@/components/GlobeBackground'
 import BottomNav from '@/components/BottomNav'
 import BackgroundMusic from '@/components/BackgroundMusic'
@@ -27,7 +28,7 @@ export const metadata: Metadata = {
   title: 'MyRoster — Flight planning, simplified',
   description: 'Explore airline networks and routes around the world.',
 }
-export const viewport: Viewport = { themeColor: '#0a0a0a', colorScheme: 'dark', width: 'device-width', initialScale: 1, maximumScale: 1 }
+export const viewport: Viewport = { themeColor: '#0a0a0a', colorScheme: 'dark', width: 'device-width', initialScale: 1 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -35,8 +36,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="overflow-x-hidden bg-[#0a0a0a] text-white antialiased" suppressHydrationWarning>
         <GlobeBackground />
         <LogoCorner />
-        <main className="relative z-10 min-h-screen pb-24 lg:ml-[420px] lg:max-w-[700px]">{children}<LegalFooter /></main>
+        <main className="relative z-10 min-h-screen pt-12 pb-40 lg:ml-[440px] xl:ml-[500px] lg:max-w-[760px]">{children}<LegalFooter /></main>
         <BottomNav />
+        <FlightCompanion />
          <BackgroundMusic />
         <LanguageGate />
         <PlnDrop />

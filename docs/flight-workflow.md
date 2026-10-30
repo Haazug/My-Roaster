@@ -1,0 +1,15 @@
+# Flight progress, schedules and device handoff
+
+The flight page shows the entire numbered sequence by default, with controls on the current phase. The horizontal route line fills green from departure to destination, and the globe draws completed/remaining segments using the same bounded elapsed-flight fraction. Imported waypoint paths are split by cumulative spherical distance, not waypoint count. This is simulation progress, not live aircraft tracking.
+
+When boarding with a departure time different from the current local minute, the plan asks whether to continue now or schedule. Earlier clock times are presented as the next day's occurrence; the confirmation displays the actual date and local time. Scheduled trips store an absolute timestamp, route and full plan. The Trips list derives Scheduled, Delayed, Running, Completed or Cancelled from explicit events. Passing the departure time alone marks an unstarted trip Delayed and never completes it.
+
+Due reminders use an in-app message and browser notifications when permission/support are available. Keep the site open; suspended tabs can delay a reminder. Closed-browser delivery requires a separately configured push service and is not implemented. Exporting the trip's `.ics` reminder lets a calendar app handle a closed-browser reminder after the user imports it. No external calendar is changed automatically.
+
+Device handoff reuses the existing Supabase `user_data` table and account authentication; no service-role key is sent to the browser. Its existing unique `(user_id,key)` constraint and RLS must allow the account to select/insert/update its own rows. `myroster.activeFlight` holds the plan, absolute takeoff timestamp, handled phases, holding/go-around data and owning browser session. Other sessions poll and ask before taking over. Updates and claims compare the previously read `updated_at` value; stale owners cannot overwrite a claim. An old device becomes read-only and can explicitly request another handoff. Account changes discard the active view rather than copying its state into another account. Guest progress remains local.
+
+A scheduled trip's status is updated in the latest account booking collection, so a device with no cached bookings can finish the trip without deleting other trips. Shared history/ownership needs the existing working Supabase account connection. Offline progress is stored locally; successful fixture tests do not establish a working production account connection.
+
+The bottom navigation displays every destination with icons and text, in two compact rows on narrow screens. Touch targets, safe-area padding, zoom and page spacing are preserved for phones and tablets. Route codes and status labels use a departure-board style with simple dividing lines.
+
+Flightradar24 links on live flights open its public flight page for manual consultation. They are not an automatic detection feed. Automatic Flightradar24 ingestion requires an authorised API account/token and its applicable plan; none is configured in this environment. Existing free live providers continue to supply detections.

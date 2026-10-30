@@ -65,11 +65,11 @@ export default function LiveFlights({ airport, airline, pair, standalone = false
    <h3 className="flex items-center gap-3 text-sm text-white/65"><AirlineLogo iata={items[0].airlineIata} icao={items[0].airlineIcao} name={items[0].airlineName} size="sm" showText={false}/><span className="min-w-0 flex-1">{items[0].airlineName}</span><span className="text-white/30">{items.length}</span></h3>
    <div className="mt-2 divide-y divide-white/[.06]">{items.sort((a,b)=>a.flightNumber.localeCompare(b.flightNumber)).map(f=><div key={f.id||f.hex} className="py-3">
     <Link href={liveRouteHref(f)||`/routes/${f.from}-${f.to}`} className="block min-h-11">
-     <div className="flex items-center justify-between gap-3"><span className="font-medium">{f.from} → {f.to}</span><span className="text-sm text-white/65">{f.flightNumber||f.callsign}</span></div>
+     <div className="flex items-center justify-between gap-3"><span className="font-mono font-medium tracking-wide">{f.from} → {f.to}</span><span className="font-mono text-sm text-white/65">{f.flightNumber||f.callsign}</span></div>
      <p className="mt-1 truncate text-xs text-white/40">{f.fromCity} → {f.toCity}</p>
      <p className="mt-2 text-xs text-white/45">{t(f.status==='estimated'?'live.estimateLabel':'live.airborne')}</p>
     </Link>
-    <p className="mt-1 text-[11px] text-white/30">{t(f.source==='timetable'?'live.checked':'live.seen',{time:time(f.source==='timetable'?f.updatedAt||f.observedAt:f.observedAt)})}{/^[A-Z0-9~]{6,8}$/i.test(f.hex)&&<> · <Link className="underline" href={`/live/${f.hex}`}>{t('live.aircraft')}</Link></>}</p>
+    <p className="mt-1 text-[11px] text-white/30">{t(f.source==='timetable'?'live.checked':'live.seen',{time:time(f.source==='timetable'?f.updatedAt||f.observedAt:f.observedAt)})}{/^[A-Z0-9~]{6,8}$/i.test(f.hex)&&<> · <Link className="underline" href={`/live/${f.hex}`}>{t('live.aircraft')}</Link></>} · <a href={`https://www.flightradar24.com/data/flights/${encodeURIComponent((f.flightNumber||f.callsign).toLowerCase())}`} target="_blank" rel="noopener noreferrer" className="underline">Flightradar24 ↗</a></p>
    </div>)}</div>
   </div>)}
   <details className="mt-8 border-t border-white/10 py-4 text-xs text-white/40"><summary className="min-h-8 cursor-pointer">{t('live.details')} · {t('live.partial')}</summary><div className="mt-3 space-y-2">

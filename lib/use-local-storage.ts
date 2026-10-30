@@ -28,8 +28,15 @@ export function useLocalStorage<T>(key: string, initial: T) {
   useEffect(() => {
     let local: any = null
     try { const raw = window.localStorage.getItem(key); if (raw) { local = JSON.parse(raw); setValue(local) } } catch {}
+    const refresh = (event: Event) => {
+      if(event instanceof StorageEvent && event.key!==key)return
+      if(event instanceof CustomEvent && event.detail?.key!==key)return
+      try {const raw=window.localStorage.getItem(key);if(raw)setValue(JSON.parse(raw))}catch{}
+    }
+    window.addEventListener('storage',refresh)
+    window.addEventListener('myroster:data-changed',refresh)
     setHydrated(true)
-    if (!SYNCED.includes(key)) return
+    if (!SYNCED.includes(key)) return () => {window.removeEventListener('storage',refresh);window.removeEventListener('myroster:data-changed',refresh)}
     let cancelled = false
     ;(async () => {
       try {
@@ -50,13 +57,14 @@ export function useLocalStorage<T>(key: string, initial: T) {
         if (cloud === null || first) push(key, next)
       } catch {}
     })()
-    return () => { cancelled = true }
+    return () => { cancelled = true;window.removeEventListener('storage',refresh);window.removeEventListener('myroster:data-changed',refresh) }
   }, [key])
 
   const update = useCallback((next: T | ((current: T) => T)) => {
     setValue(current => {
       const resolved = typeof next === "function" ? (next as (current: T) => T)(current) : next
       try { window.localStorage.setItem(key, JSON.stringify(resolved)) } catch {}
+      queueMicrotask(()=>window.dispatchEvent(new CustomEvent('myroster:data-changed',{detail:{key}})))
       push(key, resolved)
       return resolved
     })
