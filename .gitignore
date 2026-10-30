@@ -30,3 +30,6 @@ envio6.txt
 envio7.txt
 envio8.txt
 envio9.txt
+
+# Local live-flight database (contains generated history)
+.local/

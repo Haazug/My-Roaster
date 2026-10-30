@@ -1,11 +1,14 @@
 import 'server-only'
-import { live, type LiveAircraft } from '@/lib/live'
+import { live, liveGlobal, type LiveAircraft } from '@/lib/live'
 import { lookupCallsign } from '@/lib/route-lookup'
 import { airlineByIcao, parseCallsign } from '@/lib/airline-lookup'
+import { distNm } from '@/lib/live-geo'
 import { getDb } from '@/lib/db'
-import { FlightObservations, airportDirection, flightIdentity, type ResolvedFlight } from '@/lib/live-model'
+import { getLiveHistory } from '@/lib/live-history'
+import { AviationstackTimetable } from '@/lib/live-timetable'
+import { FlightObservations, currentFlights, radarExpiry, airportDirection, flightIdentity, type ResolvedFlight } from '@/lib/live-model'
 
-// Shared within this server process. A durable provider/index is needed for multi-instance history.
+// In-memory fallback keeps live requests useful when the configured persistent store is unavailable.
 const observations = new FlightObservations()
 const pending = new Map<string, Promise<void>>()
 const scanned = new Map<string, number>()
@@ -17,9 +20,12 @@ export async function resolveAircraft(a: LiveAircraft, observedAt = Date.now()):
     lookupCallsign(a.callsign),
     p ? airlineByIcao(p.icao) : Promise.resolve(null),
   ])
+  const db = await getDb()
+  const destination = route?.to ? db.airports.get(route.to) : undefined
+  const expiresAt = radarExpiry(observedAt, destination ? distNm(a, destination) : undefined, a.gs)
   const airlineIata = route?.airlineIata || airline?.iata || ''
   return {
-    ...a, airlineIata, airlineIcao: route?.airlineIcao || airline?.icao || p?.icao || '',
+    ...a, expiresAt, routeCheckedAt: observedAt, source: 'radar', airlineIata, airlineIcao: route?.airlineIcao || airline?.icao || p?.icao || '',
     airlineName: route?.airlineName || airline?.name || 'Unknown airline',
     flightNumber: flightIdentity(a.callsign, airlineIata, route?.flightNumber),
     from: route?.from || null, to: route?.to || null,
@@ -44,10 +50,15 @@ async function discover(code: string) {
     let failed = false
     for (let i = 0; i < selected.length; i += 5) {
       const batch = await Promise.allSettled(selected.slice(i, i + 5).map(a => resolveAircraft(a, observedAt)))
+      const rows = []
       for (const result of batch) {
-        if (result.status === 'fulfilled') observations.record(result.value)
+        if (result.status === 'fulfilled') {
+          observations.record(result.value)
+          rows.push({ ...result.value, id: `radar:${result.value.hex}`, updatedAt: observedAt, expiresAt: result.value.expiresAt || observedAt + 20 * 60_000 })
+        }
         else failed = true
       }
+      try { await getLiveHistory().write(rows) } catch { failed = true }
     }
     if (failed) throw new Error('Some flight routes could not be resolved')
     scanned.set(code, Date.now())
@@ -56,17 +67,95 @@ async function discover(code: string) {
   try { await work } finally { pending.delete(code) }
 }
 
-export async function discoverFlights(airport?: string) {
-  // Scan the same satellites on each request too: endpoint assignment must not rely
-  // on another serverless worker having populated this process's memory.
+let timetable: AviationstackTimetable | undefined
+
+let globalPending: Promise<import('@/lib/live-history-sqlite').SyncState> | undefined
+async function discoverGlobal(limit = 20) {
+  if (globalPending) return globalPending
+  globalPending = scanGlobal(limit)
+  try { return await globalPending } finally { globalPending = undefined }
+}
+async function scanGlobal(limit: number) {
+  const scope = 'radar:global'
+  const history = getLiveHistory()
+  const previous = await history.getSync(scope)
+  if (previous && Date.now() - previous.checkedAt < 45_000) return previous
+  const aircraft = (await liveGlobal()).sort((a, b) => a.hex.localeCompare(b.hex))
+  const now = Date.now()
+  const prior = await history.read()
+  const db = await getDb()
+  const known = new Map(prior.filter(f => f.source === 'radar').map(f => [f.hex, f]))
+  const unresolved: LiveAircraft[] = []
+  const refreshed = []
+  for (const a of aircraft) {
+    const old = known.get(a.hex)
+    if (old && a.onGround) {
+      const ground = { ...old, ...a, observedAt: now, updatedAt: now, expiresAt: now + 20 * 60_000 }
+      observations.record(ground)
+      refreshed.push(ground)
+      continue
+    }
+    if (!a.callsign) continue
+    if (old?.from && old.to && old.callsign === a.callsign && now - (old.routeCheckedAt || 0) < 5 * 60_000) {
+      const target = db.airports.get(old.to)
+      const f = { ...old, ...a, observedAt: now, updatedAt: now, expiresAt: radarExpiry(now, target ? distNm(a, target) : undefined, a.gs) }
+      observations.record(f)
+      refreshed.push(f)
+    } else unresolved.push(a)
+  }
+  await history.write(refreshed)
+  const offset = previous && !previous.complete && previous.nextOffset < unresolved.length ? previous.nextOffset : 0
+  const batch = unresolved.slice(offset, offset + limit)
+  let failed = false
+  for (let i = 0; i < batch.length; i += 5) {
+    const outcomes = await Promise.allSettled(batch.slice(i, i + 5).map(a => resolveAircraft(a, now)))
+    const rows = []
+    for (const outcome of outcomes) {
+      if (outcome.status === 'rejected') { failed = true; continue }
+      const f = outcome.value
+      observations.record(f)
+      rows.push({ ...f, id: `radar:${f.hex}`, updatedAt: now, expiresAt: f.expiresAt || now + 20 * 60_000 })
+    }
+    await history.write(rows)
+  }
+  const complete = offset + batch.length >= unresolved.length
+  const state = { checkedAt: now, nextOffset: complete ? 0 : offset + batch.length, complete, total: aircraft.length }
+  await history.setSync(scope, state)
+  if (failed) throw new Error('Some global callsigns could not be resolved')
+  return state
+}
+
+export async function discoverFlights(airport?: string, options: { background?: boolean } = {}) {
   const codes = [...new Set(airport ? [airport, ...satellites] : satellites)]
-  const outcomes = await Promise.allSettled(codes.map(discover))
-  const flights = observations.list()
+  let historyAvailable = true
+  let stored: ResolvedFlight[] = []
+  let timetableStatus = { configured: false, complete: false, total: null as number | null, error: undefined as string | undefined }
+  try {
+    const history = getLiveHistory()
+    if (process.env.AVIATIONSTACK_API_KEY) {
+      timetable ||= new AviationstackTimetable(history, process.env.AVIATIONSTACK_API_KEY)
+      try { timetableStatus = { ...await timetable.sync(airport), error: undefined } }
+      catch { timetableStatus = { configured: true, complete: false, total: null, error: 'Timetable source unavailable' } }
+    }
+  } catch { historyAvailable = false }
+  // The global provider feed extends discovery beyond fixed satellites. Its route enrichment is
+  // bounded and cursor-based; lack of coverage or a partially processed feed is never called complete.
+  const outcomes = await Promise.allSettled([...codes.map(discover), discoverGlobal(options.background ? 100 : 20)])
+  try { stored = await getLiveHistory().read() } catch { historyAvailable = false }
+  const flights = currentFlights([...stored, ...observations.list()])
+  const db = await getDb()
+  const data = (airport ? flights.filter(f => airportDirection(f, airport)) : flights).map(f => ({
+    ...f, fromCity: f.fromCity || db.airports.get(f.from || '')?.city || '', toCity: f.toCity || db.airports.get(f.to || '')?.city || '',
+    ...(airport ? { kind: airportDirection(f, airport) } : {}),
+  }))
+  const global = outcomes[outcomes.length - 1]
   return {
-    data: airport ? flights.filter(f => airportDirection(f, airport)).map(f => ({ ...f, kind: airportDirection(f, airport) })) : flights,
-    coverage: 'Detected routes only; coverage is partial, not an airport timetable or a global flight census.',
+    data,
+    coverage: 'Provider coverage is partial. A timetable source is optional; estimates are not confirmed airborne positions.',
     scannedAirports: codes,
-    degraded: outcomes.some(r => r.status === 'rejected'),
+    history: { persistent: historyAvailable }, timetable: timetableStatus,
+    globalFeed: global.status === 'fulfilled' ? global.value : { complete: false, unavailable: true },
+    degraded: !historyAvailable || !!timetableStatus.error || outcomes.some(r => r.status === 'rejected'),
     checkedAt: new Date().toISOString(),
   }
 }

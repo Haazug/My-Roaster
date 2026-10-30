@@ -3,6 +3,7 @@ export type ResolvedFlight = {
   hex: string; callsign: string; flightNumber: string; airlineIata: string; airlineIcao: string; airlineName: string
   from: string | null; to: string | null; fromCity: string; toCity: string
   type?: string; altFt: number | null; onGround: boolean; gs?: number; lat: number; lon: number
+  id?: string; routeCheckedAt?: number; source?: 'radar' | 'timetable'; updatedAt?: number; expiresAt?: number; departedAt?: number; arrivesAt?: number; serviceDate?: string; terminal?: boolean
   observedAt: number; status: 'observed' | 'estimated'; remainingMinutes: null
 }
 
@@ -53,4 +54,28 @@ export function flightNumberPart(code: string, iata: string, icao: string) {
   const prefix = [iata, icao].filter(Boolean).sort((a, b) => b.length - a.length).find(p => code.startsWith(p))
   const number = prefix ? code.slice(prefix.length) : !iata && !icao ? (code.match(/^(?:[A-Z]{3}|[A-Z0-9]{2})(\d{1,4}[A-Z]?)$/)?.[1] || '') : ''
   return /^\d{1,4}[A-Z]?$/.test(number) ? number : ''
+}
+
+export function currentFlights(flights: ResolvedFlight[], now = Date.now()) {
+  const terminal = flights.filter(f => f.terminal || f.onGround)
+  const visible = flights.filter(f => !f.onGround && !f.terminal && f.from && f.to &&
+    now < (f.expiresAt ?? f.observedAt + 20 * 60_000) && !terminal.some(t =>
+      (t.updatedAt ?? t.observedAt) >= (f.updatedAt ?? f.observedAt) &&
+      ((t.source !== 'timetable' && t.hex && t.hex === f.hex) || (t.flightNumber === f.flightNumber && t.from === f.from && t.to === f.to && t.serviceDate === f.serviceDate))))
+  const out = new Map<string, ResolvedFlight>()
+  for (const f of visible.sort((a, b) => (a.updatedAt ?? a.observedAt) - (b.updatedAt ?? b.observedAt))) {
+    // The same route can have multiple daily services. Keep their departure dates separate.
+    const key = `${f.flightNumber}|${f.from}|${f.to}|${f.serviceDate || new Date(f.observedAt).toISOString().slice(0, 10)}`
+    const existing = out.get(key)
+    const radarFresh = f.source !== 'timetable' && now - f.observedAt <= 90_000
+    if (existing && existing.source !== 'timetable' && now - existing.observedAt <= 90_000 && !radarFresh) continue
+    out.set(key, { ...f, status: radarFresh ? 'observed' : 'estimated', remainingMinutes: null })
+  }
+  return [...out.values()]
+}
+
+// This bounds how long a lost position may remain an estimate; it is not a displayed ETA.
+export function radarExpiry(at: number, distanceNm?: number, speedKt?: number) {
+  if (distanceNm == null || !Number.isFinite(distanceNm) || distanceNm < 0 || !speedKt || speedKt < 100 || speedKt > 800) return at + 20 * 60_000
+  return Math.round(at + Math.min(18 * 3600_000, Math.max(20 * 60_000, distanceNm / speedKt * 3600_000 + 3600_000)))
 }

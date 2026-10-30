@@ -50,3 +50,9 @@ export async function liveRoute(points: { lat: number; lon: number }[]) {
   for (const p of points) for (const ac of await live(`/point/${p.lat}/${p.lon}/200`)) merged.set(ac.hex, ac)
   return [...merged.values()]
 }
+
+// Public ReAPI example in adsblol/api src/adsb_api/utils/reapi.py.
+// The v2 API does not expose /all. Keep this feed separate from its fallback endpoints.
+export async function liveGlobal() {
+  return upstream('?all&jv2', 'https://re-api.adsb.lol/re-api/')
+}

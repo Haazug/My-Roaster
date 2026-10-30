@@ -7,7 +7,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node --experimental-transform-types tests/live-model.test.mjs && node tests/live-discovery.test.cjs"
+    "live:worker": "node --env-file-if-exists=.env.local tools/sync-live.mjs",
+    "test": "node --experimental-transform-types tests/live-model.test.mjs && node tests/live-discovery.test.cjs && node tests/live-history.test.cjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
