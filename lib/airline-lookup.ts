@@ -11,6 +11,7 @@ async function build() {
   const byIata = new Map<string, A>()
   const score = (a: A) => (a.active ? 1e6 : 0) + (db.routesByAirline.get(a.id)?.length || 0)
   for (const a of db.airlines.values()) {
+    if(!a.active)continue
     for (const [m, k] of [[byIcao, a.icao], [byIata, a.iata]] as const) {
       if (!k) continue
       const cur = m.get(k)

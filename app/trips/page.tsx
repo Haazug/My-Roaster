@@ -1,4 +1,5 @@
 'use client'
+import FlightHistory from '@/components/FlightHistory'
 import Link from 'next/link'
 import {useEffect,useState} from 'react'
 import {Trash2,CalendarPlus,Play} from 'lucide-react'
@@ -19,5 +20,5 @@ export default function TripsPage(){
    {f.scheduledAt&&<p className="mt-3 text-xs text-white/45">{new Date(f.scheduledAt).toLocaleString(lang,{dateStyle:'medium',timeStyle:'short'})}</p>}
    <div className="mt-3 flex flex-wrap items-center gap-4"><Link onClick={()=>open(f)} href={href(f)} className="flex min-h-11 items-center gap-2 text-sm"><Play className="size-3.5"/>{t(status==='scheduled'||status==='delayed'?'trip.start':'trip.open')}</Link>{f.scheduledAt&&<button onClick={()=>calendar(f)} className="flex min-h-11 items-center gap-2 text-xs text-white/45"><CalendarPlus className="size-4"/>{t('schedule.calendar')}</button>}<button aria-label={t('trip.remove')} onClick={()=>setBookings(bookings.filter(b=>b.id!==f.id))} className="ml-auto flex size-11 items-center justify-center text-white/30 hover:text-white"><Trash2 className="size-4"/></button></div>
   </article>})}</div>{!bookings.length&&<p className="py-8 text-sm text-white/40">{t('trip.empty')}</p>}
- </section>
+ <div id="history" className="scroll-mt-16"><FlightHistory/></div></section>
 }

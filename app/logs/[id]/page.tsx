@@ -1,5 +1,6 @@
 'use client'
 
+import {displayFlightNumber} from '@/lib/live-model'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { ArrowLeft, Check, SkipForward, Star } from 'lucide-react'
@@ -26,7 +27,7 @@ export default function LogSummaryPage() {
   const f = logs.find((l) => l.id === key)
 
   const back = (
-    <Link href="/logs" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
+    <Link href="/trips#history" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
       <ArrowLeft className="size-4" /> {t.back}
     </Link>
   )
@@ -52,7 +53,7 @@ export default function LogSummaryPage() {
       <p className="mt-6 text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">{t.title}</p>
       <div className="mt-3"><AirlineLogo iata={f.airlineIata} name={f.airlineName} size="md" /></div>
       <h1 className="mt-4 text-3xl font-semibold">
-        {f.flightNumber} · {f.orig} → {f.dest}
+        {displayFlightNumber(f.flightNumber,f.airlineIata)||f.callsign||tr('route.numberUnknown')} · {f.orig} → {f.dest}
         {f.free && <span className="ml-3 rounded bg-[#1f88ff]/20 px-2 py-0.5 align-middle text-xs font-normal text-[#55a7ff]">{t.free}</span>}
       </h1>
       <p className="mt-1 text-sm text-white/50">{f.fromCity} → {f.toCity} · {new Date(f.departure).toLocaleDateString()}</p>
@@ -68,6 +69,11 @@ export default function LogSummaryPage() {
         {s && row(t.airborne, `${dur(airborne)}${diffMin != null ? ` (${diffMin >= 0 ? '+' : ''}${diffMin} min ${t.diff})` : ''}`)}
         {s && row(t.total, dur(s.endedAt - s.startedAt))}
         {s?.altitude ? row(t.level, `FL${Math.round(s.altitude / 100)}`) : null}
+        {s && row(tr('summary.taxiOut'),dur((s.takeoffAt||0)-(s.steps?.['Taxi out']?.at||s.takeoffAt||0)))}
+        {s && row(tr('summary.taxiIn'),dur((s.steps?.['At gate']?.at||0)-(s.steps?.['Taxi in']?.at||s.steps?.['At gate']?.at||0)))}
+        {s && row(tr('summary.holdings'),`${s.holdings||0} · ${s.holdingMin||0} min`)}
+        {s && row(tr('summary.goArounds'),s.goArounds||0)}
+        {airborne && airborne>60000 ? row(tr('summary.average'),`${Math.round(f.distanceNm/(airborne/3600000))} kt`) : null}
       </div>
 
       {!s && <p className="mt-4 text-sm text-white/40">{t.noDetails}</p>}

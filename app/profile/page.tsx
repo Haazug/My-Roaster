@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Camera, Copy, Users, LogOut, LogIn, Lock } from 'lucide-react'
+import { CookieSettingsButton } from '@/components/CookieBanner'
 import { LanguageSelect } from '@/components/LanguageGate'
 import { useT, useLang } from '@/lib/i18n'
 import { supabase } from '@/lib/supabase'
@@ -242,8 +243,7 @@ export default function ProfilePage() {
         ) : null}
       </div>
 
-      <Link href="/settings" className="mt-5 inline-flex min-h-11 items-center text-sm text-white/60">{t('settings.title')}</Link>
-      <LanguageSelect className="mt-4 border-b border-white/10 pb-6" />
+      <Link href="#settings" className="mt-5 inline-flex min-h-11 items-center text-sm text-white/60">{t('settings.title')}</Link>
       <div className="mt-6 rounded-2xl border border-white/10 bg-[#0a0a0acc] p-6">
         {/* Avatar */}
         <label className="flex flex-col items-center gap-3 cursor-pointer group">
@@ -427,6 +427,7 @@ export default function ProfilePage() {
           </div>
         )}
       </div>
+      <div id="settings" className="mt-8 scroll-mt-16 border-t border-white/10 py-6"><h2 className="text-xl font-semibold">{t('settings.title')}</h2><p className="mt-2 text-sm text-white/45">{t('settings.languageHint')}</p><LanguageSelect className="mt-5"/><CookieSettingsButton className="mt-5 min-h-11 text-sm text-white/50"/></div>
     </section>
   )
 }

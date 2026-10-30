@@ -1,4 +1,5 @@
 import type { Db } from '@/lib/openflights-parse'
+import { PRIMARY_HUBS, plausibleOperatingRoute, RETIRED_OPERATORS, CLOSED_AIRPORTS } from '@/lib/airline-metadata'
 import { EXTRA_AIRLINES } from '@/lib/extra-airlines'
 
 function addExtras(db: Db) {
@@ -36,47 +37,33 @@ function addExtras(db: Db) {
 }
 
 export function finalizeDb(db: Db): Db {
-  try {
-    addExtras(db)
-    const hubs = new Map<string, string[]>()
-    let removed = 0
-    for (const [id, list] of db.routesByAirline) {
-      const country = db.airlines.get(id)?.country || ''
-      const home = (c: string) => !!country && db.airports.get(c)?.country === country
-      let routes = list
-      if (list.some((r) => home(r.from) || home(r.to))) {
-        const deg = new Map<string, number>()
-        for (const r of list) if (!r.codeshare) for (const c of [r.from, r.to]) deg.set(c, (deg.get(c) || 0) + 1)
-        const kept = list.filter((r) => {
-          if (home(r.from) || home(r.to)) return true
-          if (r.codeshare) return false
-          return (deg.get(r.from) || 0) >= 3 || (deg.get(r.to) || 0) >= 3
-        })
-        if (kept.length >= list.length * 0.4) {
-          removed += list.length - kept.length
-          routes = kept
-          db.routesByAirline.set(id, kept)
-        }
-      }
-      const d = new Map<string, number>()
-      for (const r of routes) for (const c of [r.from, r.to]) d.set(c, (d.get(c) || 0) + 1)
-      const top = Array.from(d.entries()).sort((a, b) => b[1] - a[1])
-      hubs.set(id, top.filter((e, i) => i === 0 || e[1] >= Math.max(5, top[0][1] * 0.5)).slice(0, 3).map((e) => e[0]))
-    }
-    db.routesByAirport.clear()
-    for (const list of db.routesByAirline.values()) {
-      for (const rt of list) {
-        for (const a of [rt.from, rt.to]) {
-          const l = db.routesByAirport.get(a) ?? []
-          l.push(rt)
-          db.routesByAirport.set(a, l)
-        }
-      }
-    }
-    ;(db as any).hubs = hubs
-    console.log('[db] rotas sem sentido removidas:', removed)
-  } catch (e) {
-    console.error('[db] limpeza falhou', e)
+  addExtras(db)
+  for(const airline of db.airlines.values())if(RETIRED_OPERATORS.has(airline.icao))airline.active=false
+  const hubs = new Map<string, string[]>()
+  let removed = 0
+  for (const [id, list] of db.routesByAirline) {
+    const al = db.airlines.get(id)
+    const routes = list.filter(r => !r.codeshare && al?.active && !CLOSED_AIRPORTS.has(r.from) && !CLOSED_AIRPORTS.has(r.to) && plausibleOperatingRoute(al.icao, al.country, db.airports.get(r.from)?.country || '', db.airports.get(r.to)?.country || ''))
+    removed += list.length-routes.length
+    db.routesByAirline.set(id, routes)
+    const d = new Map<string, number>()
+    for (const r of routes) for (const c of [r.from, r.to]) d.set(c, (d.get(c) || 0) + 1)
+    const top = Array.from(d.entries()).sort((a, b) => b[1] - a[1])
+    const known = PRIMARY_HUBS[al?.icao || '']
+    const home = top.filter(([code]) => db.airports.get(code)?.country === al?.country)
+    hubs.set(id, known ? known.filter(code=>db.airports.has(code)) : home.slice(0, 3).map(([code])=>code))
   }
+  db.routesByAirport.clear()
+  for (const list of db.routesByAirline.values()) {
+    for (const rt of list) {
+      for (const a of [rt.from, rt.to]) {
+        const l = db.routesByAirport.get(a) ?? []
+        l.push(rt)
+        db.routesByAirport.set(a, l)
+      }
+    }
+  }
+  ;(db as any).hubs = hubs
+  console.log('[db] rotas sem sentido removidas:', removed)
   return db
 }

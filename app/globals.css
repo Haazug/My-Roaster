@@ -191,3 +191,13 @@ main h1 { font-size: clamp(2rem, 7vw, 2.9rem); line-height: 1.04; letter-spacing
 main a[class*="bg-[#1f88ff]"], main button[class*="bg-[#1f88ff]"] { border-radius: 9999px; box-shadow: none; }
 nav[class*="fixed"] { background: rgba(10,10,10,.8) !important; border-color: rgba(255,255,255,.06) !important; backdrop-filter: blur(20px); }
 /* minimal-ui-3:end */
+
+/* Airport information boards: scoped to directory and route lists. */
+.departure-board { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; border-top: 2px solid #facc15; }
+.departure-board > a, .departure-board > article { border-bottom: 1px solid rgba(250,204,21,.14); padding-left: .6rem; padding-right: .6rem; }
+.departure-board > a:nth-child(even), .departure-board > article:nth-child(even) { background: rgba(250,204,21,.025); }
+.departure-board > a:hover { background: rgba(250,204,21,.075); }
+.departure-board > a > span:first-child, .departure-board .board-code { color:#facc15; letter-spacing:.08em; }
+.board-heading { color:#facc15; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; text-transform:uppercase; letter-spacing:.12em; }
+.departure-board { background-image:radial-gradient(rgba(250,204,21,.055) .65px,transparent 1px); background-size:5px 5px; }
+.departure-board .board-code { text-transform:uppercase; }

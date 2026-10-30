@@ -14,8 +14,9 @@ export async function GET(_: Request, { params }: { params: Promise<{ code: stri
       if (!al) continue
       const icaoCs = al.icao ? `${al.icao}${num}` : ''
       const iataCs = al.iata ? `${al.iata}${num}` : ''
-      let route = icaoCs ? await lookupCallsign(icaoCs) : null
-      if (!route && iataCs) route = await lookupCallsign(iataCs)
+      let route = icaoCs ? await lookupCallsign(icaoCs).catch(()=>null) : null
+      if (!route && iataCs) route = await lookupCallsign(iataCs).catch(()=>null)
+      if(route && ((route.airlineIcao && route.airlineIcao!==al.icao) || (route.airlineIata && route.airlineIata!==al.iata))) route=null
       let ac: any = null
       try { ac = (await live(`/callsign/${icaoCs || iataCs}`))[0] || null } catch {}
       if (!route && !ac) return NextResponse.json({ ok: false, airline: { id: al.id, iata: al.iata, icao: al.icao, name: al.name } })

@@ -57,7 +57,7 @@ export default function GlobeInner() {
     const apply = () => {
       const c = ref.current?.controls() as any
       if (!c) return false
-      c.autoRotate = view.mode !== 'airline' && view.mode !== 'route'
+      c.autoRotate = view.mode === 'idle'
       c.autoRotateSpeed = view.mode === 'idle' ? 0.5 : 0.2
       c.enableRotate = !lock
       c.enableZoom = !lock
@@ -70,7 +70,7 @@ export default function GlobeInner() {
     return () => clearInterval(t)
   }, [view.mode, lock])
 
-  const hubs = useMemo(() => (view.mode === 'airline' ? topAirports(view.routes) : []), [view])
+  const hubs = useMemo(() => (view.mode === 'airline' ? (view.hubs?.length ? view.hubs.map(p=>({p,c:1})) : topAirports(view.routes)) : []), [view])
 
   // where the camera should be for the current view (null = leave it alone)
   const cam: Cam | null = useMemo(() => {
@@ -78,6 +78,8 @@ export default function GlobeInner() {
       const h = hubs[0].p
       return { key: 'a:' + h.lat.toFixed(2) + ',' + h.lon.toFixed(2), lat: h.lat, lng: h.lon, alt: 0.9 }
     }
+    const selected = view.mode==='point' ? view.point : view.mode==='airports' ? view.airports.find(p=>p.iata===view.selected) : undefined
+    if(selected) return {key:'p:'+selected.iata,lat:selected.lat,lng:selected.lon,alt:0.55}
     if (view.mode === 'route') {
       const k1 = `${view.from.lat.toFixed(3)},${view.from.lon.toFixed(3)}`
       const k2 = `${view.to.lat.toFixed(3)},${view.to.lon.toFixed(3)}`
@@ -141,16 +143,18 @@ export default function GlobeInner() {
 
   const points: any[] =
     view.mode === 'airports'
-      ? view.airports.map((p) => ({ ...p, r: 0.22 }))
+      ? view.airports.map((p) => ({ ...p, r: 0.09 }))
       : view.mode === 'point'
-        ? [{ ...view.point, r: 0.3 }, ...view.nearby.map((p) => ({ ...p, r: 0.18 }))]
+        ? [{ ...view.point, r: 0.12 }, ...view.nearby.map((p) => ({ ...p, r: 0.08 }))]
         : view.mode === 'route'
           ? wps
             ? wps.map((w) => ({ ...w, r: 0.1 }))
             : [{ ...view.from, r: 0.25 }, { ...view.to, r: 0.25 }]
           : view.mode === 'airline'
-            ? hubs.slice(0, 3).map((h, i) => ({ ...h.p, r: i === 0 ? 0.3 : 0.16, color: i === 0 ? '#ffffff' : '#55a7ff' }))
+            ? hubs.slice(0, 3).map((h, i) => ({ ...h.p, r: i === 0 ? 0.3 : 0.16, color: '#ffffff' }))
             : []
+
+  const selectedPoints = view.mode==='point' ? [view.point] : view.mode==='route' ? [view.from,view.to] : view.mode==='airports' ? view.airports.filter(p=>p.iata===view.selected) : hubs.slice(0,3).map(h=>h.p)
 
   return (
     <div className="relative size-full">
@@ -165,32 +169,32 @@ export default function GlobeInner() {
         atmosphereAltitude={0.16}
         arcsData={arcs}
         arcColor={() => (view.mode === 'route' ? ['rgba(255,255,255,0.9)', 'rgba(31,136,255,1)'] : ['rgba(85,167,255,0.18)', 'rgba(130,195,255,0.9)'])}
-        arcStroke={view.mode === 'route' ? 0.32 : 0.12}
+        arcStroke={view.mode === 'route' ? 0.85 : 0.22}
         arcAltitudeAutoScale={view.mode === 'route' ? 0.25 : 0.2}
         pathsData={paths}
         pathPoints="pts"
         pathPointLat={(p: any) => p[0]}
         pathPointLng={(p: any) => p[1]}
         pathColor={(p:any)=>p.color}
-        pathStroke={0.45}
+        pathStroke={1.1}
         pathPointAlt={0.012}
         pointsData={points}
         pointLat="lat"
         pointLng="lon"
-        pointColor={(p: any) => p.color || '#facc15'}
-        pointAltitude={0.02}
+        pointColor={(p: any) => p.color || '#ffffff'}
+        pointAltitude={0.002}
         pointRadius={(p: any) => p.r ?? 0.25}
-        ringsData={hubs.slice(0, 1).map((h) => h.p)}
+        ringsData={selectedPoints}
         ringLat="lat"
         ringLng="lon"
         ringColor={() => (t: number) => `rgba(255,255,255,${1 - t})`}
         ringMaxRadius={4}
         ringPropagationSpeed={1.6}
         ringRepeatPeriod={1800}
-        labelsData={hubs.slice(0, 3).map((h) => h.p)}
+        labelsData={selectedPoints}
         labelLat="lat"
         labelLng="lon"
-        labelText="iata"
+        labelText={(p:any)=>`${p.iata} · ${p.city || p.name || ''}`}
         labelSize={0.9}
         labelDotRadius={0}
         labelColor={() => 'rgba(255,255,255,0.9)'}

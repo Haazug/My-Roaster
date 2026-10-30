@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { findAirline } from '@/lib/openflights-parse'
 import { getDb } from '@/lib/db'
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -12,7 +13,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const [airline, from, to] = parts.length === 3 ? parts : [parts[0], parts[1], parts[2]]
 
     const db = await getDb()
-    const airlineData = db.airlines.get(airline)
+    const airlineData = findAirline(db,airline)
     const fromAirport = db.airports.get(from)
     const toAirport = db.airports.get(to)
 
@@ -21,7 +22,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     // Find the route
-    const routes = db.routesByAirline.get(airline) || []
+    const routes = db.routesByAirline.get(airlineData.id) || []
     const route = routes.find((r) => r.from === from && r.to === to)
 
     if (!route) {
@@ -36,16 +37,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const km = 2 * 6371.0088 * Math.asin(Math.min(1, Math.sqrt(h)))
     const distanceNm = Math.round(km / 1.852)
 
-    // Generate flight number deterministically
-    const seed = airline.charCodeAt(0) + from.charCodeAt(0) + to.charCodeAt(0)
-    const flightNum = String(650 + (seed % 350)).padStart(3, '0')
-
     // Estimate times
     const durationMin = Math.round((distanceNm / 440 + 0.33) * 60)
-    const depHour = 22
-    const depMin = 45
 
-    const aircraft = route.equip[0] || 'A320'
+    const aircraft = route.equip[0] || ''
     const aircraftNames: Record<string, string> = {
       '320': 'Airbus A320',
       '321': 'Airbus A321',
@@ -64,7 +59,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         icao: airlineData.icao,
       },
       flight: {
-        number: flightNum,
+        number: null,
         aircraft: aircraftNames[aircraft] || aircraft,
         aircraftCode: aircraft,
       },
@@ -75,12 +70,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         distanceKm: Math.round(km),
       },
       schedule: {
-        departure: { hour: depHour, minute: depMin, time: `${String(depHour).padStart(2, '0')}:${String(depMin).padStart(2, '0')}` },
+        departure: null,
         duration: durationMin,
-        estimatedArrival: {
-          hour: (depHour + Math.floor(durationMin / 60)) % 24,
-          minute: (depMin + durationMin) % 60,
-        },
+        estimatedArrival: null,
       },
       estimated: true,
     })

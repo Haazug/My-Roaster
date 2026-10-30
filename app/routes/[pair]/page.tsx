@@ -1,5 +1,6 @@
 'use client'
 
+import {useT} from '@/lib/i18n'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import useSWR from 'swr'
@@ -25,6 +26,7 @@ type Flight = {
 type RouteDetail = { fromAirport: Airport; toAirport: Airport; flights: Flight[]; distance?: number }
 
 export default function RouteDetailPage() {
+ const t=useT()
   const { pair } = useParams<{ pair: string }>()
   const [from, to] = pair ? pair.toUpperCase().split('-') : ['', '']
   const { data, error } = useSWR(from && to ? `/api/routes/${from}-${to}` : null, fetcher)
@@ -78,19 +80,20 @@ export default function RouteDetailPage() {
         </div>
       </header>
 
+      <p className="mt-5 text-xs text-amber-200/60">{t('catalog.reference')}</p>
       {flights.length > 0 ? (
         <div className="mt-8">
-          <h2 className="text-xl font-semibold mb-4">Airlines Operating This Route</h2>
-          <div className="flex flex-col gap-2">
+          <h2 className="text-xl font-semibold mb-4">{t('route.airlines')}</h2>
+          <div className="departure-board flex flex-col">
             {flights.map((flight, idx) => (
               <Link 
                 key={idx} 
                 href={`/route/${flight.airlineId || flight.airlineIata}/${flight.from}-${flight.to}`}
-                className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#0a0a0acc] p-4 transition hover:border-[#1f88ff]/60"
+                className="flex items-center gap-3 p-4 transition"
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 font-semibold">
-                    <span>{flight.airlineIata}</span><span className="text-[#1f88ff]">{flight.flightNumber}</span>
+                    <span className="board-code">{flight.airlineIata}</span><span className="text-xs text-white/40">{flight.flightNumber || t('route.numberUnknown')}</span>
                   </div>
                   <p className="mt-1 text-sm text-white/45">{flight.airlineName}</p>
                   {flight.aircraftName && <p className="mt-1 text-xs text-white/40">{flight.aircraftName}</p>}

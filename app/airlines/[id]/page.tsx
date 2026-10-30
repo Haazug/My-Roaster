@@ -21,7 +21,7 @@ const fetcher = (url: string) => fetch(url).then((response) => response.json())
 
 type Airport = { iata?: string; name?: string; city?: string; country?: string; lat?: number; lon?: number }
 type Route = { from: string; to: string; fromAirport?: Airport; toAirport?: Airport; aircraft?: string[]; roundTrip?: boolean }
-type Airline = { name: string; iata?: string; icao?: string; country?: string; active?: boolean }
+type Airline = { name: string; iata?: string; icao?: string; country?: string; active?: boolean; alliance?:string }
 type Tab = 'all' | 'domestic' | 'international'
 
 const isDomestic = (r: Route) => !!r.fromAirport?.country && r.fromAirport.country === r.toAirport?.country
@@ -41,7 +41,7 @@ export default function AirlineDetailPage() {
     const routes = (data.routes as Route[])
       .filter((r) => r.fromAirport?.lat != null && r.toAirport?.lat != null)
       .map((r) => ({ from: r.fromAirport as Point, to: r.toAirport as Point }))
-    setView({ mode: 'airline', routes })
+    setView({ mode: 'airline', routes, hubs:data.hubs })
     return () => setView({ mode: 'idle' })
   }, [data, setView])
 
@@ -112,12 +112,12 @@ export default function AirlineDetailPage() {
             <h1 className="mt-2 text-3xl font-semibold tracking-tight">{fixName(airline.name)}</h1>
             <p className="mt-2 flex items-center gap-2 text-sm text-white/45">
               <Flag country={airline.country} size={24} />
-              {airline.country || 'International'} · {counts.all} routes · {airline.icao || 'ICAO unavailable'}
+              {airline.country} · {tr('airlines.routes',{n:counts.all})} · {airline.icao}
             </p>
           </div>
         </div>
       </header>
-      <LiveFlights airline={airline.icao || airline.iata} />
+      <p className="mt-4 text-xs text-white/45">{airline.alliance}</p><p className="mt-3 text-xs text-amber-200/60">{tr('catalog.reference')}</p><LiveFlights airline={airline.icao || airline.iata} />
       <AirlineAbout id={String(id)} />
       <AirlineFav />
       <CustomRoutes airlineKey={airline.iata || id} />
@@ -139,7 +139,7 @@ export default function AirlineDetailPage() {
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr('airlines.routeSearch')} className="mt-4 min-h-12 w-full rounded-2xl border border-white/10 bg-white/[.06] px-4 outline-none placeholder:text-white/35 focus:border-[#1f88ff]" />
       {(nq || tab !== 'all') && <p className="mt-3 text-xs text-white/40">{routes.length} of {counts.all} routes</p>}
 
-      <div className="mt-4 flex flex-col divide-y divide-white/[.06]">
+      <div className="mt-4 flex flex-col divide-y divide-white/[.06] departure-board">
         {routes.map((route) => {
           const from = route.fromAirport
           const to = route.toAirport
@@ -147,7 +147,7 @@ export default function AirlineDetailPage() {
           return (
             <Link key={`${route.from}-${route.to}`} href={`/route/${airline.iata || id}/${route.from}-${route.to}`} className="flex items-center gap-3 py-4 transition hover:bg-white/[.02]">
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-3 font-mono font-medium tracking-wide">
+                <div className="flex items-center gap-3 font-mono font-medium tracking-wide board-code">
                   <span>{route.from}</span><span className="text-white/30">⇄</span><span>{route.to}</span>
                   {tab === 'all' && <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${dom ? 'border-white/20 text-white/50' : 'border-[#1f88ff]/40 text-[#55a7ff]'}`}>{tr(dom?'airlines.domestic':'airlines.international')}</span>}
                 </div>

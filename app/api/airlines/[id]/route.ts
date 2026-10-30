@@ -1,3 +1,4 @@
+import { allianceFor } from '@/lib/airline-metadata'
 import { NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
 import { aircraftName } from '@/lib/aircraft'
@@ -18,7 +19,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
       codeshare: r.codeshare,
       roundTrip: r.roundTrip,
     }))
-    return NextResponse.json({ airline: a, numRoutes: routes.length, routes })
+    return NextResponse.json({ airline: {...a, alliance:allianceFor(a.icao)}, hubs: ((db as any).hubs?.get(id) || []).map((c:string)=>db.airports.get(c)).filter(Boolean), catalog: 'historical-reference', numRoutes: routes.length, routes })
   } catch {
     return NextResponse.json({ error: 'Data unavailable' }, { status: 503 })
   }

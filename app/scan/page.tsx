@@ -1,4 +1,5 @@
 'use client'
+import { useT } from '@/lib/i18n'
 
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
@@ -37,6 +38,7 @@ function decodeQR(jsQR: any, src: CanvasImageSource, w: number, h: number): stri
 }
 
 export default function ScanPage() {
+  const t=useT()
   const router = useRouter()
   const video = useRef<HTMLVideoElement>(null)
   const [cam, setCam] = useState(false)
@@ -75,7 +77,7 @@ export default function ScanPage() {
         }
         tick()
       } catch {
-        setMsg('Camera not available. Paste the code or upload a photo of the QR code instead.')
+        setMsg(t('scan.cameraError'))
         setCam(false)
       }
     })()
@@ -93,34 +95,34 @@ export default function ScanPage() {
     await img.decode().catch(() => {})
     const jsQR = (await import('jsqr')).default
     const raw = (await nativeDecode(img)) || decodeQR(jsQR, img, img.naturalWidth, img.naturalHeight)
-    if (!raw) return setMsg('No QR code found in that image. Crop it closer to the QR and try again.')
-    if (!open(raw)) setMsg('QR read, but it is not a MyRoster code.')
+    if (!raw) return setMsg(t('scan.noQr'))
+    if (!open(raw)) setMsg(t('scan.wrong'))
   }
 
   const input = 'w-full rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-sm outline-none focus:border-[#1f88ff]'
 
   return (
     <section className="min-h-screen p-5 pb-32 sm:p-8">
-      <p className="text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">Scan</p>
-      <h1 className="mt-2 text-4xl font-semibold">Open a shared route</h1>
-      <p className="mt-2 text-sm text-white/45">Scan the code on a friend&apos;s boarding pass to fly the same route, solo or duo.</p>
+      <p className="text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">{t('nav.scan')}</p>
+      <h1 className="mt-2 text-4xl font-semibold">{t('scan.title')}</h1>
+      <p className="mt-2 text-sm text-white/45">{t('scan.description')}</p>
 
       {cam ? (
         <video ref={video} muted playsInline className="mt-6 aspect-square w-full max-w-sm rounded-2xl bg-black object-cover" />
       ) : (
         <button onClick={() => { setMsg(''); setCam(true) }} className="mt-6 flex min-h-12 w-full max-w-sm items-center justify-center gap-2 rounded-xl bg-[#1f88ff] font-semibold">
-          <QrCode className="size-5" /> Open camera
+          <QrCode className="size-5" /> {t('scan.camera')}
         </button>
       )}
 
       <label className="mt-3 flex min-h-12 w-full max-w-sm cursor-pointer items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 text-sm font-medium">
-        <Upload className="size-4" /> Upload a photo of the code
+        <Upload className="size-4" /> {t('scan.upload')}
         <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && fromImage(e.target.files[0])} />
       </label>
 
       <div className="mt-6 flex max-w-sm gap-2">
-        <input className={input} placeholder="Or paste a link or code" value={text} onChange={(e) => setText(e.target.value)} />
-        <button onClick={() => !open(text) && setMsg('That is not a valid MyRoster code.')} className="rounded-xl bg-white px-4 text-sm font-semibold text-black">Open</button>
+        <input className={input} placeholder={t('scan.paste')} value={text} onChange={(e) => setText(e.target.value)} />
+        <button onClick={() => !open(text) && setMsg(t('scan.invalid'))} className="rounded-xl bg-white px-4 text-sm font-semibold text-black">{t('scan.open')}</button>
       </div>
       {msg && <p className="mt-4 text-sm text-red-300">{msg}</p>}
     </section>

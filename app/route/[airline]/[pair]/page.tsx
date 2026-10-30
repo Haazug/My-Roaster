@@ -17,7 +17,8 @@ import { fixName } from '@/lib/airline-names'
 import { estimateBlockMinutes } from '@/lib/flight-time'
 import { useNow } from '@/lib/use-now'
 import { useT } from '@/lib/i18n'
-import { flightNumberPart } from '@/lib/live-model'
+import { bearingDeg, fr24Url } from '@/lib/live-view'
+import { flightNumberPart, operationalCallsign } from '@/lib/live-model'
 import LiveFlights from '@/components/LiveFlights'
 import BookDialog from '@/components/BookDialog'
 import FlyChoiceDialog, { openExternal, type FlyKind } from '@/components/FlyChoiceDialog'
@@ -52,8 +53,10 @@ function RouteContent() {
   const [bookOpen, setBookOpen] = useState(false)
   const [flyOpen, setFlyOpen] = useState(false)
   const search = useSearchParams()
-  const candidate = search.get('flight') || ''
-  const flightCode = /^[A-Z0-9]{2,3}\d[A-Z0-9]{0,5}$/.test(candidate) ? candidate : ''
+  const candidate = (search.get('flight') || '').toUpperCase().replace(/[\s-]/g,'')
+  const numberPart = data?.airline ? flightNumberPart(candidate,data.airline.iata,data.airline.icao) : ''
+  const flightCode = numberPart && data?.airline ? `${data.airline.iata||data.airline.icao}${numberPart}` : ''
+  const callsign=data?.airline ? operationalCallsign(search.get('callsign') || (!numberPart?candidate:''),data.airline.icao) : ''
   const router = useRouter()
   const now = useNow()
   const t = useT()
@@ -108,7 +111,7 @@ function RouteContent() {
       localStorage.setItem('myroster.routeSeed', JSON.stringify({
         free: new URLSearchParams(window.location.search).has('free'),
         id: `${params.airline}-${params.pair}`,
-        flightNumber: exportFlight.flightNumber,
+        flightNumber: exportFlight.flightNumber, callsign,
         airlineName: data?.airline.name, airlineIata: data?.airline.iata, airlineIcao: data?.airline.icao,
         orig: data?.from.iata, dest: data?.to.iata, fromIcao: data?.from.icao, toIcao: data?.to.icao,
         fromCity: data?.from.city, toCity: data?.to.city,
@@ -141,11 +144,11 @@ function RouteContent() {
       </Link>
       <header className="mt-6 flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">
+          <p className="text-xs font-semibold uppercase tracking-[.2em] text-yellow-300">
             {data.operated ? (data.codeshare ? t('route.codeshare') : t('route.operated')) : t('route.notListed')}
           </p>
           <h1 className="mt-2 text-balance text-3xl font-semibold sm:text-4xl">{t('route.title', { from: data.from.city, to: data.to.city })}</h1>
-          <p className="mt-2 text-sm text-white/45">{fixName(data.airline.name)} · {flightCode || t('route.numberUnknown')}</p>
+          <p className="mt-2 text-sm text-white/45">{fixName(data.airline.name)} · {flightCode || (callsign ? `${t('flight.callsign')}: ${callsign}` : t('route.numberUnknown'))}</p>
         </div>
         <button
           aria-label={has(flight.id) ? t('route.favRemove') : t('route.favAdd')}
@@ -174,22 +177,22 @@ function RouteContent() {
         </div>
       )}
 
-      <div className="mt-6 overflow-hidden rounded-3xl border border-white/10 bg-[#0d0e12f2]">
+      <div className="mt-6 overflow-hidden border-y-2 border-yellow-300/70 bg-black/30 font-mono">
         <div className="flex items-center gap-3 border-b border-white/10 p-4">
           <AirlineLogo iata={data.airline.iata} icao={data.airline.icao} name={fixName(data.airline.name)} size="md" showText={false} />
           <div className="min-w-0">
-            <p className="text-sm text-white/50">{flightCode || t('route.numberUnknown')} · {data.from.icao} → {data.to.icao}</p>
-            <p className="truncate text-xl font-semibold">{t('route.title', { from: data.from.city, to: data.to.city })}</p>
+            <p className="text-sm text-white/50">{flightCode || (callsign ? `${t('flight.callsign')}: ${callsign}` : t('route.numberUnknown'))} · {data.from.icao} → {data.to.icao}</p>
+            <p className="truncate text-xl font-semibold uppercase text-yellow-300">{t('route.title', { from: data.from.city, to: data.to.city })}</p>
           </div>
         </div>
         <div className="p-5 text-center">
           <div className="mx-auto mb-3 max-w-sm"></div>
           <p className="text-sm text-white/70">{type?.name ?? t('route.noAircraft')}</p>
-          <div className="mt-6 flex items-center justify-between text-lg font-semibold"><span>{data.from.icao}</span><span>{data.to.icao}</span></div>
-          <div className="mt-2 flex items-center gap-2"><span className="size-2 rounded-full bg-white/30" /><span className="h-px flex-1 bg-white/15" /><span className="size-2 rounded-full bg-white/30" /></div>
+          <div className="mt-6 flex items-center justify-between text-3xl font-semibold tracking-widest text-yellow-300 sm:text-4xl"><span>{data.from.icao}</span><span>{data.to.icao}</span></div>
+          <div className="mt-2 flex items-center gap-2"><span className="size-2 rounded-full bg-white/30" /><span className="h-1 flex-1 bg-yellow-300/40" /><span className="size-2 rounded-full bg-white/30" /></div>
           <p className="mt-3 text-sm text-white/60">{data.distanceNm.toLocaleString('en-US')} nm</p>
           <p className="mt-4 text-xs text-white/35">{t('route.simulation')}</p>
-          <div className="mt-2 grid grid-cols-3 rounded-2xl bg-white/[.04] p-4 text-center">
+          <div className="mt-2 grid grid-cols-3 border-y border-yellow-300/30 bg-yellow-300/[.03] p-4 text-center text-yellow-200">
             <div><p className="text-[11px] uppercase text-white/40">{t('route.dep')}</p><p className="mt-1 text-xl font-semibold">{now ? hhmm(exportFlight.depHour * 60 + exportFlight.depMin) : '--:--'}</p></div>
             <div><p className="text-[11px] uppercase text-white/40">{t('route.dur')}</p><p className="mt-1 text-xl font-semibold">{Math.floor(exportFlight.durationMin / 60)}h {String(exportFlight.durationMin % 60).padStart(2, '0')}m</p></div>
             <div><p className="text-[11px] uppercase text-white/40">{t('route.arr')}</p><p className="mt-1 text-xl font-semibold">{now ? hhmm(exportFlight.depHour * 60 + exportFlight.depMin + exportFlight.durationMin) : '--:--'}{now && exportFlight.depHour * 60 + exportFlight.depMin + exportFlight.durationMin >= 1440 && <sup className="ml-1 text-xs text-white/40">+1</sup>}</p></div>
@@ -197,6 +200,12 @@ function RouteContent() {
           <a href={`https://www.flightaware.com/live/findflight?origin=${data.from.icao}&destination=${data.to.icao}`} target="_blank" rel="noopener noreferrer" className="mt-4 inline-block text-xs text-[#55a7ff]">{t('route.verify')}</a>
         </div>
       </div>
+      <details className="mt-5 border-y border-yellow-300/25 py-4"><summary className="board-heading min-h-11 cursor-pointer">{t('route.more')}</summary><dl className="mt-3 grid grid-cols-1 divide-y divide-white/10 sm:grid-cols-2">
+        <Info label={t('route.airports')} value={`${data.from.name} (${data.from.iata}/${data.from.icao}) → ${data.to.name} (${data.to.iata}/${data.to.icao})`}/>
+        <Info label={t('route.fleet')} value={data.aircraft.map(a=>`${a.name} · ${a.icao}`).join(', ')||t('route.noAircraft')}/>
+        <Info label={t('route.bearing')} value={`${Math.round(bearingDeg(data.from,data.to))}°`}/>
+        <Info label={t('route.dur')} value={`${exportFlight.durationMin} min · ${data.distanceKm} km / ${data.distanceNm} NM`}/>
+      </dl><p className="py-3 text-xs text-white/40">{t('catalog.reference')}</p><a href={fr24Url(data.from,data.to,data.distanceNm)} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center text-sm text-yellow-200">Flightradar24 ↗</a></details>
       <LiveFlights airline={data.airline.icao || data.airline.iata} pair={[data.from.iata, data.to.iata]} />
       <p className="mt-3 text-xs text-white/35">{t('route.note')}</p>
 

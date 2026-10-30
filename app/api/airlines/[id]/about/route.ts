@@ -1,3 +1,4 @@
+import { allianceFor } from '@/lib/airline-metadata'
 import { NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
 
@@ -19,7 +20,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     const countries = new Set(Array.from(deg.keys()).map((c) => db.airports.get(c)?.country).filter(Boolean))
     const pairs = new Set(routes.map((r) => [r.from, r.to].sort().join('-')))
     return NextResponse.json({
-      airline: { id: al.id, name: al.name, iata: al.iata, icao: al.icao, country: al.country, active: al.active },
+      airline: { id: al.id, name: al.name, iata: al.iata, icao: al.icao, country: al.country, active: al.active, alliance:allianceFor(al.icao) },
       hubs: hubCodes.map(ap).filter(Boolean),
       top: sorted.slice(0, 10).map((e) => ap(e[0])).filter(Boolean),
       airports: deg.size,

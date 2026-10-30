@@ -56,3 +56,28 @@ test('history is bounded and a new observation replaces an old route for the sam
   store.record(flight({ hex: 'CDE345' }))
   assert.deepEqual(store.list(2000).map(f => f.hex), ['BCD234', 'CDE345'])
 })
+
+test('normalized numeric flight numbers survive route seeds and manual plans without dropping their digits',()=>{
+ assert.equal(flightNumberPart('653','DT','DTA'),'653')
+ assert.equal(flightNumberPart('dt 653','DT','DTA'),'653')
+ assert.equal(flightNumberPart('KL-123','KL','KLM'),'123')
+ assert.equal(flightNumberPart('AF123','KL','KLM'),'')
+ assert.equal(flightNumberPart('DTA6AB','DT','DTA'),'')
+})
+
+test('flight labels retain a normalized number and do not duplicate a prefix',async()=>{
+ const {displayFlightNumber}=await import('../lib/live-model.ts')
+ assert.equal(displayFlightNumber('653','DT',''),'DT653')
+ assert.equal(displayFlightNumber('DT653','DT','DTA'),'DT653')
+ assert.equal(displayFlightNumber('G3123','G3','GLO'),'G3123')
+ assert.equal(displayFlightNumber('DTA6AB','DT','DTA'),'DTA6AB')
+ assert.equal(displayFlightNumber('DT','DT','DTA'),'')
+})
+
+test('operational callsigns remain available without inventing passenger numbers or changing airlines',async()=>{
+ const {operationalCallsign}=await import('../lib/live-model.ts')
+ assert.equal(operationalCallsign('KLM4XY','KLM'),'KLM4XY')
+ assert.equal(operationalCallsign('DTA6AB','KLM'),'')
+ assert.equal(operationalCallsign('KL','KLM'),'')
+ assert.equal(flightNumberPart('KLM4XY','KL','KLM'),'')
+})

@@ -2,21 +2,18 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Volume2, VolumeX } from 'lucide-react'
+import {useT} from '@/lib/i18n'
 import * as sound from '@/lib/sound'
 
 export default function BackgroundMusic() {
+  const t=useT()
   const [s, setS] = useState<sound.SoundState>(sound.getState())
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => sound.subscribe(setS), [])
 
-  // browsers only allow sound after a first touch
-  useEffect(() => {
-    const first = () => sound.unlock()
-    window.addEventListener('pointerdown', first, { once: true })
-    return () => window.removeEventListener('pointerdown', first)
-  }, [])
+
 
   useEffect(() => {
     if (!open) return
@@ -36,8 +33,8 @@ export default function BackgroundMusic() {
       style={{ top: 'calc(env(safe-area-inset-top, 0px) + 13px)', right: 68 }}
     >
       {open && (
-        <div className="flex h-9 items-center gap-3 rounded-full border border-white/10 bg-black/80 pl-4 pr-1 backdrop-blur">
-          <input
+        <div className="absolute right-0 top-11 flex w-64 flex-col gap-3 rounded-xl border border-white/10 bg-black/95 p-4 backdrop-blur">
+          <p className="text-xs text-white/60">{t('audio.music')}</p><input
             type="range"
             min={0}
             max={0.4}
@@ -45,7 +42,7 @@ export default function BackgroundMusic() {
             value={s.volume}
             aria-label="Volume"
             onChange={(e) => {
-              sound.unlock()
+              sound.unlock(true)
               sound.setMuted(false)
               sound.setVolume(Number(e.target.value))
             }}
@@ -53,18 +50,19 @@ export default function BackgroundMusic() {
           />
           <button
             type="button"
-            onClick={() => { sound.unlock(); sound.setMuted(!s.muted) }}
+            onClick={() => { sound.unlock(true); sound.setMuted(!s.muted) }}
             className="flex h-8 items-center rounded-full px-3 text-[11px] font-medium text-white/60 hover:text-white"
           >
-            {s.muted ? 'On' : 'Off'}
+            {t(s.muted?'audio.enable':'audio.disable')}
           </button>
+          <button className="min-h-11 text-xs text-white/60" onClick={()=>{sound.unlock(true);sound.setEffectsMuted(!s.effectsMuted)}}>{t('audio.effects')} · {t(s.effectsMuted?'audio.enable':'audio.disable')}</button>
         </div>
       )}
       <button
         type="button"
-        aria-label="Music"
+        aria-label={t('audio.music')}
         aria-expanded={open}
-        onClick={() => { sound.unlock(); setOpen((v) => !v) }}
+        onClick={() => { setOpen((v) => !v) }}
         className="flex size-9 items-center justify-center rounded-full text-white/60 transition hover:text-white"
       >
         {off ? <VolumeX className="size-5" /> : <Volume2 className="size-5" />}

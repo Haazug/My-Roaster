@@ -198,7 +198,7 @@ export default function FlightPlanPage() {
       <button onClick={() => router.back()} className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
         <ArrowLeft className="size-4" /> {t('back')}
       </button>
-      <h1 className="mt-4 text-2xl font-semibold">{t('plan.title')}</h1>
+      <h1 className="mt-4 text-2xl font-semibold">{t('plan.title')}</h1>{seed?.callsign && <p className="mt-3 font-mono text-sm text-white/50">{t('flight.callsign')}: {seed.callsign}</p>}
       <p className="mt-1 text-sm text-white/50">{t('plan.flight', { id: String(id) })}</p>
 
       <div className="mt-6 rounded-2xl border border-white/10 bg-black/40 p-5">

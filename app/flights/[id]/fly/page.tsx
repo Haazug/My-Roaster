@@ -14,6 +14,7 @@ import * as sound from '@/lib/sound'
 import {updateTripStatus} from '@/lib/trip-client'
 import {useFlightHandoff} from '@/lib/use-flight-handoff'
 import RouteProgressBar from '@/components/RouteProgressBar'
+import {displayFlightNumber} from '@/lib/live-model'
 import {progressFraction} from '@/lib/flight-workflow'
 import { useLocalStorage } from '@/lib/use-local-storage'
 import { supabase } from '@/lib/supabase'
@@ -43,6 +44,7 @@ type FlightInfo = {
   airlineName: string
   airlineIata: string
   airlineIcao: string
+  callsign?:string
   flightNumber: string
   orig: string
   dest: string
@@ -59,10 +61,6 @@ type FlightInfo = {
   waypoints?: { id?: string; lat: number; lon: number }[]
 }
 
-const SAMPLES: Record<string, FlightInfo> = {
-  'DT-653': { airlineName: 'TAAG Angola Airlines', airlineIata: 'DT', airlineIcao: 'DTA', flightNumber: '653', orig: 'NBJ', dest: 'LIS', fromCity: 'Luanda', toCity: 'Lisbon', aircraft: 'Airbus A320', durationMin: 360, distanceNm: 2200, fromLat: -9.0507, fromLon: 13.4991, toLat: 38.7742, toLon: -9.1342 },
-  'EK-287': { airlineName: 'Emirates', airlineIata: 'EK', airlineIcao: 'UAE', flightNumber: '287', orig: 'DXB', dest: 'JFK', fromCity: 'Dubai', toCity: 'New York', aircraft: 'Boeing 777-300ER', durationMin: 765, distanceNm: 5124, fromLat: 25.2532, fromLon: 55.3657, toLat: 40.6398, toLon: -73.7787 },
-}
 
 const fmt = (ms: number) => {
   const s = Math.max(0, Math.floor(ms / 1000))
@@ -79,7 +77,7 @@ export default function FlyNowPage() {
   const tr = useT()
   const setView = useMapStore((s) => s.setView)
 
-  const [info, setInfo] = useState<FlightInfo | null>(SAMPLES[flightKey] || null)
+  const [info, setInfo] = useState<FlightInfo | null>(null)
   const [checked, setChecked] = useState(false)
   const [showChecklist,setShowChecklist] = useState(true)
   const [statuses, setStatuses] = useState<Record<string, Status>>({})
@@ -124,7 +122,7 @@ export default function FlyNowPage() {
   },[checked,handoffReady,readOnly])
 
 
-  // Load the plan saved by the Flight Plan page (for flights that are not samples)
+  // Load the actual plan saved by the Flight Plan page.
   useEffect(() => {
     {
       try {
@@ -137,7 +135,7 @@ export default function FlyNowPage() {
               airlineName: p.airlineName || p.airlineIata || 'Flight',
               airlineIata: p.airlineIata || '',
               airlineIcao: p.airlineIcao || '',
-              flightNumber: p.flightNumber || '',
+              flightNumber: p.flightNumber || '', callsign:p.callsign,
               orig: p.from || '',
               dest: p.to || '',
               fromCity: p.fromCity || p.from || '',
@@ -264,13 +262,14 @@ export default function FlyNowPage() {
       airlineName: info.airlineName,
       orig: info.orig,
       dest: info.dest,
-      flightNumber: info.flightNumber || flightKey,
+      flightNumber: displayFlightNumber(info.flightNumber,info.airlineIata,info.airlineIcao),
       aircraft: info.aircraft,
       departure: new Date(takeoffAt || Date.now()).toISOString(),
       distanceNm: info.distanceNm,
       fromCity: info.fromCity,
       toCity: info.toCity,
       rating: 0, free: !!info.free,
+      callsign:info.callsign,
       summary: {
         startedAt: startedAt.current,
         takeoffAt: takeoffAt || null,
@@ -498,7 +497,7 @@ export default function FlyNowPage() {
       <header className="border-b border-white/10 pb-6">
         <AirlineLogo iata={info.airlineIata} icao={info.airlineIcao} name={info.airlineName} size="md" />
         <h1 className="mt-4 text-3xl font-semibold">
-          {info.flightNumber ? `${info.airlineIata}${info.flightNumber}` : flightKey}
+          {displayFlightNumber(info.flightNumber,info.airlineIata,info.airlineIcao) || (info.callsign ? `${tr('flight.callsign')}: ${info.callsign}` : tr('route.numberUnknown'))}
         </h1>
         <p className="mt-2 text-sm text-white/45">
           {info.orig} → {info.dest} · {info.aircraft} · {info.durationMin} {tr('fly.min')}

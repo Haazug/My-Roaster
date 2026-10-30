@@ -6,6 +6,7 @@ export type RosterFlight = {
   airlineName: string
   orig: string
   dest: string
+  callsign?:string
   flightNumber: string
   aircraft: string
   registration?: string

@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "live:worker": "node --env-file-if-exists=.env.local tools/sync-live.mjs",
-    "test": "node --experimental-transform-types tests/live-model.test.mjs && node tests/live-discovery.test.cjs && node tests/live-history.test.cjs && node tests/live-device.test.cjs && node tests/flight-workflow.test.cjs"
+    "test": "node --experimental-transform-types tests/live-model.test.mjs && node tests/live-discovery.test.cjs && node tests/live-history.test.cjs && node tests/live-device.test.cjs && node tests/flight-workflow.test.cjs && node tests/catalog.test.cjs && node tests/sound.test.cjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
-import { flightNumber } from '@/lib/flight-utils'
 
 export async function GET(req: Request, { params }: { params: Promise<{ pair: string }> }) {
   try {
@@ -29,22 +28,18 @@ export async function GET(req: Request, { params }: { params: Promise<{ pair: st
       const routeFound = routes.find((r) => r.from === from && r.to === to) ?? routes.find((r) => r.from === to && r.to === from)
       if (!routeFound) continue
 
-      // Create 2-3 flights per airline on this route
-      for (let i = 0; i < 2; i++) {
-        const code = flightNumber(airline.iata || airlineId, from, to, i)
         flights.push({
           airlineId,
           airlineIata: airline.iata || airlineId,
           airlineName: airline.name,
-          flightNumber: code,
+          flightNumber: null,
           from,
           to,
           aircraftIcao: routeFound.equip[0],
           aircraftName: routeFound.equip[0] ? getAircraftName(routeFound.equip[0]) : undefined,
-          days: getDays(airlineId, from, to, i),
+          days: null,
           estimated: true,
         })
-      }
     }
 
     const distance = calculateDistance(fromAirport, toAirport)
@@ -92,14 +87,4 @@ function getAircraftName(code: string): string {
     '744': 'Boeing 747-400',
   }
   return aircraft[code] || code
-}
-
-function getDays(airlineId: string, from: string, to: string, index: number): string {
-  const base = airlineId.charCodeAt(0) + from.charCodeAt(0) + to.charCodeAt(0) + index
-  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-  const selected = []
-  for (let i = 0; i < 5 + (index % 2); i++) {
-    selected.push(days[(base + i * 17) % 7])
-  }
-  return selected.join(' ')
 }

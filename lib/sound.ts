@@ -5,7 +5,7 @@
 
 export type Channel = 'music' | 'cabin'
 export type Kind = 'ding' | 'dingdong' | 'jingle'
-export type SoundState = { volume: number; muted: boolean; bed: Channel; playing: boolean }
+export type SoundState = { volume: number; muted: boolean; bed: Channel; playing: boolean; effectsMuted:boolean }
 
 const SRC: Record<Channel, string> = { music: '/aviao_es-e-mu_sicas.mp3', cabin: '/cabin-noise.mp3' }
 const BOOST: Record<Channel, number> = { music: 1, cabin: 1.1 }
@@ -15,16 +15,17 @@ const CHIME_SRC: Record<Kind, string> = { ding: '/ding-single.mp3', dingdong: '/
 let ctx: AudioContext | null = null
 let unlocked = false
 let volume = 0.05
-let muted = false
+let muted = true
+let effectsMuted = false
 let bed: Channel = 'music'
 const els: Partial<Record<Channel, HTMLAudioElement>> = {}
 const gains: Partial<Record<Channel, GainNode>> = {}
 const listeners = new Set<(s: SoundState) => void>()
-let snapshot: SoundState = { volume, muted, bed, playing: false }
+let snapshot: SoundState = { volume, muted, bed, playing: false, effectsMuted }
 
 function emit() {
   const a = els[bed]
-  snapshot = { volume, muted, bed, playing: !!a && !a.paused && !muted }
+  snapshot = { volume, muted, bed, effectsMuted, playing: !!a && !a.paused && !muted }
   listeners.forEach((fn) => fn(snapshot))
 }
 
@@ -110,11 +111,12 @@ function loadChime(kind: Kind): Promise<void> {
 }
 
 export async function play(kind: Kind) {
-  if (typeof window === 'undefined' || muted || !ctx) return
+  if(!effectsMuted) unlock(true)
+  if (typeof window === 'undefined' || effectsMuted || !ctx) return
   const c = ctx
   await loadChime(kind)
   const b = buffers[kind]
-  if (!b) return
+  if (!b || effectsMuted) return
   if (current) {
     const old = current
     current = null
@@ -139,11 +141,13 @@ export async function play(kind: Kind) {
 export const ding = () => play('dingdong')
 
 // call inside a click/touch handler (browsers only allow sound after a gesture)
-export function unlock() {
+export function unlock(background = false) {
   if (typeof window === 'undefined') return
+  if (!background && muted) return
   if (!unlocked) {
     unlocked = true
     try {
+      try { const session=(navigator as any).audioSession; if(session)session.type='ambient' } catch {}
       const AC = window.AudioContext || (window as any).webkitAudioContext
       ctx = new AC()
     } catch {
@@ -163,6 +167,7 @@ export function setVolume(v: number) {
   volume = Math.min(1, Math.max(0, v))
   apply()
 }
+export function setEffectsMuted(m:boolean) { effectsMuted=m; emit() }
 export function setMuted(m: boolean) {
   muted = m
   apply()

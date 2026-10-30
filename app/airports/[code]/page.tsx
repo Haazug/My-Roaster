@@ -1,5 +1,6 @@
 'use client'
 
+import {useT} from '@/lib/i18n'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import useSWR from 'swr'
@@ -23,6 +24,7 @@ const LIVE_COLS = '84px minmax(0,1fr) 92px'
 const NEAR_COLS = '64px minmax(0,1fr)'
 
 export default function AirportDetailPage() {
+ const t=useT()
   const { code } = useParams<{ code: string }>()
   const decoded = code ? decodeURIComponent(code).toUpperCase() : ''
   const { data, error } = useSWR(decoded ? `/api/airports/${decoded}` : null, fetcher)
@@ -56,14 +58,14 @@ export default function AirportDetailPage() {
     return (
       <section className="min-h-screen p-5 sm:p-8">
         <Link href="/airports" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
-          <ArrowLeft className="size-4" /> Back to airports
+          <ArrowLeft className="size-4" /> {t('airlines.backAirports')}
         </Link>
         <div className="mt-10 rounded-2xl border border-red-400/20 bg-red-400/10 p-5 text-red-100">Airport "{decoded}" could not be found.</div>
       </section>
     )
   }
 
-  if (!data) return <section className="min-h-screen p-5 text-white/45 sm:p-8">Loading airport…</section>
+  if (!data) return <section className="min-h-screen p-5 text-white/45 sm:p-8">{t('airports.loading')}</section>
 
   const airport = data.airport as Airport
   const nearby = (data.nearby as Airport[]) || []
@@ -71,19 +73,19 @@ export default function AirportDetailPage() {
   return (
     <section className="min-h-screen p-5 pb-32 sm:p-8">
       <Link href="/airports" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
-        <ArrowLeft className="size-4" /> Back to airports
+        <ArrowLeft className="size-4" /> {t('airlines.backAirports')}
       </Link>
       <header className="mt-8 border-b border-white/10 pb-7">
         <div className="flex items-start gap-4">
           <div className={`${boardText} flex size-16 shrink-0 items-center justify-center rounded-2xl border border-[#facc15]/20 bg-[#0b0b0c] text-lg font-bold`}>{airport.iata}</div>
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">Airport</p>
+            <p className="text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">{t('airports.title')}</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight">{airport.city}</h1>
             <p className="mt-2 flex items-center gap-2 text-sm text-white/45">
               <Flag country={airport.country} size={24} />
               <span>{airport.name} · {airport.icao} · {airport.country}</span>
             </p>
-            <p className="mt-1 text-xs text-white/40">{allRoutes.length} routes</p>
+            <p className="mt-1 text-xs text-white/40">{t('airlines.routes',{n:allRoutes.length})}</p>
           </div>
         </div>
       </header>
@@ -91,16 +93,16 @@ export default function AirportDetailPage() {
 
       {allRoutes.length > 0 && (
         <div className="mt-8">
-          <h2 className="mb-4 text-xl font-semibold">Routes from {airport.iata}</h2>
+          <h2 className="mb-4 text-xl font-semibold">{t('airports.routesFrom',{code:airport.iata})}</h2>
           <label className="mb-3 flex min-h-12 items-center gap-3 rounded-2xl border border-white/10 bg-white/[.06] px-4">
             <Search className="size-4 text-white/40" aria-hidden="true" />
-            <span className="sr-only">Filter routes</span>
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="City, country, airline or code" className="w-full min-w-0 bg-transparent text-sm outline-none placeholder:text-white/35" />
+            <span className="sr-only">{t('airlines.routeSearch')}</span>
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('airlines.routeSearch')} className="w-full min-w-0 bg-transparent text-sm outline-none placeholder:text-white/35" />
           </label>
-          {q && <p className="mb-2 text-xs text-white/40">{routes.length} of {allRoutes.length} routes</p>}
+          {q && <p className="mb-2 text-xs text-white/40">{routes.length} of {t('airlines.routes',{n:allRoutes.length})}</p>}
 
           <Board>
-            <BoardHead cols={ROUTE_COLS}><span>Route</span><span>Destination · Airlines</span></BoardHead>
+            <BoardHead cols={ROUTE_COLS}><span>{t('route.boardRoute')}</span><span>{t('route.boardDestination')}</span></BoardHead>
             {routes.map((route) => (
               <div key={`${route.from}-${route.to}`} style={{ contentVisibility: 'auto', containIntrinsicSize: '0 72px' }}>
                 <BoardRow cols={ROUTE_COLS} className="items-start">
@@ -119,21 +121,21 @@ export default function AirportDetailPage() {
                           </Link>
                         ))
                       ) : (
-                        <Link href={`/routes/${route.from}-${route.to}`} className="text-xs text-[#55a7ff]">View route</Link>
+                        <Link href={`/routes/${route.from}-${route.to}`} className="text-xs text-[#55a7ff]">{t('random.open')}</Link>
                       )}
                     </div>
                   </div>
                 </BoardRow>
               </div>
             ))}
-            {!routes.length && <p className="p-5 text-sm text-white/40">No routes match “{q}”.</p>}
+            {!routes.length && <p className="p-5 text-sm text-white/40">{t('live.noMatch')}</p>}
           </Board>
         </div>
       )}
 
       {nearby.length > 0 && (
         <div className="mt-8">
-          <h2 className="mb-4 text-xl font-semibold">Nearby airports</h2>
+          <h2 className="mb-4 text-xl font-semibold">{t('airports.nearby')}</h2>
           <Board>
             {nearby.slice(0, 8).map((a) => (
               <Link key={a.iata} href={`/airports/${a.iata}`} className="block transition hover:bg-[#facc15]/[.06]">
@@ -152,7 +154,7 @@ export default function AirportDetailPage() {
 
       <div className="mt-8 flex gap-2">
         <Link href={`https://www.flightradar24.com/data/airports/${airport.iata}`} target="_blank" rel="noopener noreferrer" className="flex min-h-11 items-center gap-2 rounded-xl border border-white/20 bg-white/[.06] px-3 text-sm hover:bg-white/[.1]">
-          Live traffic <ExternalLink className="size-4" />
+          {t('live.title')} <ExternalLink className="size-4" />
         </Link>
       </div>
     </section>

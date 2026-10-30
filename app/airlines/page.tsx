@@ -12,7 +12,7 @@ import Link from 'next/link'
 import { ChevronRight, Search } from 'lucide-react'
 import { AirlineLogo } from '@/components/AirlineLogo'
 
-type Airline = { id: string; name: string; iata: string; icao: string; country: string; active: boolean; numRoutes: number }
+type Airline = { id: string; name: string; iata: string; icao: string; country: string; active: boolean; numRoutes: number; alliance?:string }
 const fetcher = (u: string) => fetch(u).then((r) => r.json())
 const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 
@@ -20,15 +20,17 @@ export default function Airlines() {
   const tr=useT()
   const { data, error, mutate } = useSWR<Airline[] | { error: string }>('/api/airlines', fetcher)
   const [q, setQ] = useState('')
+  const [alliance,setAlliance]=useState('')
   const favA = useFavs('airline')
   const list = Array.isArray(data) ? data : []
   const top = TOP_ICAO.map((c) => list.filter((a) => a.icao === c).sort((x, y) => Number(y.active) - Number(x.active) || y.numRoutes - x.numRoutes)[0]).filter(Boolean) as Airline[]
   const favList = list.filter((a) => favA.has(a.id))
   const rows = useMemo(() => {
     const n = norm(q.trim())
-    const base = n ? list.filter((a) => matchAirline(a, q)) : list
+    const eligible=list.filter(a=>!alliance||a.alliance===alliance)
+    const base = n ? eligible.filter((a) => matchAirline(a, q)||norm(a.alliance||'').includes(n)) : eligible
     return [...base].sort((x, y) => Number(favA.has(y.id)) - Number(favA.has(x.id)))
-  }, [list, q, favA.items])
+  }, [list, q, favA.items,alliance])
 
   return (
     <section className="min-h-screen p-5 sm:p-8">
@@ -56,7 +58,7 @@ export default function Airlines() {
         <span className="sr-only">{tr('airlines.filter')}</span>
         <input value={q} onChange={(e) => setQ(e.target.value)} className="min-h-11 w-full min-w-0 bg-transparent outline-none placeholder:text-white/35" placeholder={tr('airlines.filter')} />
       </label>
-      <FlightNumberHit q={q} />
+      <label className="mb-5 flex items-center gap-3 text-sm text-white/60"><span>{tr('airlines.alliance')}</span><select value={alliance} onChange={e=>setAlliance(e.target.value)} className="min-h-11 min-w-0 flex-1 rounded-lg border border-white/10 bg-black/70 px-3"><option value="">{tr('live.all')}</option>{['Star Alliance','SkyTeam','oneworld'].map(a=><option key={a}>{a}</option>)}</select></label><FlightNumberHit q={q} /><p className="mb-4 text-xs text-amber-200/60">{tr('catalog.reference')}</p>
       {error || (data && !Array.isArray(data)) ? (
         <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-red-400/20 bg-red-400/10 p-5">
           {tr('airlines.error')}
@@ -65,13 +67,13 @@ export default function Airlines() {
       ) : !data ? (
         <p className="text-white/40" aria-busy="true">{tr('airlines.loading')}</p>
       ) : (
-        <div className="flex flex-col divide-y divide-white/[.06]">
+        <div className="flex flex-col divide-y divide-white/[.06] departure-board">
           {rows.map((a) => (
             <Link href={`/airlines/${a.id}`} key={a.id} className="flex min-h-[76px] items-center gap-4 py-3 transition hover:bg-white/[.02]">
               <AirlineLogo iata={a.iata} icao={a.icao} name={fixName(a.name)} size="md" showText={false} />
               <div className="min-w-0 flex-1">
-                <p className="truncate font-semibold">{fixName(a.name)}</p>
-                <p className="font-mono text-xs text-white/45">{tr('airlines.routes',{n:a.numRoutes})}{!a.active && <span className="ml-2 text-xs text-amber-300">{tr('airlines.historical')}</span>}</p>
+                <p className="truncate font-semibold board-code">{fixName(a.name)}</p>
+                <p className="font-mono text-xs text-white/45">{a.iata} / {a.icao} · {tr('airlines.routes',{n:a.numRoutes})}{a.alliance && <span className="ml-2 text-yellow-200/70">{a.alliance}</span>}{!a.active && <span className="ml-2 text-xs text-amber-300">{tr('airlines.historical')}</span>}</p>
               </div>
               <ChevronRight className="size-5 shrink-0 text-white/30" aria-hidden="true" />
             </Link>

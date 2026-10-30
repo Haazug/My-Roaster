@@ -53,7 +53,8 @@ export function liveRouteHref(f: Pick<ResolvedFlight, 'from' | 'to' | 'airlineIa
 
 // Prefer the longest prefix: DTA must be matched before DT.
 export function flightNumberPart(code: string, iata: string, icao: string) {
-  code = code.trim().toUpperCase()
+  code = code.trim().toUpperCase().replace(/[\s-]/g,'')
+  if (/^\d{1,4}[A-Z]?$/.test(code)) return code
   const prefix = [iata, icao].filter(Boolean).sort((a, b) => b.length - a.length).find(p => code.startsWith(p))
   const number = prefix ? code.slice(prefix.length) : !iata && !icao ? (code.match(/^(?:[A-Z]{3}|[A-Z0-9]{2})(\d{1,4}[A-Z]?)$/)?.[1] || '') : ''
   return /^\d{1,4}[A-Z]?$/.test(number) ? number : ''
@@ -81,4 +82,16 @@ export function currentFlights(flights: ResolvedFlight[], now = Date.now()) {
 export function radarExpiry(at: number, distanceNm?: number, speedKt?: number) {
   if (distanceNm == null || !Number.isFinite(distanceNm) || distanceNm < 0 || !speedKt || speedKt < 100 || speedKt > 800) return at + 20 * 60_000
   return Math.round(at + Math.min(18 * 3600_000, Math.max(20 * 60_000, distanceNm / speedKt * 3600_000 + 3600_000)))
+}
+
+export function displayFlightNumber(code:string,iata='',icao=''){
+ const raw=String(code||'').trim().toUpperCase().replace(/[\s-]/g,'')
+ if(/^\d{1,4}[A-Z]?$/.test(raw))return `${iata||icao}${raw}`
+ return /^(?:[A-Z]{3}|[A-Z0-9]{2})\d[A-Z0-9]{0,5}$/.test(raw)?raw:''
+}
+
+// An operational suffix (KLM4XY) is retained as a callsign, never converted to a passenger number.
+export function operationalCallsign(code:string,icao:string){
+ const raw=String(code||'').trim().toUpperCase().replace(/[\s-]/g,'')
+ return icao && raw.startsWith(icao) && /^\d[A-Z0-9]{0,4}$/.test(raw.slice(icao.length)) ? raw : ''
 }

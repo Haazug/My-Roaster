@@ -1,4 +1,5 @@
 'use client'
+import { useT } from '@/lib/i18n'
 
 import Link from 'next/link'
 import { useState } from 'react'
@@ -15,7 +16,7 @@ type Result = { airline: A; route: R; nm: number; min: number }
 const fetcher = (u: string) => fetch(u).then((r) => r.json())
 const norm = (s = '') => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)]
-const BUCKETS = [['any', 'Surprise me'], ['short', 'Under 2h'], ['medium', '2–5h'], ['long', '5h+']] as const
+const BUCKETS = [['any','random.any'],['short','random.short'],['medium','random.medium'],['long','random.long']] as const
 
 function nmBetween(a?: Ap, b?: Ap) {
   if (a?.lat == null || a?.lon == null || b?.lat == null || b?.lon == null) return 0
@@ -25,6 +26,7 @@ function nmBetween(a?: Ap, b?: Ap) {
 }
 
 export default function RandomPage() {
+  const t=useT()
   const { data } = useSWR<A[]>('/api/airlines', fetcher)
   const list = Array.isArray(data) ? data : []
   const [q, setQ] = useState('')
@@ -63,7 +65,7 @@ export default function RandomPage() {
       }
       if (ok.length) { setRes(pick(ok)); setBusy(false); return }
     }
-    setMsg('No route matched. Loosen your choices and try again.')
+    setMsg(t('random.none'))
     setBusy(false)
   }
 
@@ -71,13 +73,13 @@ export default function RandomPage() {
 
   return (
     <section className="min-h-screen p-5 pb-32 sm:p-8">
-      <p className="text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">Random</p>
-      <h1 className="mt-2 text-4xl font-semibold">Pick a flight for me</h1>
+      <p className="text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">{t('nav.random')}</p>
+      <h1 className="mt-2 text-4xl font-semibold">{t('random.title')}</h1>
 
       <div className="mt-6 space-y-4">
         <div>
-          <p className="mb-1 text-xs text-white/50">Airline</p>
-          <input className={input} placeholder="Surprise me" value={chosen ? chosen.name : q} onChange={(e) => { setChosen(null); setQ(e.target.value) }} />
+          <p className="mb-1 text-xs text-white/50">{t('live.airline')}</p>
+          <input className={input} placeholder={t('random.any')} value={chosen ? chosen.name : q} onChange={(e) => { setChosen(null); setQ(e.target.value) }} />
           {suggestions.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-2">
               {suggestions.map((a) => (
@@ -87,16 +89,16 @@ export default function RandomPage() {
           )}
         </div>
         <div>
-          <p className="mb-1 text-xs text-white/50">Airport or city</p>
-          <input className={input} placeholder="Surprise me" value={airport} onChange={(e) => setAirport(e.target.value)} />
+          <p className="mb-1 text-xs text-white/50">{t('random.airport')}</p>
+          <input className={input} placeholder={t('random.any')} value={airport} onChange={(e) => setAirport(e.target.value)} />
         </div>
         <div>
-          <p className="mb-1 text-xs text-white/50">Flight time</p>
-          <input className={input} type="number" min={5} placeholder="Custom: exact minutes (e.g. 30)" value={custom} onChange={(e) => setCustom(e.target.value)} />
-          <p className="mb-2 mt-3 text-xs text-white/40">or choose a range</p>
+          <p className="mb-1 text-xs text-white/50">{t('random.time')}</p>
+          <input className={input} type="number" min={5} placeholder={t('random.minutes')} value={custom} onChange={(e) => setCustom(e.target.value)} />
+          <p className="mb-2 mt-3 text-xs text-white/40">{t('random.range')}</p>
           <div className="flex flex-wrap gap-2">
             {BUCKETS.map(([k, label]) => (
-              <button key={k} onClick={() => setTime(k)} className={`rounded-xl border px-3 py-2 text-sm ${time === k ? 'border-[#1f88ff] bg-[#1f88ff]/20' : 'border-white/10 bg-white/5'}`}>{label}</button>
+              <button key={k} onClick={() => setTime(k)} className={`rounded-xl border px-3 py-2 text-sm ${time === k ? 'border-[#1f88ff] bg-[#1f88ff]/20' : 'border-white/10 bg-white/5'}`}>{t(label)}</button>
             ))}
           </div>
         </div>
@@ -109,18 +111,18 @@ export default function RandomPage() {
           <BoardingPass
             data={{
               from: res.route.from, to: res.route.to, fromCity: res.route.fromAirport?.city, toCity: res.route.toAirport?.city,
-              airline: res.airline.name, flight: res.airline.iata, aircraft: res.route.aircraft?.[0], distanceNm: res.nm,
+              airline: res.airline.name, flight: undefined, aircraft: res.route.aircraft?.[0], distanceNm: res.nm,
               date: new Date().toISOString().slice(0, 10),
             }}
           />
           <Link href={`/route/${res.airline.iata || res.airline.id}/${res.route.from}-${res.route.to}`} className="mt-4 flex min-h-12 items-center justify-center rounded-xl bg-[#1f88ff] font-medium">
-            Open route
+            {t('random.open')}
           </Link>
         </div>
       )}
 
       <button onClick={generate} disabled={busy || !list.length} className="mt-8 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-white font-semibold text-black disabled:opacity-40">
-        <Shuffle className="size-4" /> {busy ? 'Searching...' : res ? 'Generate another' : 'Generate route'}
+        <Shuffle className="size-4" /> {busy ? t('random.searching') : res ? t('random.another') : t('random.generate')}
       </button>
     </section>
   )

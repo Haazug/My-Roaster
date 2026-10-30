@@ -6,7 +6,7 @@ export const boardText = 'font-mono uppercase tracking-[.12em] text-[#facc15]'
 export function Board({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
     <div
-      className={`overflow-hidden rounded-2xl border border-[#facc15]/15 bg-[#0b0b0c] ${className}`}
+      className={`overflow-hidden rounded-sm border-y-2 border-[#facc15]/40 bg-black/25 ${className}`}
       style={{ backgroundImage: 'radial-gradient(rgba(250,204,21,.07) 1px, transparent 1.4px)', backgroundSize: '6px 6px' }}
     >
       {children}

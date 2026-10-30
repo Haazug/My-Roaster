@@ -36,7 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="overflow-x-hidden bg-[#0a0a0a] text-white antialiased" suppressHydrationWarning>
         <GlobeBackground />
         <LogoCorner />
-        <main className="relative z-10 min-h-screen pt-12 pb-40 lg:ml-[440px] xl:ml-[500px] lg:max-w-[760px]">{children}<LegalFooter /></main>
+        <main className="relative z-10 min-h-screen pt-12 pb-24 sm:pb-40 lg:ml-[440px] xl:ml-[500px] lg:max-w-[760px]">{children}<LegalFooter /></main>
         <BottomNav />
         <FlightCompanion />
          <BackgroundMusic />
