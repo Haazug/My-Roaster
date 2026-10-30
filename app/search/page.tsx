@@ -2,7 +2,8 @@
 
 import Link from 'next/link'
 import { useT } from '@/lib/i18n'
-import { useMemo, useState } from 'react'
+import {useMapStore} from '@/lib/map-store'
+import { useMemo, useState, useEffect } from 'react'
 import useSWR from 'swr'
 import { Search, Star, X } from 'lucide-react'
 import { AirlineLogo } from '@/components/AirlineLogo'
@@ -17,6 +18,7 @@ const PAIR = /^([A-Za-z]{3})\s*(?:[-→>/]|\s)\s*([A-Za-z]{3})$/
 
 export default function SearchPage() {
   const tr=useT()
+  const setView=useMapStore(s=>s.setView)
   const [q, setQ] = useState('')
   const t = q.trim()
   const { data: airlines } = useSWR<any[]>('/api/airlines', fetcher)
@@ -38,6 +40,8 @@ export default function SearchPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [airports, favP.items]
   )
+  useEffect(()=>{setView(airportHits.length?{mode:'airports',airports:airportHits}:{mode:'idle'})},[airportHits,setView])
+  useEffect(()=>()=>setView({mode:'idle'}),[setView])
   const isLive = /^(live(?: now)?|ao vivo|agora)$/i.test(t)
   const pair = t.match(PAIR)
   const row = 'flex items-center gap-3 py-3'

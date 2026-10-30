@@ -2,7 +2,7 @@
 import {useT} from '@/lib/i18n'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useDeferredValue } from 'react'
 import useSWR from 'swr'
 import { ArrowLeft, Search, Star } from 'lucide-react'
 import { useMapStore } from '@/lib/map-store'
@@ -10,6 +10,7 @@ import { Flag } from '@/components/Flag'
 import { useFavs } from '@/lib/use-favs'
 
 type Airport = { iata: string; icao: string; name: string; city: string; country: string; lat: number; lon: number; routes: number }
+const EMPTY_AIRPORTS:Airport[]=[]
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 
@@ -17,18 +18,19 @@ export default function AirportsPage() {
  const t=useT()
   const { data, error } = useSWR<Airport[] | { error: string }>('/api/airports', fetcher)
   const [q, setQ] = useState('')
+  const deferredQ=useDeferredValue(q)
   const setView = useMapStore((s) => s.setView)
   const fav = useFavs('airport')
-  const list = Array.isArray(data) ? data : []
+  const list = Array.isArray(data) ? data : EMPTY_AIRPORTS
   const rows = useMemo(() => {
-    const n = norm(q.trim())
+    const n = norm(deferredQ.trim())
     const base = n ? list.filter((a) => norm(`${a.iata} ${a.icao} ${a.city} ${a.name} ${a.country}`).includes(n)) : list
     return [...base].sort((x, y) => Number(fav.has(y.iata)) - Number(fav.has(x.iata))).slice(0, 100)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [list, q, fav.items])
+  }, [list, deferredQ, fav.items])
 
   useEffect(() => {
-    if (rows.length) setView({ mode: 'airports', airports: rows })
+    setView({ mode: 'airports', airports: rows })
   }, [rows, setView])
   useEffect(() => () => setView({ mode: 'idle' }), [setView])
 

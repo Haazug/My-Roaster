@@ -84,7 +84,7 @@ function RouteContent() {
     airlineName: fixName(data.airline.name),
     orig: data.from.iata,
     dest: data.to.iata,
-    flightNumber: flightCode,
+    flightNumber: flightCode, callsign,
     aircraft: type?.name ?? 'Not listed',
     departure: '',
     distanceNm: data.distanceNm,

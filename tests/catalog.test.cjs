@@ -1,7 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),ts=require('typescript')
 const cache=new Map()
 function load(file){if(cache.has(file))return cache.get(file);const mod={exports:{}};cache.set(file,mod.exports);const source=fs.readFileSync(path.join(__dirname,'..',file),'utf8');new Function('require','exports','module',ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(key=>key.startsWith('@/')?load(key.slice(2)+'.ts'):require(key),mod.exports,mod);return mod.exports}
-const {buildDb,searchRoutes}=load('lib/openflights-parse.ts'),{mergeRoutes}=load('lib/route-merge.ts'),{allianceFor,plausibleOperatingRoute}=load('lib/airline-metadata.ts')
+const {buildDb,searchRoutes}=load('lib/openflights-parse.ts'),{mergeRoutes,hubRoutes}=load('lib/route-merge.ts'),{allianceFor,plausibleOperatingRoute}=load('lib/airline-metadata.ts')
 const airlines='1,"KLM","",KL,KLM,"","Netherlands",Y\n2,"Delta","",DL,DAL,"","United States",Y\n3,"Old KLM code","",KL,OLD,"","Elsewhere",N'
 const ap=(id,code,country)=>`${id},"${code}","${code}","${country}",${code},X${code},1,2,0,0,U,Etc/UTC,airport,OurAirports`
 const airports=[ap(1,'AMS','Netherlands'),ap(2,'ATL','United States'),ap(3,'ABQ','United States'),ap(4,'ABV','Nigeria'),ap(5,'PHC','Nigeria'),ap(6,'LHR','United Kingdom')].join('\n')
@@ -26,6 +26,7 @@ if(process.env.CATALOG_DIR){test('full OpenFlights audit across every company',(
  const dir=process.env.CATALOG_DIR,db=buildDb(fs.readFileSync(path.join(dir,'routes.dat'),'utf8'),fs.readFileSync(path.join(dir,'airlines.dat'),'utf8'),fs.readFileSync(path.join(dir,'airports.dat'),'utf8'))
  let count=0
  for(const [id,routes] of db.routesByAirline){const al=db.airlines.get(id);for(const r of routes){assert(!r.codeshare);assert(al.active);assert(plausibleOperatingRoute(al.icao,al.country,db.airports.get(r.from).country,db.airports.get(r.to).country));count++}}
+ for(const [id,routes] of db.routesByAirline){const hubs=db.hubs.get(id)||[];for(const r of mergeRoutes(hubRoutes(routes,hubs),hubs)){assert(hubs.includes(r.from));assert(r.hasOut);assert(routes.some(raw=>raw.from===r.from&&raw.to===r.to))}}
  const klm=[...db.airlines.values()].find(a=>a.icao==='KLM'),klRoutes=db.routesByAirline.get(klm.id)
  assert.deepEqual(db.hubs.get(klm.id),['AMS']);assert(!klRoutes.some(r=>['ABQ','PHC'].includes(r.from)||['ABQ','PHC'].includes(r.to)))
  for(const code of ['KLM','RYR','AFR','DLH','BAW','DTA']){const a=[...db.airlines.values()].find(a=>a.icao===code&&a.active);const routes=db.routesByAirline.get(a.id)||[];const countries=new Set(routes.flatMap(r=>[db.airports.get(r.from).country,db.airports.get(r.to).country]));console.log(code,JSON.stringify({pairs:mergeRoutes(routes).length,countries:countries.size,hubs:db.hubs.get(a.id)}))}
@@ -43,4 +44,14 @@ test('closed passenger airports, ceased airlines and suspended networks cannot r
  assert(!plausibleOperatingRoute('KLM','Netherlands','Netherlands','Russia'))
  assert(!plausibleOperatingRoute('AFL','Russia','Russia','France'))
  assert(plausibleOperatingRoute('THY','Turkey','Turkey','Russia'))
+})
+
+test('hub departures override airport degree, preserve return legs and never create a missing direction',()=>{
+ const routes=[{from:'DST',to:'HUB'},{from:'HUB',to:'DST'},{from:'BASE',to:'HUB'},{from:'HUB',to:'BASE'},{from:'DST',to:'OTHER'},{from:'OTHER',to:'DST'},{from:'INONLY',to:'HUB'}]
+ const oriented=mergeRoutes(hubRoutes(routes,['HUB','BASE']),['HUB','BASE'])
+ assert.deepEqual(oriented.map(r=>[r.from,r.to]).sort(),[['HUB','BASE'],['HUB','DST']])
+ assert(oriented.every(r=>r.hasOut&&r.roundTrip))
+ assert.deepEqual(mergeRoutes([{from:'BASE',to:'HUB'}],['HUB','BASE']).map(r=>[r.from,r.to,r.hasOut]),[['HUB','BASE',false]])
+ assert.equal(hubRoutes([{from:'BASE',to:'HUB'}],['HUB','BASE']).length,0)
+ assert.equal(hubRoutes(routes,[]).length,0)
 })

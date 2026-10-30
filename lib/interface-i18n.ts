@@ -1,5 +1,12 @@
 // en, pt, it, fr, es. Keep every interface key complete across the five supported languages.
 export const interfaceText: Record<string, readonly [string,string,string,string,string]> = {
+ 'airlines.fromHubs':['Departures from the airline’s hubs','Partidas dos hubs da companhia','Partenze dagli hub della compagnia','Départs des hubs de la compagnie','Salidas desde los hubs de la aerolínea'],
+ 'live.flightStatus':['Flight · Status','Voo · Estado','Volo · Stato','Vol · État','Vuelo · Estado'],
+ 'favourites.saved':['Saved routes','Rotas guardadas','Rotte salvate','Liaisons enregistrées','Rutas guardadas'],
+ 'favourites.title':['My Favourites','Os meus favoritos','I miei preferiti','Mes favoris','Mis favoritos'],
+ 'favourites.remove':['Remove favourite','Remover dos favoritos','Rimuovi dai preferiti','Retirer des favoris','Quitar de favoritos'],
+ 'favourites.empty':['Tap the star on any route to save it here.','Toca na estrela de uma rota para a guardar aqui.','Tocca la stella di una rotta per salvarla qui.','Touche l’étoile d’une liaison pour l’enregistrer ici.','Toca la estrella de una ruta para guardarla aquí.'],
+ 'fly.takeoffAnnouncement':['Cabin crew, prepare for takeoff. Please fasten your seat belt, keep your seat upright and stow your tray table. Your flight has started; the timer is now running. Enjoy your flight!','Tripulação, preparar para a descolagem. Aperta o cinto de segurança, coloca o encosto na vertical e recolhe a mesa. O voo começou e o cronómetro está a contar. Desejamos-te um bom voo!','Equipaggio, prepararsi al decollo. Allaccia la cintura, raddrizza lo schienale e chiudi il tavolino. Il volo è iniziato e il timer è in funzione. Buon volo!','Équipage, préparez-vous au décollage. Attache ta ceinture, redresse ton siège et range ta tablette. Le vol a commencé et le chronomètre est lancé. Bon vol !','Tripulación, prepárense para el despegue. Abróchate el cinturón, endereza el respaldo y recoge la mesa. El vuelo ha comenzado y el cronómetro está en marcha. ¡Buen vuelo!'],
  'flight.callsign':['Callsign','Indicativo de chamada','Nominativo','Indicatif radio','Indicativo de llamada'],
  'airlines.backAirports':['Back to airports','Voltar aos aeroportos','Torna agli aeroporti','Retour aux aéroports','Volver a aeropuertos'],
  'airports.routesFrom':['Routes from {code}','Rotas de {code}','Rotte da {code}','Liaisons de {code}','Rutas desde {code}'],

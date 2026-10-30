@@ -193,10 +193,10 @@ export default function FlyNowPage() {
     [setView]
   )
 
-  const notify = (title: string, body: string, kind: sound.Kind = 'ding') => {
+  const notify = (title: string, body: string, kind: sound.Kind = 'ding', duration=6000) => {
     if(readOnly)return
     sound.play(kind)
-    toast(title, { description: body })
+    toast(title, { description: body, duration })
     try {
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         new Notification(`✈️ ${title}`, { body })
@@ -221,6 +221,7 @@ export default function FlyNowPage() {
   useEffect(() => {
     if (!takeoffAt || !totalMs || finished || holding) return
     STEPS.forEach((s) => {
+      if(s.key==='Climb' && elapsed<15000)return
       if (s.at === null || statuses[s.key] || fired.current.has(s.key)) return
       if (elapsed >= s.at * totalMs) {
         fired.current.add(s.key)
@@ -356,7 +357,7 @@ export default function FlyNowPage() {
     sound.unlock()
     if (holdSince.current !== null) endHolding()
     askPermission()
-    if (at === undefined) sound.play(kindFor(key))
+    if (at === undefined && key!=='Takeoff') sound.play(kindFor(key))
     stepLog.current[key] = { status, at: at ?? Date.now() }
     setStatuses((prev) => ({ ...prev, [key]: status }))
     if (key === 'Takeoff') {
@@ -364,7 +365,7 @@ export default function FlyNowPage() {
       setTakeoffAt(t0)
       setNow(t0)
       sound.setBed('cabin') // background music out, cabin noise in
-      toast.success(tr('fly.takeoffToast'))
+      if(at===undefined)notify(tr('fly.takeoffToast'),tr('fly.takeoffAnnouncement'),'dingdong',14000)
     }
     if (key === 'Landing') sound.setBed('music') // flight over: music is back
     if (!remote) send('step', key, status)

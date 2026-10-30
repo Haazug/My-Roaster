@@ -45,7 +45,7 @@ export default function LiveFlights({ airport, airline, pair, standalone = false
  const time = (n:number) => new Date(n).toLocaleTimeString(lang,{hour:'2-digit',minute:'2-digit'})
  return <section className={standalone ? 'mt-6' : 'mt-8'} aria-label={t('live.title')}>
   <div className="flex items-center justify-between gap-3">
-   <h2 className="flex items-center gap-2 text-sm font-medium"><span className={`size-1.5 rounded-full ${failed?'bg-amber-300':'bg-green-400'}`} />{t('live.title')} <span className="text-white/35">{flights.length}</span></h2>
+   <h2 className="flex items-center gap-2 board-heading text-sm font-medium"><span className={`size-1.5 rounded-full ${failed?'bg-amber-300':'bg-green-400'}`} />{t('live.title')} <span className="text-white/35">{flights.length}</span></h2>
    <button onClick={()=>mutate()} disabled={isValidating} aria-label={t('live.refresh')} className="flex min-h-11 items-center gap-2 text-xs text-white/45 disabled:opacity-30"><RefreshCw className={`size-3.5 ${isValidating?'animate-spin':''}`} />{t('live.refresh')}</button>
   </div>
   <div className="mt-3 flex gap-2">
@@ -62,12 +62,12 @@ export default function LiveFlights({ airport, airline, pair, standalone = false
   {!isLoading&&!flights.length&&<p className="py-8 text-sm text-white/40">{t(all.length?'live.noMatch':'live.empty')}</p>}
   {(query||operator||status!=='all'||tab!=='all')&&<button onClick={reset} className="min-h-11 text-xs text-white/50 underline">{t('live.clear')}</button>}
   {[...groups.entries()].sort((a,b)=>a[1][0].airlineName.localeCompare(b[1][0].airlineName)).map(([key,items])=><div key={key} className="mt-6">
-   <h3 className="flex items-center gap-3 text-sm text-white/65"><AirlineLogo iata={items[0].airlineIata} icao={items[0].airlineIcao} name={items[0].airlineName} size="sm" showText={false}/><span className="min-w-0 flex-1">{items[0].airlineName}</span><span className="text-white/30">{items.length}</span></h3>
-   <div className="mt-2 divide-y divide-white/[.06]">{items.sort((a,b)=>a.flightNumber.localeCompare(b.flightNumber)).map(f=><div key={f.id||f.hex} className="py-3">
+   <h3 className="board-heading flex items-center gap-3 text-sm"><AirlineLogo iata={items[0].airlineIata} icao={items[0].airlineIcao} name={items[0].airlineName} size="sm" showText={false}/><span className="min-w-0 flex-1">{items[0].airlineName}</span><span className="text-white/30">{items.length}</span></h3>
+   <div className="departure-board mt-3 divide-y divide-yellow-300/10"><div className="grid grid-cols-2 gap-3 border-b border-yellow-300/20 px-3 py-3 font-mono text-[10px] uppercase tracking-widest text-white/40"><span>{t('route.boardRoute')}</span><span className="text-right">{t('live.flightStatus')}</span></div>{items.sort((a,b)=>a.flightNumber.localeCompare(b.flightNumber)).map(f=><div key={f.id||f.hex} className="px-3 py-4 even:bg-yellow-300/[.025]">
     <Link href={liveRouteHref(f)||`/routes/${f.from}-${f.to}`} className="block min-h-11">
-     <div className="flex items-center justify-between gap-3"><span className="font-mono font-medium tracking-wide">{f.from} → {f.to}</span><span className="font-mono text-sm text-white/65">{f.flightNumber||f.callsign}</span></div>
+     <div className="flex items-center justify-between gap-3"><span className="board-code font-mono font-medium tracking-wide text-yellow-300">{f.from} → {f.to}</span><span className="font-mono text-sm tracking-wide text-yellow-200">{f.flightNumber||f.callsign}</span></div>
      <p className="mt-1 truncate text-xs text-white/40">{f.fromCity} → {f.toCity}</p>
-     <p className="mt-2 text-xs text-white/45">{t(f.status==='estimated'?'live.estimateLabel':'live.airborne')}</p>
+     <p className={`mt-2 font-mono text-[11px] uppercase tracking-wider ${f.status==='estimated'?'text-amber-200/65':'text-green-300/75'}`}>{t(f.status==='estimated'?'live.estimateLabel':'live.airborne')}</p>
     </Link>
     <p className="mt-1 text-[11px] text-white/30">{t(f.source==='timetable'?'live.checked':'live.seen',{time:time(f.source==='timetable'?f.updatedAt||f.observedAt:f.observedAt)})}{/^[A-Z0-9~]{6,8}$/i.test(f.hex)&&<> · <Link className="underline" href={`/live/${f.hex}`}>{t('live.aircraft')}</Link></>} · <a href={`https://www.flightradar24.com/data/flights/${encodeURIComponent((f.flightNumber||f.callsign).toLowerCase())}`} target="_blank" rel="noopener noreferrer" className="underline">Flightradar24 ↗</a></p>
    </div>)}</div>

@@ -1,6 +1,6 @@
 'use client'
 import Globe, { type GlobeMethods } from 'react-globe.gl'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMapStore, type Point } from '@/lib/map-store'
 import { splitRoute, interpolateRoute } from '@/lib/flight-workflow'
 import LiveTraffic from './LiveTraffic'
@@ -38,6 +38,8 @@ function topAirports(routes: { from: Point; to: Point }[]) {
 type Cam = { key: string; lat: number; lng: number; alt: number }
 
 export default function GlobeInner() {
+  const [size,setSize]=useState({width:900,height:700})
+  useEffect(()=>{const resize=()=>setSize({width:window.innerWidth,height:window.innerHeight});resize();window.addEventListener('resize',resize);return()=>window.removeEventListener('resize',resize)},[])
   const ref = useRef<GlobeMethods | undefined>(undefined)
   const view = useMapStore((s) => s.view)
   const zoomKey = useRef('')
@@ -57,7 +59,7 @@ export default function GlobeInner() {
     const apply = () => {
       const c = ref.current?.controls() as any
       if (!c) return false
-      c.autoRotate = view.mode === 'idle'
+      c.autoRotate = view.mode === 'idle' || (view.mode === 'airports' && !view.selected)
       c.autoRotateSpeed = view.mode === 'idle' ? 0.5 : 0.2
       c.enableRotate = !lock
       c.enableZoom = !lock
@@ -68,9 +70,9 @@ export default function GlobeInner() {
       if (apply() || ++n > 40) clearInterval(t)
     }, 250)
     return () => clearInterval(t)
-  }, [view.mode, lock])
+  }, [view.mode, lock, view.mode==='airports'?view.selected:undefined])
 
-  const hubs = useMemo(() => (view.mode === 'airline' ? (view.hubs?.length ? view.hubs.map(p=>({p,c:1})) : topAirports(view.routes)) : []), [view])
+  const hubs = useMemo(() => (view.mode === 'airline' ? (view.hubs?.length ? view.hubs.map(p=>({p,c:1})) : topAirports(view.routes)) : []), [view.mode,view.mode==='airline'?view.routes:undefined,view.mode==='airline'?view.hubs:undefined])
 
   // where the camera should be for the current view (null = leave it alone)
   const cam: Cam | null = useMemo(() => {
@@ -97,6 +99,7 @@ export default function GlobeInner() {
     if (!camKey) {
       clearTimers()
       // back to a menu: after a short wait (so quick page swaps do not bounce) show the whole globe again
+      if(view.mode==='airports')return
       const t = setTimeout(() => {
         if (!zoomKey.current) return
         zoomKey.current = ''
@@ -124,61 +127,60 @@ export default function GlobeInner() {
       if (!near) g.pointOfView({ lat: c.lat, lng: c.lng, altitude: c.alt }, 1800)
     }
     later(go, 450)
-  }, [camKey])
+  }, [camKey,view.mode])
 
   useEffect(() => clearTimers, [])
 
-  const wps = view.mode === 'route' && view.waypoints && view.waypoints.length > 1 ? view.waypoints : null
-  const arcs = view.mode === 'route' && view.progress === undefined && !wps
-    ? [{ startLat: view.from.lat, startLng: view.from.lon, endLat: view.to.lat, endLng: view.to.lon }]
-    : view.mode === 'airline'
-      ? view.routes.slice(0, 600).map((r) => ({ startLat: r.from.lat, startLng: r.from.lon, endLat: r.to.lat, endLng: r.to.lon }))
-      : []
-  const routePoints=view.mode==='route' ? wps || Array.from({length:65},(_,i)=>interpolateRoute(view.from,view.to,i/64)) : []
-  const segments=splitRoute(routePoints,view.mode==='route'?view.progress??0:0)
-  const paths = view.mode==='route'&&view.progress!==undefined ? [
-    {pts:segments.remaining.map(w=>[w.lat,w.lon]),color:'rgba(255,255,255,0.25)'},
-    {pts:segments.done.map(w=>[w.lat,w.lon]),color:'#4ade80'},
-  ].filter(p=>p.pts.length>1) : wps ? [{pts:wps.map(w=>[w.lat,w.lon]),color:'rgba(255,255,255,0.65)'}] : []
+  const wps=view.mode==='route'&&view.waypoints&&view.waypoints.length>1?view.waypoints:undefined
+  const from=view.mode==='route'?view.from:undefined, to=view.mode==='route'?view.to:undefined
+  const network=view.mode==='airline'?view.routes:undefined
+  const progress=view.mode==='route'?view.progress:undefined
+  const routePoints=useMemo(()=>from&&to?wps||Array.from({length:65},(_,i)=>interpolateRoute(from,to,i/64)):[],[from,to,wps])
+  const basePath=useMemo(()=>({pts:routePoints.map(w=>[w.lat,w.lon,0.012]),color:'#68717c'}),[routePoints])
+  const paths=useMemo(()=>{
+    if(!from||!to)return []
+    if(progress===undefined)return wps?[basePath]:[]
+    const done=splitRoute(routePoints,progress).done
+    return done.length>1?[basePath,{pts:done.map(w=>[w.lat,w.lon,0.016]),color:'#4ade80'}]:[basePath]
+  },[from,to,progress,wps,routePoints,basePath])
+  const arcs=useMemo(()=>network?network.slice(0,600).map(r=>({startLat:r.from.lat,startLng:r.from.lon,endLat:r.to.lat,endLng:r.to.lon})):from&&to&&progress===undefined&&!wps?[{startLat:from.lat,startLng:from.lon,endLat:to.lat,endLng:to.lon}]:[],[network,from,to,progress===undefined,wps])
+  const airports=view.mode==='airports'?view.airports:undefined
+  const point=view.mode==='point'?view.point:undefined, nearby=view.mode==='point'?view.nearby:undefined
+  const selected=view.mode==='airports'?view.selected:point?.iata
+  const points=useMemo(()=>airports?airports.map(p=>({...p,r:p.iata===selected?0.17:0.09,color:p.iata===selected?'#facc15':'#ffffff'})):point?[{...point,r:0.17,color:'#facc15'},...(nearby||[]).filter(p=>p.iata!==point.iata).map(p=>({...p,r:0.08,color:'#ffffff'}))]:from&&to?[{...from,r:0.18,color:'#facc15'},{...to,r:0.18,color:'#facc15'}]:hubs.slice(0,3).map((h,i)=>({...h.p,r:i===0?0.24:0.16,color:'#facc15'})),[airports,selected,point,nearby,from,to,hubs])
 
-  const points: any[] =
-    view.mode === 'airports'
-      ? view.airports.map((p) => ({ ...p, r: 0.09 }))
-      : view.mode === 'point'
-        ? [{ ...view.point, r: 0.12 }, ...view.nearby.map((p) => ({ ...p, r: 0.08 }))]
-        : view.mode === 'route'
-          ? wps
-            ? wps.map((w) => ({ ...w, r: 0.1 }))
-            : [{ ...view.from, r: 0.25 }, { ...view.to, r: 0.25 }]
-          : view.mode === 'airline'
-            ? hubs.slice(0, 3).map((h, i) => ({ ...h.p, r: i === 0 ? 0.3 : 0.16, color: '#ffffff' }))
-            : []
-
-  const selectedPoints = view.mode==='point' ? [view.point] : view.mode==='route' ? [view.from,view.to] : view.mode==='airports' ? view.airports.filter(p=>p.iata===view.selected) : hubs.slice(0,3).map(h=>h.p)
+  const selectedPoints=useMemo(()=>point?[point]:from&&to?[from,to]:airports?airports.filter(p=>p.iata===selected):hubs.slice(0,3).map(h=>h.p),[point,from,to,airports,selected,hubs])
 
   return (
     <div className="relative size-full">
       <Globe
         ref={ref}
-        width={typeof window === 'undefined' ? 900 : window.innerWidth}
-        height={typeof window === 'undefined' ? 700 : window.innerHeight}
-        globeImageUrl="//unpkg.com/three-globe/example/img/earth-blue-marble.jpg"
-        bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
-        backgroundImageUrl="//unpkg.com/three-globe/example/img/night-sky.png"
+        waitForGlobeReady={false}
+        width={size.width}
+        height={size.height}
+        globeOffset={size.width>=1024?[Math.min(250-size.width/2,0),0]:[0,0]}
+        globeImageUrl="/globe/earth-blue-marble.jpg"
+        bumpImageUrl="/globe/earth-topology.png"
+        backgroundImageUrl="/globe/night-sky.png"
         atmosphereColor="#1f88ff"
         atmosphereAltitude={0.16}
         arcsData={arcs}
         arcColor={() => (view.mode === 'route' ? ['rgba(255,255,255,0.9)', 'rgba(31,136,255,1)'] : ['rgba(85,167,255,0.18)', 'rgba(130,195,255,0.9)'])}
         arcStroke={view.mode === 'route' ? 0.85 : 0.22}
         arcAltitudeAutoScale={view.mode === 'route' ? 0.25 : 0.2}
+        arcsTransitionDuration={0}
         pathsData={paths}
+        pathTransitionDuration={0}
         pathPoints="pts"
         pathPointLat={(p: any) => p[0]}
         pathPointLng={(p: any) => p[1]}
         pathColor={(p:any)=>p.color}
         pathStroke={1.1}
-        pathPointAlt={0.012}
+        pathPointAlt={(p:any)=>p[2]??0.012}
         pointsData={points}
+        pointsMerge
+        pointsTransitionDuration={0}
+        labelsTransitionDuration={0}
         pointLat="lat"
         pointLng="lon"
         pointColor={(p: any) => p.color || '#ffffff'}
@@ -187,15 +189,15 @@ export default function GlobeInner() {
         ringsData={selectedPoints}
         ringLat="lat"
         ringLng="lon"
-        ringColor={() => (t: number) => `rgba(255,255,255,${1 - t})`}
-        ringMaxRadius={4}
+        ringColor={() => (t: number) => `rgba(250,204,21,${1 - t})`}
+        ringMaxRadius={Math.min(4,Math.max(0.5,(cam?.alt||1)*2))}
         ringPropagationSpeed={1.6}
         ringRepeatPeriod={1800}
         labelsData={selectedPoints}
         labelLat="lat"
         labelLng="lon"
         labelText={(p:any)=>`${p.iata} · ${p.city || p.name || ''}`}
-        labelSize={0.9}
+        labelSize={Math.max(0.16,(cam?.alt||0.9)*0.6)}
         labelDotRadius={0}
         labelColor={() => 'rgba(255,255,255,0.9)'}
         labelAltitude={0.03}

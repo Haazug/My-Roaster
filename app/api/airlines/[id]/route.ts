@@ -2,7 +2,7 @@ import { allianceFor } from '@/lib/airline-metadata'
 import { NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
 import { aircraftName } from '@/lib/aircraft'
-import { mergeRoutes } from '@/lib/route-merge'
+import { mergeRoutes, hubRoutes } from '@/lib/route-merge'
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -10,7 +10,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     const db = await getDb()
     const a = db.airlines.get(id)
     if (!a) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    const routes = mergeRoutes(db.routesByAirline.get(id) ?? []).map((r) => ({
+    const hubs:string[]=(db as any).hubs?.get(id)||[]
+    const routes = mergeRoutes(hubRoutes(db.routesByAirline.get(id) ?? [],hubs),hubs).map((r) => ({
       from: r.from,
       to: r.to,
       fromAirport: db.airports.get(r.from),

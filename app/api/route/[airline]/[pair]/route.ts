@@ -20,7 +20,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ airline: s
     const other = all.find((r) => r.from === to.iata && r.to === from.iata)
     const route = asked ?? other
 
-    const merged = mergeRoutes(all).find((m) => pairKey(m.from, m.to) === pairKey(from.iata, to.iata))
+    const merged = mergeRoutes(all,(db as any).hubs?.get(airline.id)||[]).find((m) => pairKey(m.from, m.to) === pairKey(from.iata, to.iata))
     const legs =
       merged && merged.roundTrip
         ? [

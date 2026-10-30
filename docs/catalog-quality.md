@@ -31,3 +31,5 @@ The Ryanair count is plausible for a multi-base network and is not artificially 
 `npm test` covers synthetic contaminated records, cross-endpoint indexing, European bases, alliances, and flight-number preservation. To repeat the full-source audit, download the three upstream `.dat` files into a directory and run `CATALOG_DIR=/path/to/data node tests/catalog.test.cjs`.
 
 Operational callsigns such as `KLM4XY` survive the route → plan → flight → history flow with their own label, without being presented as a passenger flight number. Background audio starts off; sound effects use a separate control and request ambient mixing on supporting browsers. Mixing with other apps still depends on the browser/device.
+
+The airline directory now shows departures from declared primary hubs, with the return selectable on the route page. It is a subset of the full reference network counted above. A route that does not touch a primary hub remains available under its airports; it is never reassigned to a different origin. A hub departure must exist in the source, including between two hubs. Directory counters and About statistics use the same subset.

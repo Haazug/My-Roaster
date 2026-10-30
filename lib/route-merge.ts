@@ -12,7 +12,7 @@ export type MergedRoute = {
 
 export const pairKey = (a: string, b: string) => [a, b].sort().join('-')
 
-export function mergeRoutes(routes: readonly RawRoute[]): MergedRoute[] {
+export function mergeRoutes(routes: readonly RawRoute[], hubs: readonly string[] = []): MergedRoute[] {
   const degree = new Map<string, number>()
   for (const r of routes) {
     degree.set(r.from, (degree.get(r.from) ?? 0) + 1)
@@ -33,7 +33,9 @@ export function mergeRoutes(routes: readonly RawRoute[]): MergedRoute[] {
     const da = degree.get(a) ?? 0
     const db = degree.get(b) ?? 0
     // o hub (aeroporto com mais ligações da companhia) é a origem da "ida"
-    const [from, to] = da > db || (da === db && a < b) ? [a, b] : [b, a]
+    const rankA = hubs.indexOf(a), rankB = hubs.indexOf(b)
+    const aFirst = rankA >= 0 ? rankB < 0 || rankA < rankB : rankB >= 0 ? false : da > db || (da === db && a < b)
+    const [from, to] = aFirst ? [a, b] : [b, a]
     const equip: string[] = []
     for (const r of g) for (const e of r.equip ?? []) if (e && !equip.includes(e)) equip.push(e)
     const hasOut = g.some((r) => r.from === from)
@@ -45,4 +47,11 @@ export function mergeRoutes(routes: readonly RawRoute[]): MergedRoute[] {
     })
   })
   return out
+}
+
+// Airline directories show actual services touching a declared hub; other bases remain searchable by airport.
+export function hubRoutes<T extends RawRoute>(routes:readonly T[],hubs:readonly string[]):T[]{
+ const bases=new Set(hubs)
+ const pairs=new Set(mergeRoutes(routes,hubs).filter(r=>bases.has(r.from)&&r.hasOut).map(r=>pairKey(r.from,r.to)))
+ return routes.filter(r=>pairs.has(pairKey(r.from,r.to)))
 }
