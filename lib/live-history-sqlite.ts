@@ -4,7 +4,7 @@ import { dirname } from 'node:path'
 import type { ResolvedFlight } from './live-model'
 
 export type HistoryRecord = ResolvedFlight & { id: string; updatedAt: number; expiresAt: number }
-export type SyncState = { checkedAt: number; nextOffset: number; complete: boolean; total: number | null }
+export type SyncState = { checkedAt: number; nextOffset: number; complete: boolean; total: number | null; nextHex?:string; resolved?:number; processed?:number; failedRoutes?:number; candidates?:number; budgetLimited?:boolean }
 export interface LiveHistory {
   write(flights: HistoryRecord[], now?: number): Promise<void>
   read(now?: number): Promise<HistoryRecord[]>

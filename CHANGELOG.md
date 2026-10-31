@@ -2,6 +2,8 @@
 
 ## v2.2.3 — bug fix 1 — 2026-10-31
 
+- Prioritize global live discovery, move supplemental site scans after the response, refresh known flights cheaply, and replace shrinking-list pagination with a stable aircraft cursor. Bound route-provider concurrency and respect rate-limit backoff.
+
 - Recognize older timestamp-based completion logs, saved summaries and terminal checklists before offering a device handoff. Migrate local terminal records that older clients never queued.
 - Renew active owner sessions with a heartbeat; expire abandoned handoff sessions after their inactivity/flight-duration grace without creating completed trip logs.
 - Add an account-scoped “This flight has already ended” action to close a stale run on every device, with compare-and-swap protection for newer runs.

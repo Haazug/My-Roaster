@@ -41,7 +41,7 @@ test('airport endpoints share satellite discoveries without admitting overflight
     '@/lib/db': db, '@/lib/live-model': model,
   })
   const handler = load('app/api/airports/[code]/live/route.ts', {
-    'next/server': { NextResponse: { json: (body, init) => ({ body, status: init?.status || 200 }) } },
+    'next/server': { after:()=>{}, NextResponse: { json: (body, init) => ({ body, status: init?.status || 200 }) } },
     '@/lib/db': db, '@/lib/openflights-parse': { findAirport: (db, code) => db.airports.get(code === 'LAD' ? 'NBJ' : code) },
     '@/lib/live-discovery': discovery,
   })
@@ -58,7 +58,7 @@ test('airport endpoints share satellite discoveries without admitting overflight
   assert.equal(scans, 3, 'consecutive reads reuse recent satellite scans and the global feed')
   assert.equal((await request('INVALID')).status, 404)
   const routeHandler = load('app/api/live/route/route.ts', {
-    'next/server': { NextResponse: { json: (body, init) => ({ body, status: init?.status || 200 }) } },
+    'next/server': { after:()=>{}, NextResponse: { json: (body, init) => ({ body, status: init?.status || 200 }) } },
     '@/lib/db': db, '@/lib/openflights-parse': { findAirport: (db, code) => db.airports.get(code) },
     '@/lib/live-discovery': discovery,
   })
@@ -158,4 +158,114 @@ test('rotating radar stations include airports outside the site catalog without 
  assert.equal(airports.has('ZZZZ'),false)
  assert.equal(result.data[0].from,'NBJ');assert.equal(result.data[0].kind,'departing')
  assert.equal(result.radarCoverage.total,1)
+})
+
+function memoryHistory(){const rows=new Map(),sync=new Map();return {rows,write:async list=>{for(const f of list){const old=rows.get(f.id);if(!old||f.updatedAt>=old.updatedAt)rows.set(f.id,f)}},read:async()=>[...rows.values()],getSync:async key=>sync.get(key)||null,setSync:async(key,state)=>sync.set(key,state)}}
+function aircraft(i,patch={}){return {hex:i.toString(16).padStart(6,'0').toUpperCase(),callsign:'DTA'+(1000+i),lat:-9,lon:13,altFt:35000,onGround:false,gs:450,...patch}}
+function throughputAdapters(raw,history,lookup){return {
+ '@/lib/live-model':load('lib/live-model.ts',{}),
+ '@/lib/live-history':{getLiveHistory:()=>history},
+ '@/lib/db':{getDb:async()=>({airports:new Map([['NBJ',{iata:'NBJ',lat:-9,lon:13}],['LIS',{iata:'LIS',lat:38,lon:-9}]])}),getRadarAirports:async()=>[]},
+ '@/lib/live':{live:async()=>[],liveGlobal:async()=>raw},
+ '@/lib/route-lookup':{lookupCallsign:lookup},
+ '@/lib/airline-lookup':{parseCallsign:()=>null},
+}}
+const mappedRoute={from:'NBJ',to:'LIS',airlineIata:'DT',airlineIcao:'DTA',airlineName:'TAAG'}
+test('global enrichment budget goes to airborne route candidates, not hundreds of ground aircraft and registrations',async()=>{
+ const raw=[...Array.from({length:200},(_,i)=>aircraft(i,{onGround:true})),...Array.from({length:200},(_,i)=>aircraft(i+200,{callsign:'N'+(12300+i)})),...Array.from({length:40},(_,i)=>aircraft(i+400))],history=memoryHistory(),lookups=[]
+ const discovery=load('lib/live-discovery.ts',throughputAdapters(raw,history,async cs=>{lookups.push(cs);return mappedRoute}))
+ const result=await discovery.discoverFlights(undefined,{radar:false})
+ assert.equal(result.data.length,40);assert.equal(lookups.length,40);assert(lookups.every(cs=>cs.startsWith('DTA')))
+})
+test('stable hex cursor never skips the next flights when the unresolved work list shrinks',async()=>{
+ const original=Date.now;let now=225000;Date.now=()=>now
+ try{
+  const raw=Array.from({length:250},(_,i)=>aircraft(i)),history=memoryHistory(),lookups=[]
+  const discovery=load('lib/live-discovery.ts',throughputAdapters(raw,history,async cs=>{lookups.push(cs);return mappedRoute}))
+  const first=await discovery.discoverFlights(undefined,{radar:false});assert.equal(first.data.length,100)
+  now+=46000;const second=await discovery.discoverFlights(undefined,{radar:false});assert.equal(second.data.length,200)
+  now+=46000;const third=await discovery.discoverFlights(undefined,{radar:false});assert.equal(third.data.length,250)
+  assert.equal(new Set(lookups).size,250);assert.equal(lookups.length,250,'fresh known routes are refreshed without repeated route-provider calls')
+ }finally{Date.now=original}
+})
+test('the response does not wait for the supplemental landing-site registry and schedules it after returning',async()=>{
+ const history=memoryHistory(),jobs=[];let registryCalls=0,release
+ const gate=new Promise(resolve=>{release=resolve}),adapters=throughputAdapters([aircraft(1)],history,async()=>mappedRoute)
+ adapters['@/lib/db'].getRadarAirports=()=>{registryCalls++;return gate}
+ const discovery=load('lib/live-discovery.ts',adapters)
+ const handler=load('app/api/live/now/route.ts',{'next/server':{after:job=>jobs.push(job),NextResponse:{json:body=>body}},'@/lib/live-discovery':discovery})
+ const response=await handler.GET();assert.equal(response.data.length,1);assert.equal(registryCalls,0);assert.equal(jobs.length,1)
+ const work=jobs[0]();await Promise.resolve();await Promise.resolve();release([]);await work;assert.equal(registryCalls,1)
+})
+test('route-provider requests share a concurrency cap and expired jobs do not make HTTP calls',async()=>{
+ const original=global.fetch;let active=0,maximum=0,calls=0
+ global.fetch=async()=>{calls++;maximum=Math.max(maximum,++active);await new Promise(resolve=>setTimeout(resolve,2));active--;return {ok:true,json:async()=>({response:{flightroute:{callsign_iata:'DT123',origin:{iata_code:'NBJ'},destination:{iata_code:'LIS'}}}})}}
+ try{
+  const api=load('lib/route-lookup.ts',{})
+  const jobs=Array.from({length:25},(_,i)=>api.lookupCallsign('DTA'+(100+i)))
+  jobs.push(api.lookupCallsign('DTA100'));await Promise.all(jobs)
+  assert(maximum<=8);assert(maximum>1);assert.equal(calls,25)
+  await assert.rejects(api.lookupCallsign('DTA999',{deadline:Date.now()-1}),/budget exhausted/);assert.equal(calls,25)
+ }finally{global.fetch=original}
+})
+test('global provider starts independently of the point-query queue',async()=>{
+ const original=global.fetch,calls=[]
+ global.fetch=async url=>{calls.push(String(url));return {ok:true,json:async()=>({ac:[]})}}
+ try{
+  const api=load('lib/live.ts',{})
+  await Promise.all([api.live('/point/1/2/140'),api.live('/point/3/4/140'),api.live('/point/5/6/140'),api.liveGlobal()])
+  assert(calls.findIndex(url=>url.includes('re-api'))<calls.findIndex(url=>url.includes('/point/3/4/')))
+ }finally{global.fetch=original}
+})
+
+test('recent negative route results do not consume the next enrichment budget',async()=>{
+ const original=Date.now;let now=225000,lookups=0;Date.now=()=>now
+ try{
+  const history=memoryHistory(),raw=Array.from({length:30},(_,i)=>aircraft(i)),discovery=load('lib/live-discovery.ts',throughputAdapters(raw,history,async()=>{lookups++;return null}))
+  assert.equal((await discovery.discoverFlights(undefined,{radar:false})).data.length,0);assert.equal(lookups,30)
+  now+=46000;await discovery.discoverFlights(undefined,{radar:false});assert.equal(lookups,30)
+  now+=46000;await discovery.discoverFlights(undefined,{radar:false});assert.equal(lookups,60)
+ }finally{Date.now=original}
+})
+test('partial route lookup failures retain detected flights and do not misreport the global feed as unavailable',async()=>{
+ const history=memoryHistory(),discovery=load('lib/live-discovery.ts',throughputAdapters([aircraft(1),aircraft(2)],history,async cs=>{if(cs==='DTA1002')throw Error('Route provider timeout');return mappedRoute}))
+ const result=await discovery.discoverFlights(undefined,{radar:false})
+ assert.equal(result.data.length,1);assert.equal(result.globalFeed.total,2);assert.equal(result.globalFeed.failedRoutes,1);assert.equal(result.globalFeed.unavailable,undefined);assert.equal(result.availability.live,'partial');assert.equal(result.degraded,true)
+})
+
+test('numeric IATA prefixes remain eligible without treating an aircraft registration as a passenger callsign',async()=>{
+ const history=memoryHistory(),raw=[aircraft(1,{callsign:'G3123',reg:'PR-GXX'}),aircraft(2,{callsign:'N12345',reg:'N12345'})],lookups=[]
+ const adapters=throughputAdapters(raw,history,async cs=>{lookups.push(cs);return {...mappedRoute,airlineIata:'G3',airlineIcao:'GLO',flightNumber:'G3123'}})
+ const getDb=adapters['@/lib/db'].getDb;adapters['@/lib/db'].getDb=async()=>({...await getDb(),airlines:new Map([['glo',{iata:'G3'}],['n1',{iata:'N1'}]])})
+ const result=await load('lib/live-discovery.ts',adapters).discoverFlights(undefined,{radar:false})
+ assert.deepEqual(lookups,['G3123']);assert.equal(result.data[0].flightNumber,'G3123');assert.equal(result.data[0].airlineIcao,'GLO')
+})
+
+test('a time-limited sweep resumes at the first budget-deferred aircraft rather than skipping the remaining batch',async()=>{
+ const original=Date.now;let now=225000;Date.now=()=>now
+ try{
+  const history=memoryHistory(),lookups=[],raw=Array.from({length:250},(_,i)=>aircraft(i))
+  const discovery=load('lib/live-discovery.ts',throughputAdapters(raw,history,async(cs,options)=>{
+   if(now+650>=options.deadline)throw Error('Route lookup budget exhausted')
+   now+=650;lookups.push(cs);return mappedRoute
+  }))
+  const first=await discovery.discoverFlights(undefined,{radar:false});assert(first.globalFeed.budgetLimited);assert(first.data.length>0&&first.data.length<100)
+  const count=lookups.length
+  now+=46000;await discovery.discoverFlights(undefined,{radar:false})
+  assert.equal(lookups[count],'DTA'+(1000+count));assert.equal(new Set(lookups).size,lookups.length)
+ }finally{Date.now=original}
+})
+
+test('route provider Retry-After pauses queued requests instead of amplifying a rate-limit response',async()=>{
+ const original=global.fetch;let calls=0,limitedAt=0;const starts=[]
+ global.fetch=async()=>{
+  starts.push(Date.now());calls++
+  if(calls===1){limitedAt=Date.now();return {ok:false,status:429,headers:new Headers({'retry-after':'1'})}}
+  return {ok:true,json:async()=>({response:{flightroute:{origin:{iata_code:'NBJ'},destination:{iata_code:'LIS'}}}})}
+ }
+ try{
+  const api=load('lib/route-lookup.ts',{}),results=await Promise.allSettled(Array.from({length:10},(_,i)=>api.lookupCallsign('DTA'+(100+i))))
+  assert.equal(results.filter(r=>r.status==='fulfilled').length,9)
+  assert(starts[8]-limitedAt>=900);assert(starts[9]-limitedAt>=900)
+ }finally{global.fetch=original}
 })

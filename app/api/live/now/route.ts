@@ -1,9 +1,13 @@
-import { NextResponse } from 'next/server'
-import { discoverFlights } from '@/lib/live-discovery'
+import { NextResponse,after } from 'next/server'
+import { discoverFlights,discoverSupplementalRadar } from '@/lib/live-discovery'
+
+export const maxDuration=60
 
 export async function GET() {
   try {
-    return NextResponse.json({ ok: true, ...await discoverFlights() })
+    const result=await discoverFlights(undefined,{radar:false})
+    after(async()=>{await discoverSupplementalRadar()})
+    return NextResponse.json({ok:true,...result})
   } catch {
     return NextResponse.json({ ok: false, data: [], error: 'Live traffic unavailable' }, { status: 502 })
   }

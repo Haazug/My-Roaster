@@ -6,7 +6,7 @@ const primary = process.env.LIVE_API_BASE || 'https://api.adsb.lol/v2'
 const fallback = 'https://api.airplanes.live/v2'
 const cache = new Map<string, { at: number; value: LiveAircraft[] }>()
 const pending = new Map<string, Promise<LiveAircraft[]>>()
-let queue: Promise<void> = Promise.resolve()
+const queues = new Map<string, Promise<void>>()
 const wait = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
 function normalize(x: Raw): LiveAircraft | null {
   if (typeof x.lat !== 'number' || typeof x.lon !== 'number' || !Number.isFinite(x.lat) || !Number.isFinite(x.lon) || Math.abs(x.lat) > 90 || Math.abs(x.lon) > 180 || !x.hex || !/^[a-z0-9~]{6,8}$/i.test(x.hex)) return null
@@ -22,8 +22,8 @@ async function upstream(path: string, base = primary): Promise<LiveAircraft[]> {
   if (active) return active
   const run = (async () => {
     // Space request starts without holding the queue during network timeouts.
-    const turn = queue
-    queue = turn.then(() => wait(500))
+    const turn = queues.get(base)||Promise.resolve()
+    queues.set(base,turn.then(() => wait(500)))
     await turn
     try {
       const res = await fetch(base + path, { headers: { 'User-Agent': 'MyRoster-personal-project' }, cache: 'no-store', signal: AbortSignal.timeout(10000) })

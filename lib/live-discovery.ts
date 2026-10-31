@@ -28,10 +28,10 @@ const transientHistory: LiveHistory = {
 function workingHistory(): LiveHistory { try {return getLiveHistory()} catch {return transientHistory} }
 
 
-export async function resolveAircraft(a: LiveAircraft, observedAt = Date.now()): Promise<ResolvedFlight> {
+export async function resolveAircraft(a: LiveAircraft, observedAt = Date.now(),options:{deadline?:number;priority?:number}={}): Promise<ResolvedFlight> {
   const p = parseCallsign(a.callsign)
   const [route, airline] = await Promise.all([
-    lookupCallsign(a.callsign),
+    lookupCallsign(a.callsign,options),
     p ? airlineByIcao(p.icao) : Promise.resolve(null),
   ])
   const db = await getDb()
@@ -49,39 +49,52 @@ export async function resolveAircraft(a: LiveAircraft, observedAt = Date.now()):
   },db.airports)
 }
 
+let priorRead:{at:number;p:Promise<ResolvedFlight[]>}|undefined
+async function knownFlights(){
+ if(!priorRead||Date.now()-priorRead.at>1000){const p=workingHistory().read(),entry={at:Infinity,p};priorRead=entry;p.then(()=>{entry.at=Date.now()},()=>{if(priorRead===entry)priorRead=undefined})}
+ const stored=await priorRead.p
+ return new Map([...stored,...observations.snapshot()].sort((a,b)=>(a.updatedAt||a.observedAt)-(b.updatedAt||b.observedAt)).map(f=>[f.hex,f]))
+}
+function routeCandidate(a:LiveAircraft,iata:ReadonlySet<string>){
+ if(a.onGround)return false
+ if(isBrasileirinho(a))return true
+ if(a.reg&&a.callsign.replace(/[^A-Z0-9]/g,'')===a.reg.toUpperCase().replace(/[^A-Z0-9]/g,''))return false
+ return /^(?:[A-Z]{3}[0-9]|[A-Z]{2}[0-9])/.test(a.callsign)||(/^[A-Z][0-9][0-9]/.test(a.callsign)&&iata.has(a.callsign.slice(0,2)))
+}
+function routeFresh(old:ResolvedFlight|undefined,a:LiveAircraft,now:number){return !!(old&&!old.onGround&&!old.terminal&&old.from&&old.to&&old.callsign===a.callsign&&now-(old.routeCheckedAt||0)<5*60_000)}
+function negativeFresh(old:ResolvedFlight|undefined,a:LiveAircraft,now:number){return !!(old&&(!old.from||!old.to)&&old.callsign===a.callsign&&now-(old.routeCheckedAt||0)<60_000)}
 async function discover(code: string, station?:RadarAirport, limit=20) {
   if (Date.now() - (scanned.get(code) || 0) < 45_000) return
   const existing = pending.get(code)
   if (existing) return existing
   const work = (async () => {
-    const db = await getDb()
-    const ap = station||db.airports.get(code)
-    if (!ap) return
-    const aircraft = await live(`/point/${ap.lat}/${ap.lon}/140`)
-    const observedAt = Date.now()
-    // Bound route-provider traffic; rotate the scan to avoid starving higher-altitude aircraft.
-    const offset = Math.floor(observedAt / 45_000) * 20 % Math.max(aircraft.length, 1)
-    const selected = [...aircraft.slice(offset), ...aircraft.slice(0, offset)].slice(0, limit)
-    let failed = false
-    let historyFailed = false
-    for (let i = 0; i < selected.length; i += 5) {
-      const batch = await Promise.allSettled(selected.slice(i, i + 5).map(a => resolveAircraft(a, observedAt)))
-      const rows = []
-      for (const result of batch) {
-        if (result.status === 'fulfilled') {
-          observations.record(result.value)
-          rows.push({ ...result.value, id: `radar:${result.value.hex}`, updatedAt: observedAt, expiresAt: result.value.expiresAt || observedAt + 20 * 60_000 })
-        }
-        else failed = true
-      }
-      try { await workingHistory().write(rows) } catch { historyFailed = true }
+    const db = await getDb(),ap=station||db.airports.get(code)
+    if(!ap)return
+    const iata=new Set(db.airlines?[...db.airlines.values()].map(a=>a.iata):[])
+    const aircraft=await live(`/point/${ap.lat}/${ap.lon}/140`),observedAt=Date.now(),deadline=observedAt+12000
+    const known=await knownFlights(),candidates:LiveAircraft[]=[],refreshed:HistoryRecord[]=[]
+    for(const a of aircraft){
+     const old=known.get(a.hex)
+     if(old&&(a.onGround||routeFresh(old,a,observedAt))){
+      const target=db.airports.get(old.to||''),f={...old,...a,observedAt,updatedAt:observedAt,expiresAt:a.onGround?observedAt+20*60_000:radarExpiry(observedAt,target?distNm(a,target):undefined,a.gs),id:`radar:${a.hex}`}
+      observations.record(f);refreshed.push(f)
+     }else if(routeCandidate(a,iata)&&!negativeFresh(old,a,observedAt))candidates.push(a)
     }
-    if (failed) throw new Error('Some flight routes could not be resolved')
-    scanned.set(code, Date.now())
-    if(historyFailed) throw new Error('History write unavailable')
+    let failed=false,historyFailed=false
+    try{await workingHistory().write(refreshed)}catch{historyFailed=true}
+    const offset=Math.floor(observedAt/45000)*limit%Math.max(candidates.length,1)
+    const selected=[...candidates.slice(offset),...candidates.slice(0,offset)].slice(0,limit)
+    for(let i=0;i<selected.length&&Date.now()<deadline;i+=8){
+     const batch=await Promise.allSettled(selected.slice(i,i+8).map(a=>resolveAircraft(a,observedAt,{deadline,priority:0}))),rows=[]
+     for(const result of batch){if(result.status==='fulfilled'){observations.record(result.value);rows.push({...result.value,id:`radar:${result.value.hex}`,updatedAt:observedAt,expiresAt:result.value.expiresAt||observedAt+20*60_000})}else failed=true}
+     try{await workingHistory().write(rows)}catch{historyFailed=true}
+    }
+    scanned.set(code,Date.now())
+    if(historyFailed)throw new Error('History write unavailable')
+    if(failed)throw new Error('Some flight routes could not be resolved')
   })()
-  pending.set(code, work)
-  try { await work } finally { pending.delete(code) }
+  pending.set(code,work)
+  try{await work}finally{pending.delete(code)}
 }
 
 let radarPending:Promise<{codes:string[];nextOffset:number;complete:boolean;total:number|null}>|undefined
@@ -112,56 +125,43 @@ async function discoverGlobal(limit = 20) {
   try { return await globalPending } finally { globalPending = undefined }
 }
 async function scanGlobal(limit: number) {
-  const scope = 'radar:global'
-  const history = workingHistory()
-  const previous = await history.getSync(scope)
-  if (previous && Date.now() - previous.checkedAt < 45_000) return previous
-  const aircraft = (await liveGlobal()).sort((a, b) => a.hex.localeCompare(b.hex))
-  const now = Date.now()
-  const prior = await history.read()
-  const db = await getDb()
-  const known = new Map(prior.filter(f => f.source === 'radar').map(f => [f.hex, f]))
-  const unresolved: LiveAircraft[] = []
-  const refreshed = []
-  for (const a of aircraft) {
-    const old = known.get(a.hex)
-    if (old && a.onGround) {
-      const ground = { ...old, ...a, observedAt: now, updatedAt: now, expiresAt: now + 20 * 60_000 }
-      observations.record(ground)
-      refreshed.push(ground)
-      continue
-    }
-    if (!a.callsign) continue
-    if (old?.from && old.to && old.callsign === a.callsign && now - (old.routeCheckedAt || 0) < 5 * 60_000) {
-      const target = db.airports.get(old.to)
-      const f = { ...old, ...a, observedAt: now, updatedAt: now, expiresAt: radarExpiry(now, target ? distNm(a, target) : undefined, a.gs) }
-      observations.record(f)
-      refreshed.push(f)
-    } else unresolved.push(a)
+  const scope='radar:global:v2',history=workingHistory(),previous=await history.getSync(scope)
+  if(previous&&Date.now()-previous.checkedAt<45000)return previous
+  const aircraft=(await liveGlobal()).sort((a,b)=>a.hex.localeCompare(b.hex)),now=Date.now(),deadline=now+12000
+  const known=await knownFlights(),db=await getDb(),unresolved:LiveAircraft[]=[],refreshed:HistoryRecord[]=[]
+  const iata=new Set(db.airlines?[...db.airlines.values()].map(a=>a.iata):[])
+  for(const a of aircraft){
+   const old=known.get(a.hex)
+   if(old&&(a.onGround||routeFresh(old,a,now))){
+    const target=db.airports.get(old.to||''),f={...old,...a,observedAt:now,updatedAt:now,expiresAt:a.onGround?now+20*60_000:radarExpiry(now,target?distNm(a,target):undefined,a.gs),id:`radar:${a.hex}`}
+    observations.record(f);refreshed.push(f)
+   }else if(routeCandidate(a,iata)&&!negativeFresh(old,a,now))unresolved.push(a)
   }
   await history.write(refreshed)
-  const offset = previous && !previous.complete && previous.nextOffset < unresolved.length ? previous.nextOffset : 0
-  const batch = unresolved.slice(offset, offset + limit)
-  let failed = false
-  for (let i = 0; i < batch.length; i += 5) {
-    const outcomes = await Promise.allSettled(batch.slice(i, i + 5).map(a => resolveAircraft(a, now)))
-    const rows = []
-    for (const outcome of outcomes) {
-      if (outcome.status === 'rejected') { failed = true; continue }
-      const f = outcome.value
-      observations.record(f)
-      rows.push({ ...f, id: `radar:${f.hex}`, updatedAt: now, expiresAt: f.expiresAt || now + 20 * 60_000 })
-    }
-    await history.write(rows)
+  // An inclusive hex cursor is stable when the unresolved work list shrinks.
+  let offset=previous?.nextHex?unresolved.findIndex(a=>a.hex>=previous.nextHex!):-1
+  if(offset<0)offset=previous?.nextHex?0:Math.floor(now/45000)*limit%Math.max(unresolved.length,1)
+  const ordered=[...unresolved.slice(offset),...unresolved.slice(0,offset)],batch=ordered.slice(0,limit)
+  let failed=0,processed=0,resolved=0,consumed=0
+  for(let i=0;i<batch.length&&Date.now()<deadline;i+=8){
+   const selected=batch.slice(i,i+8),outcomes=await Promise.allSettled(selected.map(a=>resolveAircraft(a,now,{deadline,priority:10}))),rows=[]
+   const budgetFailure=outcomes.findIndex(outcome=>outcome.status==='rejected'&&String(outcome.reason?.message)==='Route lookup budget exhausted')
+   for(const outcome of outcomes){if(outcome.status==='rejected'){failed++;continue};const f=outcome.value;if(f.from&&f.to)resolved++;observations.record(f);rows.push({...f,id:`radar:${f.hex}`,updatedAt:now,expiresAt:f.expiresAt||now+20*60_000})}
+   processed+=selected.length;consumed=i+(budgetFailure<0?selected.length:budgetFailure)
+   await history.write(rows)
+   if(budgetFailure>=0)break
   }
-  const complete = offset + batch.length >= unresolved.length
-  const state = { checkedAt: now, nextOffset: complete ? 0 : offset + batch.length, complete, total: aircraft.length }
-  await history.setSync(scope, state)
-  if (failed) throw new Error('Some global callsigns could not be resolved')
+  const reachedEnd=consumed>=ordered.length,nextHex=ordered[consumed]?.hex
+  const state={checkedAt:now,nextOffset:reachedEnd?0:unresolved.findIndex(a=>a.hex===nextHex),complete:reachedEnd&&!failed,total:aircraft.length,candidates:unresolved.length,processed,resolved,failedRoutes:failed,budgetLimited:consumed<batch.length,...(!reachedEnd&&nextHex?{nextHex}:{})}
+  await history.setSync(scope,state)
   return state
 }
 
-export async function discoverFlights(airport?: string, options: { background?: boolean } = {}) {
+export async function discoverSupplementalRadar(){
+ try{return await discoverRadar(false)}catch(error){console.warn('[live] Supplemental radar unavailable');return null}
+}
+
+export async function discoverFlights(airport?: string, options: { background?: boolean;radar?:boolean } = {}) {
   const db = await getDb()
   const codes = [...new Set(airport ? [airport, ...satellites] : satellites)].filter(code=>db.airports.has(code))
   let historyAvailable = true
@@ -177,7 +177,9 @@ export async function discoverFlights(airport?: string, options: { background?: 
   } catch { historyAvailable = false }
   // The global provider feed extends discovery beyond fixed satellites. Its route enrichment is
   // bounded and cursor-based; lack of coverage or a partially processed feed is never called complete.
-  const outcomes = await Promise.allSettled([...codes.map(code=>discover(code)), discoverRadar(options.background), discoverGlobal(options.background ? 100 : 20)])
+  const globalTask=discoverGlobal(options.background?300:100)
+  const radarTask=options.radar===false?Promise.resolve({codes:[],nextOffset:0,complete:false,total:null,deferred:true}):discoverRadar(options.background)
+  const outcomes=await Promise.allSettled([...codes.map(code=>discover(code)),radarTask,globalTask])
   try { stored = await workingHistory().read() } catch { historyAvailable = false }
   const snapshot = [...stored, ...observations.snapshot()]
   const flights = currentFlights(snapshot)
@@ -187,16 +189,18 @@ export async function discoverFlights(airport?: string, options: { background?: 
     ...enrichLiveEstimate(f,db.airports), fromCity: f.fromCity || db.airports.get(f.from || '')?.city || '', toCity: f.toCity || db.airports.get(f.to || '')?.city || '',
     ...(airport ? { kind: airportDirection(f, airport) } : {}),
   }))
-  const global = outcomes[outcomes.length - 1]
+  const global=outcomes[outcomes.length-1] as PromiseSettledResult<Awaited<ReturnType<typeof discoverGlobal>>>
+  const routeFailures=global.status==='fulfilled'?(global.value.failedRoutes||0):0
+  const sourceOutcomes=outcomes.filter((_,i)=>i!==outcomes.length-2||options.radar!==false)
   return {
     data, retired,
-    availability: { live: (data.some(f=>f.status==='observed') || outcomes.some(r=>r.status==='fulfilled')) ? (outcomes.some(r=>r.status==='rejected') ? 'partial' : 'available') : 'unavailable' },
+    availability: { live: (data.some(f=>f.status==='observed') || sourceOutcomes.some(r=>r.status==='fulfilled')) ? (sourceOutcomes.some(r=>r.status==='rejected')||routeFailures ? 'partial' : 'available') : 'unavailable' },
     coverage: 'Provider coverage is partial. A timetable source is optional; estimates are not confirmed airborne positions.',
     scannedAirports: [...new Set([...codes,...(outcomes[outcomes.length-2].status==='fulfilled'?(outcomes[outcomes.length-2] as PromiseFulfilledResult<Awaited<ReturnType<typeof discoverRadar>>>).value.codes:[])])],
     radarCoverage: outcomes[outcomes.length-2].status==='fulfilled'?(outcomes[outcomes.length-2] as PromiseFulfilledResult<Awaited<ReturnType<typeof discoverRadar>>>).value:{complete:false,unavailable:true},
     history: { persistent: historyAvailable }, timetable: timetableStatus,
     globalFeed: global.status === 'fulfilled' ? global.value : { complete: false, unavailable: true },
-    degraded: !historyAvailable || !!timetableStatus.error || outcomes.some(r => r.status === 'rejected'),
+    degraded: !historyAvailable || !!timetableStatus.error || !!routeFailures || outcomes.some(r => r.status === 'rejected'),
     checkedAt: new Date().toISOString(),
   }
 }

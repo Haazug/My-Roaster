@@ -1,7 +1,9 @@
-import { NextResponse } from 'next/server'
+import { NextResponse,after } from 'next/server'
 import { getDb } from '@/lib/db'
 import { findAirport } from '@/lib/openflights-parse'
-import { discoverFlights } from '@/lib/live-discovery'
+import { discoverFlights,discoverSupplementalRadar } from '@/lib/live-discovery'
+
+export const maxDuration=60
 
 export async function GET(req: Request) {
   try {
@@ -11,7 +13,8 @@ export async function GET(req: Request) {
     const to = findAirport(db, q.get('to') || '')
     const airline = (q.get('airline') || '').toUpperCase()
     if (!from || !to || !/^[A-Z0-9]{2,3}$/.test(airline)) return NextResponse.json({ ok: false, error: 'Valid airline, origin and destination codes required' }, { status: 400 })
-    const results = await Promise.all([discoverFlights(from.iata), discoverFlights(to.iata)])
+    const results = await Promise.all([discoverFlights(from.iata,{radar:false}), discoverFlights(to.iata,{radar:false})])
+    after(async()=>{await discoverSupplementalRadar()})
     const aircraft = [...new Map(results.flatMap(r => r.data).map(f => [f.id || f.hex || `${f.flightNumber}:${f.from}:${f.to}`, f])).values()].filter(f =>
       (f.airlineIcao === airline || f.airlineIata === airline) &&
       ((f.from === from.iata && f.to === to.iata) || (f.from === to.iata && f.to === from.iata)))
