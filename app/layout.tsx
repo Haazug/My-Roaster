@@ -16,21 +16,23 @@ import JingleOnClick from '@/components/JingleOnClick'
 import ExternalOpen from '@/components/ExternalOpen'
 import LanguageGate from '@/components/LanguageGate'
 import LegalFooter from '@/components/LegalFooter'
+import {APP_RELEASE} from '@/lib/release'
 import LogoCorner from '@/components/LogoCorner'
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL||`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL||process.env.VERCEL_URL||LEGAL.url}`),
-  manifest: '/manifest.webmanifest',
+  manifest: '/manifest-v223-fix.webmanifest',
+  other:{'myroster-release':APP_RELEASE},
   applicationName: 'MyRoster',
-  openGraph: {title:'MyRoster',description:'Explore airline networks and plan your next flight.',images:[{url:'/icon-512.png?v=2.2.2',width:512,height:512,alt:'MyRoster'}]},
-  twitter: {card:'summary',title:'MyRoster',images:['/icon-512.png?v=2.2.2']},
+  openGraph: {title:'MyRoster',description:'Explore airline networks and plan your next flight.',images:[{url:'/brand/myroster-icon-512-v223-fix.png',width:512,height:512,alt:'MyRoster'}]},
+  twitter: {card:'summary',title:'MyRoster',images:['/brand/myroster-icon-512-v223-fix.png']},
   icons: {
     icon: [
-      { url: '/favicon-32.png?v=2.2.2', sizes: '32x32', type: 'image/png' },
-      { url: '/icon-192.png?v=2.2.2', sizes: '192x192', type: 'image/png' },
+      { url: '/brand/myroster-favicon-v223-fix.png', sizes: '32x32', type: 'image/png' },
+      { url: '/brand/myroster-icon-192-v223-fix.png', sizes: '192x192', type: 'image/png' },
     ],
-    shortcut: '/favicon.ico?v=2.2.2',
-    apple: [{ url: '/apple-icon.png?v=2.2.2', sizes: '180x180', type: 'image/png' }],
+    shortcut: '/brand/myroster-v223-fix.ico',
+    apple: [{ url: '/brand/myroster-apple-icon-v223-fix.png', sizes: '180x180', type: 'image/png' }],
   },
   appleWebApp: { capable: true, title: 'MyRoster', statusBarStyle: 'black-translucent' },
   title: 'MyRoster — Flight planning, simplified',

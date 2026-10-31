@@ -6,7 +6,7 @@ import {updateTripStatus} from '@/lib/trip-client'
 import {toast} from 'sonner'
 import {supabase} from '@/lib/supabase'
 import {useT} from '@/lib/i18n'
-import {accountId,localActive,readCurrentFlight,flushEndedFlights,claimFlight,deviceId,saveLocalActive,type FlightRow} from '@/lib/active-flight'
+import {accountId,localActive,readCurrentFlight,flushEndedFlights,closeSharedFlight,claimFlight,deviceId,saveLocalActive,type FlightRow} from '@/lib/active-flight'
 export default function FlightCompanion(){
  const t=useT(),router=useRouter()
  const [incoming,setIncoming]=useState<FlightRow|null>(null),[busy,setBusy]=useState(false)
@@ -60,6 +60,15 @@ export default function FlightCompanion(){
    window.dispatchEvent(new Event('myroster:resume-flight'))
   }catch{toast(t('handoff.error'))}finally{setBusy(false)}
  }
+ const close=async()=>{
+  if(!incoming)return;setBusy(true)
+  try{
+   const uid=await accountId(),row=uid?await closeSharedFlight(uid,incoming.value.runId):null
+   if(row){const local=localActive();if(local?.runId===row.value.runId)saveLocalActive({...local,finished:true,endedReason:'user-ended'})}
+   setIncoming(null)
+   toast(t(row?'handoff.closed':'handoff.changed'))
+  }catch{toast(t('handoff.error'))}finally{setBusy(false)}
+ }
  if(!incoming)return null
- return <div role="dialog" aria-modal="true" aria-label={t('handoff.title')} className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-5 backdrop-blur-sm"><section className="w-full max-w-sm rounded-2xl border border-white/15 bg-[#101010] p-6"><h2 className="text-xl font-medium">{t('handoff.title')}</h2><p className="mt-3 text-sm text-white/55">{incoming.value.plan.from||incoming.value.plan.orig} → {incoming.value.plan.to||incoming.value.plan.dest} · {t(`device.${incoming.value.deviceKind}`)}</p><button disabled={busy} onClick={follow} className="mt-6 min-h-11 w-full rounded-full bg-white px-4 text-sm font-medium text-black disabled:opacity-40">{t('handoff.follow')}</button><button onClick={async()=>{const uid=await accountId();sessionStorage.setItem(`handoff.dismiss.${uid}.${incoming.value.runId}.${incoming.value.deviceId}`,'1');setIncoming(null)}} className="mt-2 min-h-11 w-full text-sm text-white/45">{t('handoff.stay')}</button></section></div>
+ return <div role="dialog" aria-modal="true" aria-label={t('handoff.title')} className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-5 backdrop-blur-sm"><section className="w-full max-w-sm rounded-2xl border border-white/15 bg-[#101010] p-6"><h2 className="text-xl font-medium">{t('handoff.title')}</h2><p className="mt-3 text-sm text-white/55">{incoming.value.plan.from||incoming.value.plan.orig} → {incoming.value.plan.to||incoming.value.plan.dest} · {t(`device.${incoming.value.deviceKind}`)}</p><button disabled={busy} onClick={follow} className="mt-6 min-h-11 w-full rounded-full bg-white px-4 text-sm font-medium text-black disabled:opacity-40">{t('handoff.follow')}</button><button onClick={async()=>{const uid=await accountId();sessionStorage.setItem(`handoff.dismiss.${uid}.${incoming.value.runId}.${incoming.value.deviceId}`,'1');setIncoming(null)}} className="mt-2 min-h-11 w-full text-sm text-white/45">{t('handoff.stay')}</button><button disabled={busy} onClick={close} className="mt-2 min-h-11 w-full border-t border-white/10 pt-2 text-sm text-white/65 disabled:opacity-40">{t('handoff.endOld')}</button></section></div>
 }

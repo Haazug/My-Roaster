@@ -48,3 +48,34 @@ test('a known deleted remote run cannot be inserted again by its old timer, whil
  assert.equal(canWriteFlight(null,flight,'phone','run-1'),false)
  assert.equal(canWriteFlight(null,{...flight,runId:'new'},'phone','run-1'),true)
 })
+
+test('legacy timestamp logs, saved summaries and final checklist states end old sessions without route-only matches',()=>{
+ const {flightHasEnded}=load({}),f={...flight,startedAt:100000,takeoffAt:200000,statuses:{}}
+ assert(flightHasEnded(f,[{id:'DT-NBJ-LIS-123456',orig:'NBJ',dest:'LIS',summary:{startedAt:100000}}],null))
+ assert(flightHasEnded(f,[{id:'older-log',orig:'NBJ',dest:'LIS',departure:new Date(200000).toISOString()}],null))
+ assert(!flightHasEnded(f,[{id:'older-log',orig:'NBJ',dest:'LIS',summary:{startedAt:90000}}],null))
+ assert(!flightHasEnded({...f,runId:'11111111-1111-4111-8111-111111111111'},[{id:'DT-NBJ-LIS-22222222-2222-4222-8222-222222222222',orig:'NBJ',dest:'LIS',summary:{startedAt:100000}}],null),'a different explicit run must not match merely because its clock is close')
+ assert(flightHasEnded({...f,savedLogId:'old-summary'},[],null))
+ assert(flightHasEnded({...f,statuses:{'At gate':'done'}},[],null))
+})
+test('abandoned handoff sessions expire while long airborne flights, holds and fresh heartbeats remain valid',()=>{
+ const {flightSessionExpired}=load({}),hour=3600000,start=Date.parse('2026-10-30T00:00:00Z')
+ const row={value:{...flight,startedAt:start,takeoffAt:start,plan:{durationMin:600}},updated_at:new Date(start).toISOString()}
+ assert(!flightSessionExpired(row,start+8*hour),'planned cruise duration protects a long flight')
+ assert(flightSessionExpired(row,start+14*hour))
+ assert(!flightSessionExpired({...row,value:{...row.value,heartbeatAt:start+14*hour}},start+15*hour))
+ assert(!flightSessionExpired({...row,value:{...row.value,holding:true,holdSince:start+hour}},start+15*hour))
+ assert(flightSessionExpired({...row,value:{...row.value,takeoffAt:null}},start+4*hour))
+})
+test('legacy local completion is migrated even when no terminal outbox was created by the old client',async()=>{
+ const cleanup=storage(),a=adapter({value:flight,updated_at:'2026-10-31T10:00:00Z'}),api=load(a.db)
+ try{api.saveLocalActive({...flight,finished:true,accountId:'user-1'});await api.flushEndedFlights('user-1');assert.equal(a.row.value.finished,true)}finally{cleanup()}
+})
+test('the authenticated user can close a ghost from another device but cannot close a newer replacement run',async()=>{
+ const a=adapter({value:{...flight,deviceId:'other-phone'},updated_at:'2026-10-31T10:00:00Z'}),api=load(a.db)
+ assert.equal(await api.closeSharedFlight('user-1','different-run'),null)
+ assert.equal(a.row.value.finished,false)
+ const ended=await api.closeSharedFlight('user-1','run-1')
+ assert.equal(ended.value.finished,true);assert.equal(ended.value.endedReason,'user-ended')
+ assert.equal(api.canWriteFlight(ended.value,flight,'other-phone'),false)
+})

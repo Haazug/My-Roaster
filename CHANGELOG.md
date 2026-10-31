@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.2.3 — bug fix 1 — 2026-10-31
+
+- Recognize older timestamp-based completion logs, saved summaries and terminal checklists before offering a device handoff. Migrate local terminal records that older clients never queued.
+- Renew active owner sessions with a heartbeat; expire abandoned handoff sessions after their inactivity/flight-duration grace without creating completed trip logs.
+- Add an account-scoped “This flight has already ended” action to close a stale run on every device, with compare-and-swap protection for newer runs.
+- Use new black-on-white favicon, Apple, install and branding asset filenames, plus a versioned manifest, to bypass old icon cache entries.
+- Expose the deployed release and Vercel commit at `/api/version`; preserve the v2.2.3 package version.
+
 ## v2.2.3 — 2026-10-31
 
 - Use a locally bundled OFL Doto dot-matrix font for flight boards, trips and flight history.

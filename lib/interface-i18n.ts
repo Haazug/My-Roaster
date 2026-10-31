@@ -1,5 +1,7 @@
 // en, pt, it, fr, es. Keep every interface key complete across the five supported languages.
 export const interfaceText: Record<string, readonly [string,string,string,string,string]> = {
+ 'handoff.endOld':['This flight has already ended','Este voo já terminou','Questo volo è già terminato','Ce vol est déjà terminé','Este vuelo ya terminó'],
+ 'handoff.closed':['Flight closed on all devices','Voo encerrado em todos os dispositivos','Volo chiuso su tutti i dispositivi','Vol fermé sur tous les appareils','Vuelo cerrado en todos los dispositivos'],
  "special.original":["Original aircraft","Aeronave original","Aereo originale","Avion d’origine","Avión original"],
  "board.actions":["Trip actions","Opções da viagem","Opzioni del viaggio","Options du voyage","Opciones del viaje"],
  "special.fleet":["1 aircraft","1 aeronave","1 aereo","1 avion","1 avión"],

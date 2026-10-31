@@ -1,0 +1,31 @@
+{
+  "name": "MyRoster",
+  "short_name": "MyRoster",
+  "description": "Explore airline networks and plan your flight simulation routes.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": [
+    {
+      "src": "/brand/myroster-icon-192-v223-fix.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/brand/myroster-icon-512-v223-fix.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/brand/myroster-maskable-icon-v223-fix.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "id": "/"
+}

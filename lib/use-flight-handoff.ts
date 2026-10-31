@@ -4,7 +4,7 @@ import {supabase} from '@/lib/supabase'
 import {accountId,readActive,readCurrentFlight,finishLocalFlight,flushEndedFlights,compareFlight,canWriteFlight,deviceId,deviceKind,localActive,saveLocalActive,type ActiveFlight} from '@/lib/active-flight'
 export function useFlightHandoff(flightId:string,snapshot:Omit<ActiveFlight,'runId'|'deviceId'|'deviceKind'|'revision'>|null,restore:(f:ActiveFlight)=>void){
  const [tick,setTick]=useState(0)
- const retryAfter=useRef(0)
+ const retryAfter=useRef(0),lastHeartbeat=useRef(0)
  const [inactive,setInactive]=useState(false)
  const [ready,setReady]=useState(false),[readOnly,setReadOnly]=useState(false),[syncError,setSyncError]=useState(false)
  const restoreRef=useRef(restore);restoreRef.current=restore
@@ -45,10 +45,11 @@ export function useFlightHandoff(flightId:string,snapshot:Omit<ActiveFlight,'run
   if(!ready||!snapshot||readOnly||inactive)return
   const local=localActive();if(local?.runId===run.current&&local.finished&&!snapshot.finished)return
   const serialized=JSON.stringify(snapshot)
-  if(serialized===fingerprint.current&&!syncError&&!queue.current)return
+  const heartbeatDue=!!uid.current&&!snapshot.finished&&Date.now()-lastHeartbeat.current>=30000
+  if(serialized===fingerprint.current&&!syncError&&!queue.current&&!heartbeatDue)return
   if(syncError&&Date.now()<retryAfter.current)return
   fingerprint.current=serialized
-  const value:ActiveFlight={...snapshot,runId:run.current,deviceId:deviceId(),deviceKind:deviceKind(),revision:0,...(uid.current?{accountId:uid.current}:{})}
+  const value:ActiveFlight={...snapshot,runId:run.current,deviceId:deviceId(),deviceKind:deviceKind(),revision:0,heartbeatAt:Date.now(),...(uid.current?{accountId:uid.current}:{})}
   saveLocalActive(value)
   if(!uid.current)return
   queue.current=value
@@ -60,7 +61,7 @@ export function useFlightHandoff(flightId:string,snapshot:Omit<ActiveFlight,'run
     if(!canWriteFlight(previous?.value||null,next,deviceId(),syncedRun.current)){setReadOnly(true);if(!previous){saveLocalActive({...next,finished:true});setInactive(true)};break}
     const saved=await compareFlight(user,previous,next)
     if(!saved){const latest=await readActive(user);if(latest?.value.deviceId!==deviceId()){setReadOnly(true);break};queue.current=next}
-    else {syncedRun.current=saved.value.runId;setSyncError(false)}
+    else {syncedRun.current=saved.value.runId;lastHeartbeat.current=saved.value.heartbeatAt||Date.now();setSyncError(false)}
    }}catch{queue.current ||= inFlight||value;retryAfter.current=Date.now()+8000;setSyncError(true)}finally{working.current=false}
   }
   flush()
