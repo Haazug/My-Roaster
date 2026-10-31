@@ -1,4 +1,6 @@
 'use client'
+import {usePageQuery} from '@/lib/use-page-query'
+import BackLink from '@/components/BackLink'
 import {useT} from '@/lib/i18n'
 
 import Link from 'next/link'
@@ -17,7 +19,7 @@ const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').t
 export default function AirportsPage() {
  const t=useT()
   const { data, error } = useSWR<Airport[] | { error: string }>('/api/airports', fetcher)
-  const [q, setQ] = useState('')
+  const [q, setQ] = usePageQuery()
   const deferredQ=useDeferredValue(q)
   const setView = useMapStore((s) => s.setView)
   const fav = useFavs('airport')
@@ -36,7 +38,7 @@ export default function AirportsPage() {
 
   return (
     <section className="relative z-10 min-h-screen p-5 sm:p-8">
-      <Link href="/" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/50"><ArrowLeft className="size-4" />MyRoster</Link>
+      <BackLink href="/" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/50"><ArrowLeft className="size-4" />MyRoster</BackLink>
       <div className="mt-4">
         <h1 className="text-4xl font-semibold">{t('airports.title')}</h1>
         <p className="mt-2 text-white/45">{list.length ? list.length.toLocaleString()+' · ' : ''}{t('airports.browse')}</p>

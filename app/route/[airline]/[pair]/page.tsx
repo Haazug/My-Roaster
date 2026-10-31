@@ -1,4 +1,5 @@
 'use client'
+import BackLink from '@/components/BackLink'
 
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
@@ -18,6 +19,7 @@ import { estimateBlockMinutes } from '@/lib/flight-time'
 import { useNow } from '@/lib/use-now'
 import { useT } from '@/lib/i18n'
 import { bearingDeg, fr24Url } from '@/lib/live-view'
+import {useRouteFlightNumbers} from '@/lib/use-route-flight-numbers'
 import { flightNumberPart, operationalCallsign } from '@/lib/live-model'
 import LiveFlights from '@/components/LiveFlights'
 import BookDialog from '@/components/BookDialog'
@@ -53,11 +55,14 @@ function RouteContent() {
   const [bookOpen, setBookOpen] = useState(false)
   const [flyOpen, setFlyOpen] = useState(false)
   const search = useSearchParams()
-  const candidate = (search.get('flight') || '').toUpperCase().replace(/[\s-]/g,'')
+  const numbers=useRouteFlightNumbers(data?.airline,data?.from?.iata,data?.to?.iata)
+  const [chosenNumber,setChosenNumber]=useState<string|null>(null)
+  const candidate = (search.get('flight') ?? chosenNumber ?? (numbers.length===1?numbers[0].number:'')).toUpperCase().replace(/[\s-]/g,'')
   const numberPart = data?.airline ? flightNumberPart(candidate,data.airline.iata,data.airline.icao) : ''
   const flightCode = numberPart && data?.airline ? `${data.airline.iata||data.airline.icao}${numberPart}` : ''
-  const callsign=data?.airline ? operationalCallsign(search.get('callsign') || (!numberPart?candidate:''),data.airline.icao) : ''
+  const callsign=data?.airline ? operationalCallsign(numbers.find(n=>n.number===flightCode)?.callsign || search.get('callsign') || (!numberPart?candidate:''),data.airline.icao) : ''
   const router = useRouter()
+  useEffect(()=>setChosenNumber(null),[params.airline,params.pair])
   const now = useNow()
   const t = useT()
 
@@ -71,7 +76,7 @@ function RouteContent() {
   if (error || !data || data.error) {
     return (
       <section className="min-h-screen p-5 sm:p-8">
-        <Link href="/airlines" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55"><ArrowLeft className="size-4" />{t('route.airlines')}</Link>
+        <BackLink href="/airlines" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55"><ArrowLeft className="size-4" />{t('route.airlines')}</BackLink>
         <div className="mt-8 rounded-2xl border border-red-400/20 bg-red-400/10 p-5">{t('route.notFound')}</div>
       </section>
     )
@@ -139,16 +144,16 @@ function RouteContent() {
 
   return (
     <section className="min-h-screen p-5 sm:p-8">
-      <Link href={`/airlines/${data.airline.id}`} className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
+      <BackLink href={`/airlines/${data.airline.id}`} className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
         <ArrowLeft className="size-4" />{fixName(data.airline.name)}
-      </Link>
+      </BackLink>
       <header className="mt-6 flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[.2em] text-yellow-300">
             {data.operated ? (data.codeshare ? t('route.codeshare') : t('route.operated')) : t('route.notListed')}
           </p>
           <h1 className="mt-2 text-balance text-3xl font-semibold sm:text-4xl">{t('route.title', { from: data.from.city, to: data.to.city })}</h1>
-          <p className="mt-2 text-sm text-white/45">{fixName(data.airline.name)} · {flightCode || (callsign ? `${t('flight.callsign')}: ${callsign}` : t('route.numberUnknown'))}</p>
+          <p className="mt-2 text-sm text-white/45">{fixName(data.airline.name)} · {flightCode || (callsign ? `${t('flight.callsign')}: ${callsign}` : t('route.chooseNumber'))}</p>
         </div>
         <button
           aria-label={has(flight.id) ? t('route.favRemove') : t('route.favAdd')}
@@ -159,6 +164,13 @@ function RouteContent() {
           <Star className={`size-5 ${has(flight.id) ? 'fill-[#55a7ff] text-[#55a7ff]' : 'text-white/70'}`} />
         </button>
       </header>
+
+      <div className="mt-5 border-y border-white/10 py-4">
+        <label className="text-xs text-white/50" htmlFor="route-flight-number">{t('route.flightNumber')}</label>
+        {numbers.length>0&&<select aria-label={t('route.observedNumbers')} className="mt-2 min-h-11 w-full rounded-lg border border-white/10 bg-black/70 px-3 font-mono text-sm" value={numbers.some(n=>n.number===flightCode)?flightCode:''} onChange={e=>{setChosenNumber(e.target.value);const url=new URL(location.href);url.searchParams.delete('callsign');if(e.target.value)url.searchParams.set('flight',e.target.value);else url.searchParams.delete('flight');history.replaceState(null,'',url.pathname+url.search)}}><option value="">{t('route.chooseNumber')}</option>{numbers.map(n=><option key={n.number} value={n.number}>{n.number} · {n.callsign}</option>)}</select>}
+        <input id="route-flight-number" aria-label={t('route.flightNumber')} value={chosenNumber??candidate} onChange={e=>{const value=e.target.value.toUpperCase().replace(/\s/g,'');setChosenNumber(value);const url=new URL(location.href);url.searchParams.delete('callsign');if(value)url.searchParams.set('flight',value);else url.searchParams.delete('flight');history.replaceState(null,'',url.pathname+url.search)}} placeholder={data.airline.iata||data.airline.icao} maxLength={9} className="mt-2 min-h-11 w-full rounded-lg border border-white/10 bg-transparent px-3 font-mono text-sm"/>
+        <p className="mt-2 text-xs leading-relaxed text-white/40">{t(numbers.length?'route.observedNumberHint':'route.missingNumberHint')}</p>
+      </div>
 
       {data.legs && data.legs.length === 2 && (
         <div className="mt-5 flex gap-2">
@@ -181,7 +193,7 @@ function RouteContent() {
         <div className="flex items-center gap-3 border-b border-white/10 p-4">
           <AirlineLogo iata={data.airline.iata} icao={data.airline.icao} name={fixName(data.airline.name)} size="md" showText={false} />
           <div className="min-w-0">
-            <p className="text-sm text-white/50">{flightCode || (callsign ? `${t('flight.callsign')}: ${callsign}` : t('route.numberUnknown'))} · {data.from.icao} → {data.to.icao}</p>
+            <p className="text-sm text-white/50">{flightCode || (callsign ? `${t('flight.callsign')}: ${callsign}` : t('route.chooseNumber'))} · {data.from.icao} → {data.to.icao}</p>
             <p className="truncate text-xl font-semibold uppercase text-yellow-300">{t('route.title', { from: data.from.city, to: data.to.city })}</p>
           </div>
         </div>

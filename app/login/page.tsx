@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import BrandLogo from '@/components/BrandLogo'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
@@ -52,7 +53,7 @@ export default function LoginPage() {
   return (
     <section className="min-h-screen p-5 sm:p-8">
       <div className="mx-auto mt-10 max-w-sm rounded-2xl border border-white/10 bg-black/50 p-6">
-        <img src="/logo.png" alt="MyRoster" className="mb-5 h-12 w-auto" />
+        <BrandLogo className="h-10 w-10" />
         {user ? (
           <>
             <h1 className="text-2xl font-semibold">Signed in</h1>

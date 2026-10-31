@@ -1,4 +1,5 @@
 'use client'
+import BackLink from '@/components/BackLink'
 
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState, useRef } from 'react'
@@ -195,9 +196,9 @@ export default function FlightPlanPage() {
 
   return (
     <section className="min-h-screen p-5 sm:p-8">
-      <button onClick={() => router.back()} className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
+      <BackLink href="/search" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
         <ArrowLeft className="size-4" /> {t('back')}
-      </button>
+      </BackLink>
       <h1 className="mt-4 text-2xl font-semibold">{t('plan.title')}</h1>{seed?.callsign && <p className="mt-3 font-mono text-sm text-white/50">{t('flight.callsign')}: {seed.callsign}</p>}
       <p className="mt-1 text-sm text-white/50">{t('plan.flight', { id: String(id) })}</p>
 

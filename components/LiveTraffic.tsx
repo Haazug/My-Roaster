@@ -1,6 +1,7 @@
 'use client'
 
 import useSWR from 'swr'
+import {liveRouteHref} from '@/lib/live-model'
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -23,7 +24,7 @@ export default function LiveTraffic({ getCenter }: { getCenter: () => { lat: num
       if (a.callsign) {
         const j = await fetch(`/api/live/flight/${encodeURIComponent(a.callsign)}`).then((r) => r.json())
         const f = j?.data
-        if (f) return router.push(`/route/${f.airlineIata || f.airlineIcao}/${f.from}-${f.to}`)
+        if (f) return router.push(liveRouteHref(f)||`/live/${a.hex}`)
       }
     } catch {}
     router.push(`/live/${a.hex}`)

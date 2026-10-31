@@ -1,4 +1,5 @@
 'use client'
+import BackLink from '@/components/BackLink'
 
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
@@ -465,9 +466,9 @@ export default function FlyNowPage() {
   if (!info) {
     return (
       <section className="min-h-screen p-5 sm:p-8">
-        <Link href={`/flights/${id}/flight-plan`} className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55">
+        <BackLink href={`/flights/${id}/flight-plan`} className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55">
           <ArrowLeft className="size-4" /> {tr('back')}
-        </Link>
+        </BackLink>
         <div className="mt-10 rounded-2xl border border-white/10 bg-black/40 p-5 text-white/60">
           {tr('fly.noPlan', { id: String(id) })}
         </div>
@@ -484,9 +485,9 @@ export default function FlyNowPage() {
       onClickCapture={() => sound.unlock()}
     >
       <div className="mb-6 flex items-center justify-between">
-        <Link href={`/flights/${id}/flight-plan`} className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
+        <BackLink href={`/flights/${id}/flight-plan`} className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
           <ArrowLeft className="size-4" /> {tr('back')}
-        </Link>
+        </BackLink>
         <Link
           href={`/flights/${id}/simbrief`}
           className="flex min-h-11 items-center gap-2 text-xs text-white/45 transition hover:text-white"

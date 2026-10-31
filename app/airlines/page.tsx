@@ -1,4 +1,5 @@
 'use client'
+import {usePageQuery} from '@/lib/use-page-query'
 
 import { useT } from '@/lib/i18n'
 import { useMemo, useState } from 'react'
@@ -19,7 +20,7 @@ const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').t
 export default function Airlines() {
   const tr=useT()
   const { data, error, mutate } = useSWR<Airline[] | { error: string }>('/api/airlines', fetcher)
-  const [q, setQ] = useState('')
+  const [q, setQ] = usePageQuery()
   const [alliance,setAlliance]=useState('')
   const favA = useFavs('airline')
   const list = Array.isArray(data) ? data : []

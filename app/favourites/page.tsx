@@ -1,4 +1,5 @@
 'use client'
+import BackLink from '@/components/BackLink'
 
 import Link from 'next/link'
 import { ArrowLeft, Plane, Star } from 'lucide-react'
@@ -13,7 +14,7 @@ export default function FavouritesPage() {
 
   return (
     <section className="min-h-screen p-5 sm:p-8">
-      <Link href="/" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/50"><ArrowLeft className="size-4" />MyRoster</Link>
+      <BackLink href="/" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/50"><ArrowLeft className="size-4" />MyRoster</BackLink>
       <header className="mt-4">
         <p className="text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">{t('favourites.saved')}</p>
         <h1 className="mt-2 text-4xl font-semibold">{t('favourites.title')}</h1>

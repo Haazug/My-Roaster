@@ -45,10 +45,11 @@ export class FlightObservations {
   }
 }
 
-export function liveRouteHref(f: Pick<ResolvedFlight, 'from' | 'to' | 'airlineIata' | 'airlineIcao' | 'flightNumber'>) {
+export function liveRouteHref(f: Pick<ResolvedFlight, 'from' | 'to' | 'airlineIata' | 'airlineIcao' | 'flightNumber'> & Partial<Pick<ResolvedFlight,'callsign'>>) {
   const airline = f.airlineIata || f.airlineIcao
   if (!f.from || !f.to || !airline) return null
-  return `/route/${encodeURIComponent(airline)}/${f.from}-${f.to}?flight=${encodeURIComponent(f.flightNumber)}`
+  const query=f.flightNumber?`?flight=${encodeURIComponent(f.flightNumber)}`:f.callsign?`?callsign=${encodeURIComponent(f.callsign)}`:''
+  return `/route/${encodeURIComponent(airline)}/${f.from}-${f.to}${query}`
 }
 
 // Prefer the longest prefix: DTA must be matched before DT.

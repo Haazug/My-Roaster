@@ -1,4 +1,5 @@
 'use client'
+import BackLink from '@/components/BackLink'
 
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
@@ -48,9 +49,9 @@ export default function LiveAircraftPage() {
   if (loading && !aircraft) {
     return (
       <section className="min-h-screen p-5 sm:p-8">
-        <Link href="/airlines" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55">
+        <BackLink href="/airlines" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55">
           <ArrowLeft className="size-4" /> {t('back')}
-        </Link>
+        </BackLink>
         <div className="mt-10 text-white/40">{t('live.loading')}</div>
       </section>
     )
@@ -59,9 +60,9 @@ export default function LiveAircraftPage() {
   if (!aircraft) {
     return (
       <section className="min-h-screen p-5 sm:p-8">
-        <Link href="/airlines" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55">
+        <BackLink href="/airlines" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55">
           <ArrowLeft className="size-4" /> {t('back')}
-        </Link>
+        </BackLink>
         <div className="mt-10 rounded-2xl border border-red-400/20 bg-red-400/10 p-5 text-red-100">
           {String(hex).toUpperCase()} · {t('live.lost')}
         </div>
@@ -72,9 +73,9 @@ export default function LiveAircraftPage() {
   return (
     <section className="min-h-screen p-5 sm:p-8">
       <div className="flex items-center justify-between">
-        <Link href="/airlines" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
+        <BackLink href="/airlines" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
           <ArrowLeft className="size-4" /> {t('back')}
-        </Link>
+        </BackLink>
         <div className="flex items-center gap-2 text-xs text-white/40">
           <button
             onClick={() => setAutoRefresh(!autoRefresh)}

@@ -51,7 +51,7 @@ export default function GlobeInner() {
   const later = (fn: () => void, ms: number) => {
     timers.current.push(setTimeout(fn, ms))
   }
-  const lock = view.mode === 'route' && !!view.lock
+  const exploring=useMapStore(s=>s.exploring)
 
   // rotation and controls
   useEffect(() => {
@@ -59,10 +59,12 @@ export default function GlobeInner() {
     const apply = () => {
       const c = ref.current?.controls() as any
       if (!c) return false
-      c.autoRotate = view.mode === 'idle' || (view.mode === 'airports' && !view.selected)
-      c.autoRotateSpeed = view.mode === 'idle' ? 0.5 : 0.2
-      c.enableRotate = !lock
-      c.enableZoom = !lock
+      c.autoRotate = !exploring && (view.mode === 'idle' || (view.mode === 'airports' && !view.selected))
+      c.autoRotateSpeed = 0.5
+      c.enableRotate = true
+      c.enableZoom = true
+      c.minDistance=105
+      c.maxDistance=1000
       return true
     }
     if (apply()) return
@@ -70,7 +72,7 @@ export default function GlobeInner() {
       if (apply() || ++n > 40) clearInterval(t)
     }, 250)
     return () => clearInterval(t)
-  }, [view.mode, lock, view.mode==='airports'?view.selected:undefined])
+  }, [view.mode, exploring, view.mode==='airports'?view.selected:undefined])
 
   const hubs = useMemo(() => (view.mode === 'airline' ? (view.hubs?.length ? view.hubs.map(p=>({p,c:1})) : topAirports(view.routes)) : []), [view.mode,view.mode==='airline'?view.routes:undefined,view.mode==='airline'?view.hubs:undefined])
 
@@ -130,6 +132,13 @@ export default function GlobeInner() {
   }, [camKey,view.mode])
 
   useEffect(() => clearTimers, [])
+  useEffect(()=>{
+    const zoom=(event:Event)=>{const g=ref.current;if(!g)return;const factor=Number((event as CustomEvent).detail?.factor);if(!Number.isFinite(factor)||factor<=0)return;const pov=g.pointOfView();g.pointOfView({...pov,altitude:Math.min(6,Math.max(.08,pov.altitude*factor))},250)}
+    const reset=()=>{const g=ref.current;if(!g)return;const c=camRef.current;g.pointOfView(c?{lat:c.lat,lng:c.lng,altitude:c.alt}:{lat:0,lng:0,altitude:2.5},800)}
+    window.addEventListener('myroster:globe-zoom',zoom);window.addEventListener('myroster:globe-reset',reset)
+    return()=>{window.removeEventListener('myroster:globe-zoom',zoom);window.removeEventListener('myroster:globe-reset',reset)}
+  },[])
+
 
   const wps=view.mode==='route'&&view.waypoints&&view.waypoints.length>1?view.waypoints:undefined
   const from=view.mode==='route'?view.from:undefined, to=view.mode==='route'?view.to:undefined
@@ -158,7 +167,7 @@ export default function GlobeInner() {
         waitForGlobeReady={false}
         width={size.width}
         height={size.height}
-        globeOffset={size.width>=1024?[Math.min(250-size.width/2,0),0]:[0,0]}
+        globeOffset={!exploring&&size.width>=1024?[Math.min(250-size.width/2,0),0]:[0,0]}
         globeImageUrl="/globe/earth-blue-marble.jpg"
         bumpImageUrl="/globe/earth-topology.png"
         backgroundImageUrl="/globe/night-sky.png"

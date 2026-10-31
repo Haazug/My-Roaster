@@ -1,3 +1,6 @@
+import NavigationHistory from '@/components/NavigationHistory'
+import GlobeInteraction from '@/components/GlobeInteraction'
+import AppContent from '@/components/AppContent'
 import type { Metadata, Viewport } from 'next'
 import { Toaster } from 'sonner'
 import './globals.css'
@@ -18,11 +21,11 @@ export const metadata: Metadata = {
   applicationName: 'MyRoster',
   icons: {
     icon: [
-      { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' },
-      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/favicon-32.png?v=2.2.0', sizes: '32x32', type: 'image/png' },
+      { url: '/icon-192.png?v=2.2.0', sizes: '192x192', type: 'image/png' },
     ],
-    shortcut: '/favicon.ico',
-    apple: [{ url: '/apple-icon.png', sizes: '180x180', type: 'image/png' }],
+    shortcut: '/favicon.ico?v=2.2.0',
+    apple: [{ url: '/apple-icon.png?v=2.2.0', sizes: '180x180', type: 'image/png' }],
   },
   appleWebApp: { capable: true, title: 'MyRoster', statusBarStyle: 'black-translucent' },
   title: 'MyRoster — Flight planning, simplified',
@@ -36,7 +39,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="overflow-x-hidden bg-[#0a0a0a] text-white antialiased" suppressHydrationWarning>
         <GlobeBackground />
         <LogoCorner />
-        <main className="relative z-10 min-h-screen pt-12 pb-24 sm:pb-40 lg:ml-[440px] xl:ml-[500px] lg:max-w-[760px]">{children}<LegalFooter /></main>
+        <AppContent>{children}<LegalFooter /></AppContent>
+        <NavigationHistory />
+        <GlobeInteraction />
         <BottomNav />
         <FlightCompanion />
          <BackgroundMusic />

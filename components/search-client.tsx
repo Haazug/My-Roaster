@@ -1,4 +1,5 @@
 'use client'
+import BackLink from '@/components/BackLink'
 
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
@@ -49,7 +50,7 @@ export default function SearchClient() {
 
   return (
     <section className="min-h-screen p-5 sm:p-8">
-      <Link href="/" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/50"><ArrowLeft className="size-4" />Back</Link>
+      <BackLink href="/" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/50"><ArrowLeft className="size-4" />Back</BackLink>
       <header className="mt-4">
         <p className="text-xs font-semibold uppercase tracking-[.2em] text-[#55a7ff]">Discovery</p>
         <h1 className="mt-2 text-4xl font-semibold">Search the world</h1>

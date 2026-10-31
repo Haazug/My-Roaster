@@ -1,4 +1,5 @@
 'use client'
+import {usePageQuery} from '@/lib/use-page-query'
 
 import Link from 'next/link'
 import { useT } from '@/lib/i18n'
@@ -19,7 +20,7 @@ const PAIR = /^([A-Za-z]{3})\s*(?:[-→>/]|\s)\s*([A-Za-z]{3})$/
 export default function SearchPage() {
   const tr=useT()
   const setView=useMapStore(s=>s.setView)
-  const [q, setQ] = useState('')
+  const [q, setQ] = usePageQuery()
   const t = q.trim()
   const { data: airlines } = useSWR<any[]>('/api/airlines', fetcher)
   const { data: airports } = useSWR<any[]>(t.length >= 2 ? `/api/airport-search?q=${encodeURIComponent(t)}` : null, fetcher)

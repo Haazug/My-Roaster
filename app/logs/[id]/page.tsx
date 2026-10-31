@@ -1,4 +1,5 @@
 'use client'
+import BackLink from '@/components/BackLink'
 
 import {displayFlightNumber} from '@/lib/live-model'
 import Link from 'next/link'
@@ -27,9 +28,9 @@ export default function LogSummaryPage() {
   const f = logs.find((l) => l.id === key)
 
   const back = (
-    <Link href="/trips#history" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
+    <BackLink href="/trips#history" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
       <ArrowLeft className="size-4" /> {t.back}
-    </Link>
+    </BackLink>
   )
 
   if (!hydrated) return <section className="min-h-screen p-5 text-white/40 sm:p-8">{t.loading}</section>

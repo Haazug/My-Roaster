@@ -45,6 +45,7 @@ test('ground observations and unresolved routes remove old airborne associations
 })
 test('route links carry the complete flight number; unresolved identities do not create broken route links', () => {
   assert.equal(liveRouteHref(flight()), '/route/DT/NBJ-LIS?flight=DT653')
+  assert.equal(liveRouteHref(flight({flightNumber:'',callsign:'DTA6AB'})), '/route/DT/NBJ-LIS?callsign=DTA6AB')
   assert.equal(liveRouteHref(flight({ airlineIata: '', airlineIcao: '' })), null)
 })
 test('history is bounded and a new observation replaces an old route for the same aircraft', () => {

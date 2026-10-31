@@ -1,4 +1,6 @@
 'use client'
+import {usePageQuery} from '@/lib/use-page-query'
+import BackLink from '@/components/BackLink'
 
 import Link from 'next/link'
 import { useT } from '@/lib/i18n'
@@ -31,7 +33,7 @@ export default function AirlineDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { data, error } = useSWR(id ? `/api/airlines/${id}` : null, fetcher)
   const setView = useMapStore((s) => s.setView)
-  const [q, setQ] = useState('')
+  const [q, setQ] = usePageQuery()
   const [tab, setTab] = useState<Tab>('all')
   const favR = useFavourites()
   const favAp = useFavs('airport')
@@ -82,9 +84,9 @@ export default function AirlineDetailPage() {
   if (error || data?.error) {
     return (
       <section className="min-h-screen p-5 sm:p-8">
-        <Link href="/airlines" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
+        <BackLink href="/airlines" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
           <ArrowLeft className="size-4" /> {tr('airlines.back')}
-        </Link>
+        </BackLink>
         <div className="mt-10 rounded-2xl border border-red-400/20 bg-red-400/10 p-5 text-red-100">{tr('airlines.error')}</div>
       </section>
     )
@@ -101,9 +103,9 @@ export default function AirlineDetailPage() {
 
   return (
     <section className="min-h-screen p-5 pb-32 sm:p-8">
-      <Link href="/airlines" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
+      <BackLink href="/airlines" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
         <ArrowLeft className="size-4" /> {tr('airlines.back')}
-      </Link>
+      </BackLink>
       <header className="mt-8 border-b border-white/10 pb-7">
         <div className="flex items-start gap-4">
           <AirlineLogo iata={airline.iata} icao={airline.icao} name={airline.name} size="lg" showText={false} />

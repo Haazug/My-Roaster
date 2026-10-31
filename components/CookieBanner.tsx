@@ -1,5 +1,6 @@
 'use client'
 
+import BrandLogo from '@/components/BrandLogo'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { getConsent, openConsent, setConsent } from '@/lib/consent'
@@ -45,7 +46,7 @@ export default function CookieBanner() {
   return (
     <div role="dialog" aria-label={t('cookie.aria')} className="fixed inset-x-3 bottom-24 z-50 max-w-md rounded-2xl border border-white/10 bg-[#111217f5] p-4 text-white shadow-2xl backdrop-blur-xl lg:bottom-28 lg:left-6">
       <div className="flex items-center gap-3">
-        <img src="/logo-mark.png" alt="" className="h-7 w-auto" />
+        <BrandLogo className="h-10 w-10" />
         <p className="font-semibold">{t('cookie.title')}</p>
       </div>
       <p className="mt-2 text-xs leading-relaxed text-white/60">

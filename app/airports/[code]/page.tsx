@@ -1,4 +1,5 @@
 'use client'
+import BackLink from '@/components/BackLink'
 
 import {useT} from '@/lib/i18n'
 import Link from 'next/link'
@@ -57,9 +58,9 @@ export default function AirportDetailPage() {
   if (error || data?.error) {
     return (
       <section className="min-h-screen p-5 sm:p-8">
-        <Link href="/airports" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
+        <BackLink href="/airports" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
           <ArrowLeft className="size-4" /> {t('airlines.backAirports')}
-        </Link>
+        </BackLink>
         <div className="mt-10 rounded-2xl border border-red-400/20 bg-red-400/10 p-5 text-red-100">Airport "{decoded}" could not be found.</div>
       </section>
     )
@@ -72,9 +73,9 @@ export default function AirportDetailPage() {
 
   return (
     <section className="min-h-screen p-5 pb-32 sm:p-8">
-      <Link href="/airports" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
+      <BackLink href="/airports" className="inline-flex min-h-11 items-center gap-2 text-sm text-white/55 hover:text-white">
         <ArrowLeft className="size-4" /> {t('airlines.backAirports')}
-      </Link>
+      </BackLink>
       <header className="mt-8 border-b border-white/10 pb-7">
         <div className="flex items-start gap-4">
           <div className={`${boardText} flex size-16 shrink-0 items-center justify-center rounded-2xl border border-[#facc15]/20 bg-[#0b0b0c] text-lg font-bold`}>{airport.iata}</div>

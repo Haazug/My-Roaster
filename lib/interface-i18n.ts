@@ -1,5 +1,15 @@
 // en, pt, it, fr, es. Keep every interface key complete across the five supported languages.
 export const interfaceText: Record<string, readonly [string,string,string,string,string]> = {
+ 'globe.explore':['Explore globe','Explorar globo','Esplora il globo','Explorer le globe','Explorar globo'],
+ 'globe.return':['Return to page','Voltar à página','Torna alla pagina','Retour à la page','Volver a la página'],
+ 'globe.zoomIn':['Zoom in','Aproximar','Ingrandisci','Zoom avant','Acercar'],
+ 'globe.zoomOut':['Zoom out','Afastar','Riduci','Zoom arrière','Alejar'],
+ 'globe.reset':['Center on route or airport','Centrar na rota ou aeroporto','Centra su rotta o aeroporto','Centrer sur la liaison ou l’aéroport','Centrar en ruta o aeropuerto'],
+ 'route.flightNumber':['Flight number or callsign','Número de voo ou indicativo','Numero di volo o nominativo','Numéro de vol ou indicatif','Número de vuelo o indicativo'],
+ 'route.observedNumbers':['Observed flights on this route','Voos observados nesta rota','Voli osservati sulla rotta','Vols observés sur cette liaison','Vuelos observados en esta ruta'],
+ 'route.chooseNumber':['Choose a flight','Escolher um voo','Scegli un volo','Choisir un vol','Elegir un vuelo'],
+ 'route.observedNumberHint':['Select an observed flight, or enter your own number for the simulation plan. The return direction has its own flights.','Seleciona um voo observado ou introduz o teu número para o plano de simulação. A volta tem os seus próprios voos.','Scegli un volo osservato o inserisci un numero per la simulazione. Il ritorno ha voli propri.','Choisis un vol observé ou saisis un numéro pour la simulation. Le retour a ses propres vols.','Elige un vuelo observado o introduce un número para la simulación. La vuelta tiene sus propios vuelos.'],
+ 'route.missingNumberHint':['The reference catalog has no flight numbers and none were observed for this direction. Enter the number from your flight plan; it will be kept throughout the flight.','O catálogo de referência não inclui números e não foram observados voos neste sentido. Introduz o número do teu plano; será mantido durante o voo.','Il catalogo non include numeri e non sono stati osservati voli in questa direzione. Inserisci il numero del tuo piano: verrà mantenuto durante il volo.','Le catalogue ne fournit aucun numéro et aucun vol n’a été observé dans ce sens. Saisis le numéro de ton plan : il sera conservé pendant le vol.','El catálogo no incluye números y no se observaron vuelos en este sentido. Introduce el número de tu plan; se conservará durante el vuelo.'],
  'airlines.fromHubs':['Departures from the airline’s hubs','Partidas dos hubs da companhia','Partenze dagli hub della compagnia','Départs des hubs de la compagnie','Salidas desde los hubs de la aerolínea'],
  'live.flightStatus':['Flight · Status','Voo · Estado','Volo · Stato','Vol · État','Vuelo · Estado'],
  'favourites.saved':['Saved routes','Rotas guardadas','Rotte salvate','Liaisons enregistrées','Rutas guardadas'],
