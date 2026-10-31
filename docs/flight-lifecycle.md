@@ -1,0 +1,5 @@
+# Active flight lifecycle
+
+An active account run is stored under `myroster.activeFlight`. Completing or cancelling a run writes a terminal value rather than deleting its shared row; that tombstone prevents an older device from resurrecting the same run. Local terminal updates are queued under `myroster.endedFlights` before network access, then retried by the global companion on polling, focus and reconnection, even after leaving the flight page. Updates use the existing compare-and-swap revision and never close a newer run or one transferred to another device.
+
+The companion and timer also consult completion evidence for older records: a matching flight log or the end/removal of the linked scheduled booking. A matching log includes the run ID; another flight on the same route cannot end the current run. Account queries remain scoped to the signed-in user. Failed reads hide the handoff prompt instead of leaving an obsolete modal open. A completed or missing remote run stops the timer and returns the observer to the home page on the next successful poll (up to eight seconds). A new, explicitly created plan can start a new run.

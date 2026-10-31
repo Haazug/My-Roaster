@@ -4,23 +4,23 @@ import {useRouter} from 'next/navigation'
 import {toast} from 'sonner'
 import {supabase} from '@/lib/supabase'
 import {useT} from '@/lib/i18n'
-import {accountId,readActive,claimFlight,deviceId,saveLocalActive,type FlightRow} from '@/lib/active-flight'
+import {accountId,readCurrentFlight,flushEndedFlights,claimFlight,deviceId,saveLocalActive,type FlightRow} from '@/lib/active-flight'
 export default function FlightCompanion(){
  const t=useT(),router=useRouter()
  const [incoming,setIncoming]=useState<FlightRow|null>(null),[busy,setBusy]=useState(false)
  useEffect(()=>{
-  let live=true,uid:string|null=null
-  const check=async(force=false)=>{try{
-   uid=await accountId();if(!uid)return
-   const forUser=uid;const row=await readActive(forUser);if(!live||await accountId()!==forUser)return
+  let live=true,checkId=0,uid:string|null=null
+  const check=async(force=false)=>{const attempt=++checkId;try{
+   uid=await accountId();if(!uid){setIncoming(null);return}
+   const forUser=uid;await flushEndedFlights(forUser);const row=await readCurrentFlight(forUser);if(!live||await accountId()!==forUser||attempt!==checkId)return
    if(force&&row)sessionStorage.removeItem(`handoff.dismiss.${uid}.${row.value.runId}.${row.value.deviceId}`)
    if(row&&!row.value.finished&&row.value.deviceId!==deviceId()&&!sessionStorage.getItem(`handoff.dismiss.${uid}.${row.value.runId}.${row.value.deviceId}`))setIncoming(row)
    else setIncoming(null)
-  }catch{}}
+  }catch{if(live&&attempt===checkId)setIncoming(null)}}
   check();const timer=setInterval(()=>check(),10000)
-  const request=()=>check(true);window.addEventListener('myroster:request-handoff',request)
+  const request=()=>check(true),refresh=()=>check();window.addEventListener('myroster:request-handoff',request);window.addEventListener('myroster:active-flight',refresh);window.addEventListener('myroster:data-changed',refresh);window.addEventListener('online',refresh);window.addEventListener('focus',refresh)
   const {data}=supabase.auth.onAuthStateChange(()=>{setIncoming(null);setTimeout(()=>check(),0)})
-  return()=>{live=false;clearInterval(timer);window.removeEventListener('myroster:request-handoff',request);data.subscription.unsubscribe()}
+  return()=>{live=false;clearInterval(timer);window.removeEventListener('myroster:request-handoff',request);window.removeEventListener('myroster:active-flight',refresh);window.removeEventListener('myroster:data-changed',refresh);window.removeEventListener('online',refresh);window.removeEventListener('focus',refresh);data.subscription.unsubscribe()}
  },[])
  useEffect(()=>{
   const check=async()=>{
@@ -39,7 +39,7 @@ export default function FlightCompanion(){
  },[t,router])
  const follow=async()=>{
   if(!incoming)return;setBusy(true)
-  try{const uid=await accountId();const row=uid?await claimFlight(uid,incoming.value.runId):null;if(!row){toast(t('handoff.changed'));return}
+  try{const uid=await accountId();const row=uid?await claimFlight(uid,incoming.value.runId):null;if(!row){setIncoming(null);toast(t('handoff.changed'));return}
    localStorage.setItem('myroster.activePlan',JSON.stringify(row.value.plan));saveLocalActive(row.value);setIncoming(null)
    router.push(`/flights/${encodeURIComponent(row.value.flightId)}/fly?resume=${encodeURIComponent(row.value.runId)}`)
    window.dispatchEvent(new Event('myroster:resume-flight'))

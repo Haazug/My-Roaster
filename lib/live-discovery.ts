@@ -3,7 +3,8 @@ import { live, liveGlobal, type LiveAircraft } from '@/lib/live'
 import { lookupCallsign } from '@/lib/route-lookup'
 import { airlineByIcao, parseCallsign } from '@/lib/airline-lookup'
 import { distNm } from '@/lib/live-geo'
-import { getDb } from '@/lib/db'
+import {radarBatch,radarOffset,type RadarAirport} from '@/lib/radar-airports'
+import { getDb,getRadarAirports } from '@/lib/db'
 import { getLiveHistory } from '@/lib/live-history'
 import type { LiveHistory, HistoryRecord, SyncState } from '@/lib/live-history-sqlite'
 import { AviationstackTimetable } from '@/lib/live-timetable'
@@ -45,19 +46,19 @@ export async function resolveAircraft(a: LiveAircraft, observedAt = Date.now()):
   }
 }
 
-async function discover(code: string) {
+async function discover(code: string, station?:RadarAirport, limit=20) {
   if (Date.now() - (scanned.get(code) || 0) < 45_000) return
   const existing = pending.get(code)
   if (existing) return existing
   const work = (async () => {
     const db = await getDb()
-    const ap = db.airports.get(code)
+    const ap = station||db.airports.get(code)
     if (!ap) return
     const aircraft = await live(`/point/${ap.lat}/${ap.lon}/140`)
     const observedAt = Date.now()
     // Bound route-provider traffic; rotate the scan to avoid starving higher-altitude aircraft.
     const offset = Math.floor(observedAt / 45_000) * 20 % Math.max(aircraft.length, 1)
-    const selected = [...aircraft.slice(offset), ...aircraft.slice(0, offset)].slice(0, 20)
+    const selected = [...aircraft.slice(offset), ...aircraft.slice(0, offset)].slice(0, limit)
     let failed = false
     let historyFailed = false
     for (let i = 0; i < selected.length; i += 5) {
@@ -78,6 +79,25 @@ async function discover(code: string) {
   })()
   pending.set(code, work)
   try { await work } finally { pending.delete(code) }
+}
+
+let radarPending:Promise<{codes:string[];nextOffset:number;complete:boolean;total:number|null}>|undefined
+async function discoverRadar(background=false){
+ if(radarPending)return radarPending
+ radarPending=(async()=>{
+  const history=workingHistory(),scope='radar:airports',previous=await history.getSync(scope)
+  if(previous&&Date.now()-previous.checkedAt<45_000)return {codes:[],...previous}
+  const airports=await getRadarAirports(),limit=background?24:6
+  const batch=radarBatch(airports,radarOffset(previous?.nextOffset,airports.length,limit),limit)
+  const results=await Promise.allSettled(batch.points.map(point=>discover(point.id,point,5)))
+  // Advance even if a station fails: one timeout must not starve the rest of the world.
+  // Failed stations are revisited on the next sweep and this request remains degraded.
+  const state={checkedAt:Date.now(),nextOffset:batch.nextOffset,complete:batch.complete,total:batch.total}
+  await history.setSync(scope,state)
+  if(results.some(r=>r.status==='rejected'))throw new Error('Some radar stations unavailable')
+  return {codes:batch.points.map(p=>p.id),...state}
+ })()
+ try{return await radarPending}finally{radarPending=undefined}
 }
 
 let timetable: AviationstackTimetable | undefined
@@ -154,7 +174,7 @@ export async function discoverFlights(airport?: string, options: { background?: 
   } catch { historyAvailable = false }
   // The global provider feed extends discovery beyond fixed satellites. Its route enrichment is
   // bounded and cursor-based; lack of coverage or a partially processed feed is never called complete.
-  const outcomes = await Promise.allSettled([...codes.map(discover), discoverGlobal(options.background ? 100 : 20)])
+  const outcomes = await Promise.allSettled([...codes.map(code=>discover(code)), discoverRadar(options.background), discoverGlobal(options.background ? 100 : 20)])
   try { stored = await workingHistory().read() } catch { historyAvailable = false }
   const snapshot = [...stored, ...observations.snapshot()]
   const flights = currentFlights(snapshot)
@@ -169,7 +189,8 @@ export async function discoverFlights(airport?: string, options: { background?: 
     data, retired,
     availability: { live: (data.some(f=>f.status==='observed') || outcomes.some(r=>r.status==='fulfilled')) ? (outcomes.some(r=>r.status==='rejected') ? 'partial' : 'available') : 'unavailable' },
     coverage: 'Provider coverage is partial. A timetable source is optional; estimates are not confirmed airborne positions.',
-    scannedAirports: codes,
+    scannedAirports: [...new Set([...codes,...(outcomes[outcomes.length-2].status==='fulfilled'?(outcomes[outcomes.length-2] as PromiseFulfilledResult<Awaited<ReturnType<typeof discoverRadar>>>).value.codes:[])])],
+    radarCoverage: outcomes[outcomes.length-2].status==='fulfilled'?(outcomes[outcomes.length-2] as PromiseFulfilledResult<Awaited<ReturnType<typeof discoverRadar>>>).value:{complete:false,unavailable:true},
     history: { persistent: historyAvailable }, timetable: timetableStatus,
     globalFeed: global.status === 'fulfilled' ? global.value : { complete: false, unavailable: true },
     degraded: !historyAvailable || !!timetableStatus.error || outcomes.some(r => r.status === 'rejected'),

@@ -13,11 +13,12 @@ function load(file, adapters) {
   const history = { write: async list => list.forEach(f => rows.set(f.id, f)), read: async () => [...rows.values()], getSync: async scope => sync.get(scope) || null, setSync: async (scope, state) => sync.set(scope, state) }
   const localRequire = name => {
     if (name === 'server-only') return {}
+    if(name==='@/lib/db'&&adapters[name])return {getRadarAirports:async()=>[],...adapters[name]}
     if (Object.hasOwn(adapters, name)) return adapters[name]
+    if (name === '@/lib/radar-airports') return load('lib/radar-airports.ts', {'./openflights-parse':{parseCsvLine:line=>JSON.parse('['+line+']')}})
     if (name === '@/lib/live-geo') return load('lib/live-geo.ts', {})
     if (name === '@/lib/live-history') return { getLiveHistory: () => history }
     if (name === '@/lib/live-timetable') return load('lib/live-timetable.ts', {})
-    if (Object.hasOwn(adapters, name)) return adapters[name]
     throw new Error(`Unexpected dependency ${name}`)
   }
   new Function('require', 'module', 'exports', source)(localRequire, module, module.exports)
@@ -136,4 +137,23 @@ test('Vercel without database credentials still discovers flights and truthfully
  assert.equal(result.history.persistent,false)
  assert.equal(result.data[0].flightNumber,'DT653')
  assert.equal(result.availability.live,'partial','an optional global source failure must not mean all traffic is unavailable')
+})
+
+
+test('rotating radar stations include airports outside the site catalog without adding them or assigning overflights',async()=>{
+ const airports=new Map([['NBJ',{iata:'NBJ',lat:-9,lon:13}],['LIS',{iata:'LIS',lat:38,lon:-9}]])
+ const scanned=[]
+ const discovery=load('lib/live-discovery.ts',{
+  '@/lib/live-model':load('lib/live-model.ts',{}),
+  '@/lib/db':{getDb:async()=>({airports}),getRadarAirports:async()=>[{id:'ZZZZ',lat:6,lon:24}]},
+  '@/lib/live':{liveGlobal:async()=>[],live:async query=>{scanned.push(query);return query.includes('/6/24/')?[{hex:'ABC123',callsign:'DTA653',lat:6,lon:24,altFt:35000,onGround:false}]:[]}},
+  '@/lib/route-lookup':{lookupCallsign:async()=>({from:'NBJ',to:'LIS',airlineIata:'DT',airlineIcao:'DTA',airlineName:'TAAG'})},
+  '@/lib/airline-lookup':{parseCallsign:()=>null},
+ })
+ const result=await discovery.discoverFlights('NBJ')
+ assert(scanned.includes('/point/6/24/140'))
+ assert(result.scannedAirports.includes('ZZZZ'))
+ assert.equal(airports.has('ZZZZ'),false)
+ assert.equal(result.data[0].from,'NBJ');assert.equal(result.data[0].kind,'departing')
+ assert.equal(result.radarCoverage.total,1)
 })

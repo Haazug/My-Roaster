@@ -109,7 +109,7 @@ export default function FlyNowPage() {
     setSessionId(new URLSearchParams(window.location.search).get('session') || '')
   }, [])
   const lang = useLang((s) => s.lang)
-  const {ready:handoffReady,readOnly,syncError,controlAllowed,endControl,runId}=useFlightHandoff(flightKey,checked&&info?{
+  const {ready:handoffReady,inactive,readOnly,syncError,controlAllowed,endControl,runId}=useFlightHandoff(flightKey,checked&&info?{
     flightId:flightKey,plan:{...info,id:flightKey,from:info.orig,to:info.dest},statuses,takeoffAt,startedAt:startedAt.current,finished,holding,
     holdSince:holdSince.current,holdTotal:holdTotal.current,holdCount:holdCount.current,goArounds:goArounds.current,stepLog:stepLog.current,fired:[...fired.current],savedLogId:logId,
   }:null,f=>{
@@ -117,6 +117,7 @@ export default function FlyNowPage() {
     holdSince.current=f.holdSince;holdTotal.current=f.holdTotal;holdCount.current=f.holdCount;goArounds.current=f.goArounds;setGoAroundCount(f.goArounds)
     startedAt.current=f.startedAt;stepLog.current=f.stepLog;fired.current=new Set(f.fired);saved.current=f.finished;setLogId(f.savedLogId||null)
   })
+  useEffect(()=>{if(inactive)router.replace('/')},[inactive,router])
   useEffect(()=>{
    if(!checked||!handoffReady||readOnly)return
    try{const plan=JSON.parse(localStorage.getItem('myroster.activePlan')||'null');if(plan?.scheduleId)updateTripStatus(plan.scheduleId,{startedAt:Date.now(),status:'running'})}catch{}
@@ -207,10 +208,10 @@ export default function FlyNowPage() {
 
   // Clock only runs after takeoff
   useEffect(() => {
-    if (!takeoffAt || finished) return
+    if (!takeoffAt || finished || inactive) return
     const t = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(t)
-  }, [takeoffAt, finished])
+  }, [takeoffAt, finished, inactive])
 
   const airborneMin = Math.max(5, (info?.durationMin || 0) - taxiMinutes(info?.aircraft || ''))
   const totalMs = airborneMin * 60_000
@@ -220,7 +221,7 @@ export default function FlyNowPage() {
 
   // Reminders at the estimated times
   useEffect(() => {
-    if (!takeoffAt || !totalMs || finished || holding) return
+    if (!takeoffAt || !totalMs || finished || holding || inactive) return
     STEPS.forEach((s) => {
       if(s.key==='Climb' && elapsed<15000)return
       if (s.at === null || statuses[s.key] || fired.current.has(s.key)) return
@@ -230,11 +231,11 @@ export default function FlyNowPage() {
       }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [elapsed, takeoffAt, statuses])
+  }, [elapsed, takeoffAt, statuses, finished, holding, inactive])
 
   // random cabin announcements during the cruise (ding + toast + notification)
   useEffect(() => {
-    if (!takeoffAt || !totalMs || finished) return
+    if (!takeoffAt || !totalMs || finished || inactive) return
     const frac = elapsed / totalMs
     if (frac < 0.12 || frac > 0.78) return
     const mins = elapsed / 60000
@@ -250,7 +251,7 @@ export default function FlyNowPage() {
       notify(pack.title, pack.lines[Math.floor(Math.random() * pack.lines.length)], Math.random() < 0.5 ? 'ding' : 'dingdong')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [elapsed, takeoffAt, finished])
+  }, [elapsed, takeoffAt, finished, inactive])
 
   // When every step is handled, save the flight to history
   useEffect(() => {
@@ -286,6 +287,7 @@ export default function FlyNowPage() {
         holdingMin: Math.round((holdTotal.current + (holdSince.current !== null ? Date.now() - holdSince.current : 0)) / 60000),
       },
     }
+    void endControl(entryId)
     setLogs([entry, ...logs])
     setLogId(entryId)
     setFinished(true)

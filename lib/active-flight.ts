@@ -19,13 +19,58 @@ export async function compareFlight(uid:string,previous:FlightRow|null,value:Act
  return data as FlightRow|null
 }
 export async function claimFlight(uid:string,runId:string){
- const previous=await readActive(uid)
+ const previous=await readCurrentFlight(uid)
  if(!previous||previous.value.runId!==runId||previous.value.finished)return null
  return compareFlight(uid,previous,{...previous.value,deviceId:deviceId(),deviceKind:deviceKind()})
 }
 
-export function canWriteFlight(previous:ActiveFlight|null,next:ActiveFlight,device:string){
- if(!previous)return true
+export function canWriteFlight(previous:ActiveFlight|null,next:ActiveFlight,device:string,knownRun?:string){
+ if(!previous)return knownRun!==next.runId
  if(previous.runId===next.runId)return previous.deviceId===device&&(!previous.finished||next.finished)
  return previous.finished||previous.deviceId===device
+}
+
+const ENDED_KEY='myroster.endedFlights'
+export function flightHasEnded(flight:ActiveFlight,logs:any[],bookings:any[]|null){
+ if(flight.finished||logs.some(log=>log.id===(flight.savedLogId||`${flight.flightId}-${flight.runId}`)))return true
+ if(!flight.plan?.scheduleId||!bookings)return false
+ const trip=bookings.find(b=>b.id===flight.plan.scheduleId)
+ return !trip||!!trip.endedAt||trip.status==='completed'||trip.status==='cancelled'
+}
+// Check completion evidence too, repairing stale active records left by older clients.
+export async function readCurrentFlight(uid:string):Promise<FlightRow|null>{
+ const row=await readActive(uid)
+ if(!row||row.value.finished)return row
+ const {data,error}=await supabase.from('user_data').select('key,value').eq('user_id',uid).in('key',['myroster.logs','myroster.bookings'])
+ if(error)throw new Error('Flight sync unavailable')
+ const logs=data?.find(r=>r.key==='myroster.logs')?.value,bookings=data?.find(r=>r.key==='myroster.bookings')?.value
+ if(!flightHasEnded(row.value,Array.isArray(logs)?logs:[],Array.isArray(bookings)?bookings:null))return row
+ const ended={...row.value,finished:true}
+ const saved=await compareFlight(uid,row,ended)
+ return saved||await readActive(uid)
+}
+function endedQueue():ActiveFlight[]{try{const rows=JSON.parse(localStorage.getItem(ENDED_KEY)||'[]');return Array.isArray(rows)?rows:[]}catch{return []}}
+function dequeueEnded(runId:string,uid:string){localStorage.setItem(ENDED_KEY,JSON.stringify(endedQueue().filter(f=>f.runId!==runId||f.accountId!==uid)))}
+const flushing=new Map<string,Promise<void>>()
+export async function flushEndedFlights(uid:string){
+ const pending=flushing.get(uid);if(pending)return pending
+ const task=(async()=>{for(const flight of endedQueue().filter(f=>f.accountId===uid)){
+  for(let attempt=0;attempt<3;attempt++){
+   const previous=await readActive(uid)
+   if(!previous||previous.value.runId!==flight.runId||previous.value.finished||previous.value.deviceId!==flight.deviceId){dequeueEnded(flight.runId,uid);break}
+   if(await compareFlight(uid,previous,flight)){dequeueEnded(flight.runId,uid);break}
+  }
+ }})()
+ flushing.set(uid,task)
+ try{await task}finally{flushing.delete(uid)}
+}
+export async function finishLocalFlight(flight:ActiveFlight,uid:string|null,savedLogId?:string){
+ const ended={...flight,finished:true,...(savedLogId?{savedLogId}:{}),...(uid?{accountId:uid}:{})}
+ saveLocalActive(ended)
+ if(uid){
+  localStorage.setItem(ENDED_KEY,JSON.stringify([...endedQueue().filter(f=>f.runId!==flight.runId||f.accountId!==uid),ended]))
+  // Retain the terminal update across navigation and offline periods until acknowledged.
+  try{await flushEndedFlights(uid)}catch{}
+ }
+ return ended
 }

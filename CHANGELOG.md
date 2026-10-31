@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.2.2 — 2026-10-31
+
+- Separate home discovery from route paths and replace country fill with subtle white boundaries.
+- Rotate radar sampling across every source airport coordinate, including airports absent from the visible catalog. Keep provider requests bounded and preserve route endpoint assignment.
+- Show the MyRoster emblem in black on white in the app, install icons and sharing metadata, with refreshed icon URLs.
+- Persist terminal flight updates across navigation/offline periods, reject stale completion prompts, repair older active records using log/trip evidence, and stop timers when the remote run ends or disappears.
+
 ## v2.2.1 — 2026-10-31
 
 - Discover countries and clickable airport markers while exploring the globe on the home page.

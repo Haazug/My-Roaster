@@ -105,7 +105,7 @@ export default function GlobeInner() {
     return () => clearInterval(t)
   }, [view.mode, exploring, view.mode==='airports'?view.selected:undefined])
 
-  const hubs = useMemo(() => (view.mode === 'airline' ? (view.hubs?.length ? view.hubs.map(p=>({p,c:1})) : topAirports(view.routes)) : []), [view.mode,view.mode==='airline'?view.routes:undefined,view.mode==='airline'?view.hubs:undefined])
+  const hubs = useMemo(() => (!discovering && view.mode === 'airline' ? (view.hubs?.length ? view.hubs.map(p=>({p,c:1})) : topAirports(view.routes)) : []), [discovering,view.mode,view.mode==='airline'?view.routes:undefined,view.mode==='airline'?view.hubs:undefined])
 
   // where the camera should be for the current view (null = leave it alone)
   const cam: Cam | null = useMemo(() => {
@@ -177,8 +177,8 @@ export default function GlobeInner() {
 
 
   const wps=view.mode==='route'&&view.waypoints&&view.waypoints.length>1?view.waypoints:undefined
-  const from=view.mode==='route'?view.from:undefined, to=view.mode==='route'?view.to:undefined
-  const network=view.mode==='airline'?view.routes:undefined
+  const from=!discovering&&view.mode==='route'?view.from:undefined, to=!discovering&&view.mode==='route'?view.to:undefined
+  const network=!discovering&&view.mode==='airline'?view.routes:undefined
   const progress=view.mode==='route'?view.progress:undefined
   const routePoints=useMemo(()=>from&&to?wps||Array.from({length:65},(_,i)=>interpolateRoute(from,to,i/64)):[],[from,to,wps])
   const basePath=useMemo(()=>({pts:routePoints.map(w=>[w.lat,w.lon,0.012]),color:'#68717c'}),[routePoints])
@@ -192,9 +192,9 @@ export default function GlobeInner() {
   const airports=view.mode==='airports'?view.airports:undefined
   const point=view.mode==='point'?view.point:undefined, nearby=view.mode==='point'?view.nearby:undefined
   const selected=view.mode==='airports'?view.selected:point?.iata
-  const points=useMemo(()=>airports?airports.map(p=>({...p,r:p.iata===selected?0.17:0.09,color:p.iata===selected?'#facc15':'#ffffff'})):point?[{...point,r:0.17,color:'#facc15'},...(nearby||[]).filter(p=>p.iata!==point.iata).map(p=>({...p,r:0.08,color:'#ffffff'}))]:from&&to?[{...from,r:0.18,color:'#facc15'},{...to,r:0.18,color:'#facc15'}]:hubs.slice(0,3).map((h,i)=>({...h.p,r:i===0?0.24:0.16,color:'#facc15'})),[airports,selected,point,nearby,from,to,hubs])
+  const points=useMemo(()=>discovering?[]:airports?airports.map(p=>({...p,r:p.iata===selected?0.17:0.09,color:p.iata===selected?'#facc15':'#ffffff'})):point?[{...point,r:0.17,color:'#facc15'},...(nearby||[]).filter(p=>p.iata!==point.iata).map(p=>({...p,r:0.08,color:'#ffffff'}))]:from&&to?[{...from,r:0.18,color:'#facc15'},{...to,r:0.18,color:'#facc15'}]:hubs.slice(0,3).map((h,i)=>({...h.p,r:i===0?0.24:0.16,color:'#facc15'})),[discovering,airports,selected,point,nearby,from,to,hubs])
 
-  const selectedPoints=useMemo(()=>discoveryAirport?[discoveryAirport]:point?[point]:from&&to?[from,to]:airports?airports.filter(p=>p.iata===selected):hubs.slice(0,3).map(h=>h.p),[point,from,to,airports,selected,hubs,discoveryAirport])
+  const selectedPoints=useMemo(()=>discoveryAirport?[discoveryAirport]:discovering?[]:point?[point]:from&&to?[from,to]:airports?airports.filter(p=>p.iata===selected):hubs.slice(0,3).map(h=>h.p),[discovering,point,from,to,airports,selected,hubs,discoveryAirport])
 
   return (
     <div className="relative size-full"
@@ -220,9 +220,9 @@ export default function GlobeInner() {
         atmosphereAltitude={0.16}
         polygonsData={polygons}
         polygonAltitude={.001}
-        polygonCapColor={(f:any)=>f.properties.code===discoveryCountryCode?'rgba(250,204,21,.12)':'rgba(0,0,0,0)'}
+        polygonCapColor={()=>'rgba(0,0,0,0)'}
         polygonSideColor={()=>'rgba(0,0,0,0)'}
-        polygonStrokeColor={(f:any)=>f.properties.code===discoveryCountryCode?'#facc15':'rgba(255,255,255,.16)'}
+        polygonStrokeColor={(f:any)=>f.properties.code===discoveryCountryCode?'rgba(255,255,255,.55)':'rgba(255,255,255,.10)'}
         polygonsTransitionDuration={0}
         polygonLabel={(f:any)=>f.properties.name}
         onPolygonClick={discovering?(f:any,event,coords)=>{if(!pickAirport(event,coords))select({kind:'country',code:f.properties.code,name:f.properties.name,lat:coords.lat,lon:coords.lng})}:undefined}
