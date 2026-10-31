@@ -32,3 +32,29 @@ test('serverless cold starts rotate by time instead of repeatedly scanning only 
  assert.deepEqual(seen,airports.map(p=>p.id))
  assert.equal(radarOffset(0,17,6,90_000),0,'a stored cursor takes precedence')
 })
+
+test('merging sources preserves an existing IATA airport instead of replacing it with the second source identifier',()=>{
+ const {mergeRadarStations}=load(path.resolve('lib/radar-airports.ts'))
+ const merged=mergeRadarStations([{id:'LIS',lat:38.77,lon:-9.13,kind:'airport'}],[{id:'LPPT',lat:38.77,lon:-9.13,kind:'airport'},{id:'HELI',lat:38.8,lon:-9.2,kind:'heliport'}])
+ assert.equal(merged.length,2);assert(merged.some(p=>p.id==='LIS'));assert(!merged.some(p=>p.id==='LPPT'))
+})
+test('every normal batch mixes airports, airfields and helicopter sites, even with many more helipads',()=>{
+ const {mixedRadarBatch}=load(path.resolve('lib/radar-airports.ts'))
+ const stations=[...Array.from({length:5},(_,i)=>({id:'AIR'+i,lat:0,lon:i,kind:'airport'})),...Array.from({length:9},(_,i)=>({id:'FIELD'+i,lat:10,lon:i,kind:'airfield'})),...Array.from({length:21},(_,i)=>({id:'HEL'+i,lat:20,lon:i,kind:'heliport'})),{id:'WATER',lat:30,lon:1,kind:'seaplane'},{id:'BALLOON',lat:30,lon:2,kind:'balloonport'}]
+ const seen=new Set();let cursor=0,complete=false
+ for(let n=0;n<50&&!complete;n++){
+  const batch=mixedRadarBatch(stations,cursor,6,0)
+  assert(batch.points.length<=6);assert(batch.points.some(p=>p.kind==='airport'));assert(batch.points.some(p=>p.kind==='heliport'));assert(batch.points.some(p=>['airfield','seaplane','balloonport'].includes(p.kind)))
+  batch.points.forEach(p=>seen.add(p.id));cursor=batch.nextOffset;complete=batch.complete
+ }
+ assert(complete);assert.equal(seen.size,stations.length)
+ for(const at of [0,45000,90000000])assert(mixedRadarBatch(stations,undefined,6,at).points.some(p=>p.kind==='airport'))
+})
+if(process.env.RADAR_SOURCE&&process.env.AIRFIELD_SOURCE)test('full merged radar keeps airports alongside airfields and helipads in real mixed batches',()=>{
+ const {parseAirfieldRadar,mergeRadarStations,mixedRadarBatch}=load(path.resolve('lib/radar-airports.ts'))
+ const points=mergeRadarStations(parseRadarAirports(fs.readFileSync(process.env.RADAR_SOURCE,'utf8')),parseAirfieldRadar(fs.readFileSync(process.env.AIRFIELD_SOURCE,'utf8')))
+ const counts={};for(const point of points)counts[point.kind]=(counts[point.kind]||0)+1
+ assert(counts.airport>7000);assert(counts.airfield>10000);assert(counts.heliport>1000)
+ for(const at of [0,45000,Date.now()]){const batch=mixedRadarBatch(points,undefined,6,at);assert(batch.points.some(p=>p.kind==='airport'));assert(batch.points.some(p=>p.kind==='heliport'));assert(batch.points.some(p=>['airfield','seaplane','balloonport'].includes(p.kind)))}
+ console.log('Merged radar types:',counts,'; total:',points.length)
+})

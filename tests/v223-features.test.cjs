@@ -56,7 +56,7 @@ test('observed numbers and actual aircraft survive live expiry without being pre
 const {parseAirfieldRadar,mergeRadarStations}=load('lib/radar-airports.ts')
 test('small airfields and heliports contribute only sampling coordinates, with explicit latitude/longitude and no closed fields',()=>{
  const data='ident,type,latitude_deg,longitude_deg\nSMALL,small_airport,40,-74\nHEL,heliport,-27,-48\nOLD,closed,20,30\nBAD,small_airport,91,30'
- const points=parseAirfieldRadar(data);assert.equal(points.length,2);assert.deepEqual(points[0],{id:'SMALL',lat:40,lon:-74})
+ const points=parseAirfieldRadar(data);assert.equal(points.length,2);assert.deepEqual(points[0],{id:'SMALL',lat:40,lon:-74,kind:'airfield'})
  assert.equal(mergeRadarStations(points,[{id:'same',lat:40,lon:-74}]).length,2)
 })
 if(process.env.AIRFIELD_SOURCE)test('full public airfield source includes active small fields without modifying any site catalog',()=>{

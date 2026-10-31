@@ -5,7 +5,7 @@ import { live, liveGlobal, type LiveAircraft } from '@/lib/live'
 import { lookupCallsign } from '@/lib/route-lookup'
 import { airlineByIcao, parseCallsign } from '@/lib/airline-lookup'
 import { distNm } from '@/lib/live-geo'
-import {radarBatch,radarOffset,type RadarAirport} from '@/lib/radar-airports'
+import {mixedRadarBatch,type RadarAirport} from '@/lib/radar-airports'
 import { getDb,getRadarAirports } from '@/lib/db'
 import { getLiveHistory } from '@/lib/live-history'
 import type { LiveHistory, HistoryRecord, SyncState } from '@/lib/live-history-sqlite'
@@ -88,10 +88,10 @@ let radarPending:Promise<{codes:string[];nextOffset:number;complete:boolean;tota
 async function discoverRadar(background=false){
  if(radarPending)return radarPending
  radarPending=(async()=>{
-  const history=workingHistory(),scope='radar:airports',previous=await history.getSync(scope)
+  const limit=background?24:6,history=workingHistory(),scope=`radar:facilities:v2:${limit}`,previous=await history.getSync(scope)
   if(previous&&Date.now()-previous.checkedAt<45_000)return {codes:[],...previous}
-  const airports=await getRadarAirports(),limit=background?24:6
-  const batch=radarBatch(airports,radarOffset(previous?.nextOffset,airports.length,limit),limit)
+  const airports=await getRadarAirports()
+  const batch=mixedRadarBatch(airports,previous?.nextOffset,limit)
   const results=await Promise.allSettled(batch.points.map(point=>discover(point.id,point,5)))
   // Advance even if a station fails: one timeout must not starve the rest of the world.
   // Failed stations are revisited on the next sweep and this request remains degraded.
