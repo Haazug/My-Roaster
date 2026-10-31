@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.2.1 — 2026-10-31
+
+- Discover countries and clickable airport markers while exploring the globe on the home page.
+- Inspect airport and airline descriptions, country directories, operating airlines and hubs before opening their pages.
+- Keep discovery layers, data fetching and selection panels disabled on route and flight pages.
+- Bundle low-resolution Natural Earth country boundaries locally; airport and airline descriptions use the existing sanitized reference catalog.
+
 ## v2.2.0 — 2026-10-31
 
 - Use the supplied MyRoster logo as a monochrome transparent PNG in the app and a black mark on a white background for PWA, Apple and favicon icons.

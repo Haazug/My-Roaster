@@ -1,3 +1,4 @@
+import GlobeDiscovery from '@/components/GlobeDiscovery'
 import NavigationHistory from '@/components/NavigationHistory'
 import GlobeInteraction from '@/components/GlobeInteraction'
 import AppContent from '@/components/AppContent'
@@ -42,6 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AppContent>{children}<LegalFooter /></AppContent>
         <NavigationHistory />
         <GlobeInteraction />
+        <GlobeDiscovery />
         <BottomNav />
         <FlightCompanion />
          <BackgroundMusic />

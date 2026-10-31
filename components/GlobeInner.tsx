@@ -1,4 +1,7 @@
 'use client'
+import {usePathname} from 'next/navigation'
+import {useGlobeDiscovery,useGlobeCountries} from '@/lib/use-globe-discovery'
+import {canDiscoverGlobe,discoveryContext} from '@/lib/globe-discovery'
 import Globe, { type GlobeMethods } from 'react-globe.gl'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMapStore, type Point } from '@/lib/map-store'
@@ -43,6 +46,7 @@ export default function GlobeInner() {
   const ref = useRef<GlobeMethods | undefined>(undefined)
   const view = useMapStore((s) => s.view)
   const zoomKey = useRef('')
+  const pointerStart=useRef<{x:number;y:number}|null>(null)
   const timers = useRef<ReturnType<typeof setTimeout>[]>([])
   const clearTimers = () => {
     timers.current.forEach(clearTimeout)
@@ -52,6 +56,33 @@ export default function GlobeInner() {
     timers.current.push(setTimeout(fn, ms))
   }
   const exploring=useMapStore(s=>s.exploring)
+  const selection=useMapStore(s=>s.discoverySelection),select=useMapStore(s=>s.setDiscoverySelection)
+  const discovering=canDiscoverGlobe(usePathname(),exploring)
+  const {data:catalog}=useGlobeDiscovery(discovering),{data:geography}=useGlobeCountries(discovering)
+  const discovery=useMemo(()=>discovering&&catalog?discoveryContext(catalog,selection):null,[discovering,catalog,selection])
+  const discoveryAirport=discovery?.airport||(discovery?.airline?catalog?.airports.find(a=>a.iata===discovery.airline?.hubs[0]):undefined)
+  const discoveryCountryCode=discovery?.country?.code||(selection?.kind==='country'?selection.code:undefined)
+  const polygons=useMemo(()=>discovering?geography?.features||[]:[],[discovering,geography])
+  const particles=useMemo(()=>!discovering||!catalog?[]:[{airports:catalog.airports.filter(a=>a.iata!==discoveryAirport?.iata),color:'#ffffff',size:size.width<768?5:4},...(discoveryAirport?[{airports:[discoveryAirport],color:'#facc15',size:8}]:[])],[discovering,catalog,discoveryAirport,size.width])
+
+  // Country caps can intercept the ray before a tiny airport particle. Resolve
+  // nearby visible dots in screen space too, so touch and mouse behave alike.
+  const pickAirport = (event: MouseEvent, coords: {lat:number;lng:number}) => {
+    const g=ref.current
+    if(!discovering||!catalog||!g)return false
+    g.camera().updateMatrixWorld()
+    let nearest:typeof catalog.airports[number]|undefined, distance=size.width<768?12:8
+    for(const airport of catalog.airports){
+      const longitude=Math.abs(((airport.lon-coords.lng+540)%360)-180)
+      if(Math.abs(airport.lat-coords.lat)>10||longitude*Math.cos(coords.lat*R)>10)continue
+      const screen=g.getScreenCoords(airport.lat,airport.lon,.007)
+      const d=Math.hypot(screen.x-event.clientX,screen.y-event.clientY)
+      if(d<distance){nearest=airport;distance=d}
+    }
+    if(!nearest)return false
+    select({kind:'airport',id:nearest.iata})
+    return true
+  }
 
   // rotation and controls
   useEffect(() => {
@@ -78,6 +109,11 @@ export default function GlobeInner() {
 
   // where the camera should be for the current view (null = leave it alone)
   const cam: Cam | null = useMemo(() => {
+    if(discovering&&selection){
+      if(discoveryAirport)return {key:'discovery:airport:'+discoveryAirport.iata,lat:discoveryAirport.lat,lng:discoveryAirport.lon,alt:.6}
+      const country=discovery?.country
+      if(selection.kind==='country'&&(country||Number.isFinite(selection.lat))){const lat=selection.lat??country!.lat,lng=selection.lon??country!.lon;return {key:'discovery:country:'+selection.code,lat,lng,alt:1.3}}
+    }
     if (view.mode === 'airline' && hubs.length) {
       const h = hubs[0].p
       return { key: 'a:' + h.lat.toFixed(2) + ',' + h.lon.toFixed(2), lat: h.lat, lng: h.lon, alt: 0.9 }
@@ -91,7 +127,7 @@ export default function GlobeInner() {
       return { key: 'r:' + [k1, k2].sort().join('|'), lat: c.lat, lng: c.lng, alt: c.alt }
     }
     return null
-  }, [view, hubs])
+  }, [view,hubs,discovering,selection,discoveryAirport,discovery])
   const camRef = useRef<Cam | null>(cam)
   camRef.current = cam
   const camKey = cam?.key ?? ''
@@ -158,21 +194,50 @@ export default function GlobeInner() {
   const selected=view.mode==='airports'?view.selected:point?.iata
   const points=useMemo(()=>airports?airports.map(p=>({...p,r:p.iata===selected?0.17:0.09,color:p.iata===selected?'#facc15':'#ffffff'})):point?[{...point,r:0.17,color:'#facc15'},...(nearby||[]).filter(p=>p.iata!==point.iata).map(p=>({...p,r:0.08,color:'#ffffff'}))]:from&&to?[{...from,r:0.18,color:'#facc15'},{...to,r:0.18,color:'#facc15'}]:hubs.slice(0,3).map((h,i)=>({...h.p,r:i===0?0.24:0.16,color:'#facc15'})),[airports,selected,point,nearby,from,to,hubs])
 
-  const selectedPoints=useMemo(()=>point?[point]:from&&to?[from,to]:airports?airports.filter(p=>p.iata===selected):hubs.slice(0,3).map(h=>h.p),[point,from,to,airports,selected,hubs])
+  const selectedPoints=useMemo(()=>discoveryAirport?[discoveryAirport]:point?[point]:from&&to?[from,to]:airports?airports.filter(p=>p.iata===selected):hubs.slice(0,3).map(h=>h.p),[point,from,to,airports,selected,hubs,discoveryAirport])
 
   return (
-    <div className="relative size-full">
+    <div className="relative size-full"
+      onPointerDownCapture={discovering?event=>{pointerStart.current={x:event.clientX,y:event.clientY}}:undefined}
+      onClickCapture={discovering?event=>{
+        const start=pointerStart.current
+        pointerStart.current=null
+        if(!start||Math.hypot(event.clientX-start.x,event.clientY-start.y)>6)return
+        ref.current?.camera().updateMatrixWorld()
+        const coords=ref.current?.toGlobeCoords(event.clientX,event.clientY)
+        if(coords&&pickAirport(event.nativeEvent,coords))event.stopPropagation()
+      }:undefined}>
       <Globe
         ref={ref}
         waitForGlobeReady={false}
         width={size.width}
         height={size.height}
-        globeOffset={!exploring&&size.width>=1024?[Math.min(250-size.width/2,0),0]:[0,0]}
+        globeOffset={discovering&&selection&&size.width<768?[0,-size.height*.18]:!exploring&&size.width>=1024?[Math.min(250-size.width/2,0),0]:[0,0]}
         globeImageUrl="/globe/earth-blue-marble.jpg"
         bumpImageUrl="/globe/earth-topology.png"
         backgroundImageUrl="/globe/night-sky.png"
         atmosphereColor="#1f88ff"
         atmosphereAltitude={0.16}
+        polygonsData={polygons}
+        polygonAltitude={.001}
+        polygonCapColor={(f:any)=>f.properties.code===discoveryCountryCode?'rgba(250,204,21,.12)':'rgba(0,0,0,0)'}
+        polygonSideColor={()=>'rgba(0,0,0,0)'}
+        polygonStrokeColor={(f:any)=>f.properties.code===discoveryCountryCode?'#facc15':'rgba(255,255,255,.16)'}
+        polygonsTransitionDuration={0}
+        polygonLabel={(f:any)=>f.properties.name}
+        onPolygonClick={discovering?(f:any,event,coords)=>{if(!pickAirport(event,coords))select({kind:'country',code:f.properties.code,name:f.properties.name,lat:coords.lat,lon:coords.lng})}:undefined}
+        onGlobeClick={discovering?(coords,event)=>{pickAirport(event,coords)}:undefined}
+        lineHoverPrecision={discovering?1:0.2}
+        particlesData={particles}
+        particlesList="airports"
+        particleLat="lat"
+        particleLng="lon"
+        particleAltitude={.007}
+        particlesSize="size"
+        particlesColor="color"
+        particlesSizeAttenuation={false}
+        particleLabel={(p:any)=>p?.iata||''}
+        onParticleClick={discovering?(p:any)=>{if(p?.iata)select({kind:'airport',id:p.iata})}:undefined}
         arcsData={arcs}
         arcColor={() => (view.mode === 'route' ? ['rgba(255,255,255,0.9)', 'rgba(31,136,255,1)'] : ['rgba(85,167,255,0.18)', 'rgba(130,195,255,0.9)'])}
         arcStroke={view.mode === 'route' ? 0.85 : 0.22}
