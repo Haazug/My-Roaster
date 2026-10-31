@@ -1,5 +1,6 @@
 // en, pt, it, fr, es. Keep every interface key complete across the five supported languages.
 export const interfaceText: Record<string, readonly [string,string,string,string,string]> = {
+ "special.original":["Original aircraft","Aeronave original","Aereo originale","Avion d’origine","Avión original"],
  "board.actions":["Trip actions","Opções da viagem","Opzioni del viaggio","Options du voyage","Opciones del viaje"],
  "special.fleet":["1 aircraft","1 aeronave","1 aereo","1 avion","1 avión"],
  "board.time":["Time", "Hora", "Ora", "Heure", "Hora"],
@@ -18,7 +19,7 @@ export const interfaceText: Record<string, readonly [string,string,string,string
  "special.follow":["Follow observed aircraft", "Seguir aeronave detetada", "Segui l’aereo rilevato", "Suivre l’avion détecté", "Seguir aeronave detectada"],
  "special.itinerary":["Itinerary", "Percurso", "Itinerario", "Itinéraire", "Itinerario"],
  "special.simAircraft":["Aircraft for simulation", "Aeronave para simulação", "Aereo per simulazione", "Avion pour simulation", "Avión para simulación"],
- "special.simNote":["Substitutions apply only to your simulation; live tracking always follows PS-BZR.", "A substituição aplica-se apenas à tua simulação; a consulta live segue sempre o PS-BZR.", "Le sostituzioni valgono solo per la simulazione; il monitoraggio live segue sempre PS-BZR.", "Les substitutions concernent seulement la simulation ; le suivi live suit toujours PS-BZR.", "Las sustituciones se aplican solo a la simulación; el seguimiento live siempre sigue PS-BZR."],
+ "special.simNote":["The original remains the F33A Bonanza PS-BZR. Similar-size alternatives apply only to simulation; live tracking always follows PS-BZR.", "O original mantém-se: F33A Bonanza PS-BZR. As alternativas de porte semelhante aplicam-se apenas à simulação; a consulta live segue sempre o PS-BZR.", "L’originale rimane il F33A Bonanza PS-BZR. Le alternative di dimensioni simili valgono solo per la simulazione; il monitoraggio live segue sempre PS-BZR.", "L’original reste le F33A Bonanza PS-BZR. Les alternatives de taille similaire concernent seulement la simulation ; le suivi live suit toujours PS-BZR.", "El original sigue siendo el F33A Bonanza PS-BZR. Las alternativas de tamaño similar se aplican solo a la simulación; el seguimiento live siempre sigue PS-BZR."],
  "special.simulate":["Simulate selected leg", "Simular trecho selecionado", "Simula la tappa selezionata", "Simuler l’étape sélectionnée", "Simular tramo seleccionado"],
 
  'discovery.title':['Discover airports and airlines','Descobrir aeroportos e companhias','Scopri aeroporti e compagnie','Découvrir aéroports et compagnies','Descubrir aeropuertos y aerolíneas'],
