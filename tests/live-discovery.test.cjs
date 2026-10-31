@@ -55,7 +55,7 @@ test('airport endpoints share satellite discoveries without admitting overflight
   assert.equal(lis.body.data.length, 1)
   assert.equal(lis.body.data[0].kind, 'arriving')
   assert.equal((await request('LAD')).body.data[0].hex, 'ABC120')
-  assert.equal(scans, 3, 'consecutive reads reuse recent satellite scans and the global feed')
+  assert.equal(scans, 4, 'consecutive reads reuse recent satellite scans and the global feed')
   assert.equal((await request('INVALID')).status, 404)
   const routeHandler = load('app/api/live/route/route.ts', {
     'next/server': { after:()=>{}, NextResponse: { json: (body, init) => ({ body, status: init?.status || 200 }) } },
@@ -194,7 +194,7 @@ test('the response does not wait for the supplemental landing-site registry and 
  adapters['@/lib/db'].getRadarAirports=()=>{registryCalls++;return gate}
  const discovery=load('lib/live-discovery.ts',adapters)
  const handler=load('app/api/live/now/route.ts',{'next/server':{after:job=>jobs.push(job),NextResponse:{json:body=>body}},'@/lib/live-discovery':discovery})
- const response=await handler.GET();assert.equal(response.data.length,1);assert.equal(registryCalls,0);assert.equal(jobs.length,1)
+ const response=await handler.GET(new Request('http://test/api/live/now'));assert.equal(response.data.length,1);assert.equal(registryCalls,0);assert.equal(jobs.length,1)
  const work=jobs[0]();await Promise.resolve();await Promise.resolve();release([]);await work;assert.equal(registryCalls,1)
 })
 test('route-provider requests share a concurrency cap and expired jobs do not make HTTP calls',async()=>{
@@ -268,4 +268,44 @@ test('route provider Retry-After pauses queued requests instead of amplifying a 
   assert.equal(results.filter(r=>r.status==='fulfilled').length,9)
   assert(starts[8]-limitedAt>=900);assert(starts[9]-limitedAt>=900)
  }finally{global.fetch=original}
+})
+
+
+test('browser cursors collect more than 300 real routes across independent cold instances',async()=>{
+ const raw=Array.from({length:350},(_,i)=>aircraft(i)),collected=new Map();let cursor='start'
+ for(let n=0;n<4;n++){
+  const discovery=load('lib/live-discovery.ts',throughputAdapters(raw,memoryHistory(),async()=>mappedRoute))
+  const page=await discovery.discoverFlights(undefined,{radar:false,stations:false,cursor})
+  for(const f of page.data)collected.set(f.hex,f)
+  cursor=page.globalFeed.nextHex
+  if(n<3)assert(cursor)
+ }
+ assert.equal(collected.size,350);assert.equal(cursor,undefined)
+})
+test('FNLU is queried at its physical location without becoming a public airport',async()=>{
+ const adapters=throughputAdapters([],memoryHistory(),async()=>mappedRoute),points=[]
+ adapters['@/lib/live'].live=async query=>{points.push(query);return query.includes('/-8.858375/13.231178/')?[aircraft(1)]:[]}
+ const result=await load('lib/live-discovery.ts',adapters).discoverFlights(undefined,{radar:false})
+ assert(points.some(p=>p.includes('/-8.858375/13.231178/')))
+ assert.equal(result.data[0].from,'NBJ');assert.equal(result.data[0].to,'LIS')
+})
+test('cold instances deliver ground tombstones even without the previous route in server memory',async()=>{
+ const result=await load('lib/live-discovery.ts',throughputAdapters([aircraft(1,{onGround:true})],memoryHistory(),async()=>mappedRoute)).discoverFlights(undefined,{radar:false,stations:false,cursor:'start',seen:[aircraft(1).hex]})
+ assert.equal(result.data.length,0);assert.equal(result.retired[0].hex,aircraft(1).hex);assert.equal(result.retired[0].terminal,true)
+})
+
+test('progressive browser collection delivers supplemental results and each cursor exactly once',async()=>{
+ const {collectLivePages}=load('lib/live-pages.ts',{}),urls=[],received=[]
+ await collectLivePages({ok:true,data:[],globalFeed:{nextHex:'000100'}},p=>received.push(p),new AbortController().signal,async url=>{
+  urls.push(url)
+  return {ok:true,json:async()=>({ok:true,data:[],globalFeed:url.includes('000100')?{nextHex:'000200'}:{}})}
+ })
+ assert.equal(received.length,3);assert(urls.includes('/api/live/radar'));assert(urls.some(u=>u.includes('000200')))
+})
+test('progressive browser collection stops repeated cursors without discarding successful pages',async()=>{
+ const {collectLivePages}=load('lib/live-pages.ts',{});let requests=0,pages=0
+ await collectLivePages({ok:true,data:[],globalFeed:{nextHex:'000100'}},()=>pages++,new AbortController().signal,async url=>{
+  requests++;return {ok:true,json:async()=>({ok:true,data:[],globalFeed:{nextHex:'000100'}})}
+ })
+ assert.equal(requests,2);assert.equal(pages,2)
 })

@@ -1,16 +1,17 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState, useId } from 'react'
+import { useEffect, useState, useId, useRef } from 'react'
 import useSWR from 'swr'
 import { Search, SlidersHorizontal, RefreshCw } from 'lucide-react'
 import { AirlineLogo } from '@/components/AirlineLogo'
 import { currentFlights, liveRouteHref, airportDirection, type ResolvedFlight } from '@/lib/live-model'
+import {collectLivePages} from '@/lib/live-pages'
 import { cacheLiveFlights, mergeLiveHistory } from '@/lib/live-device-history'
 import { useT, useLang } from '@/lib/i18n'
 
 type Flight = ResolvedFlight & { kind?: 'departing' | 'arriving' }
-type Result = { ok: boolean; data: Flight[]; retired?: ResolvedFlight[]; degraded?: boolean; availability?: { live: string }; globalFeed?: { unavailable?: boolean }; history?: { persistent: boolean }; timetable?: { configured: boolean; complete: boolean } }
+type Result = { ok: boolean; data: Flight[]; retired?: ResolvedFlight[]; degraded?: boolean; availability?: { live: string }; globalFeed?: { unavailable?: boolean;nextHex?:string }; history?: { persistent: boolean }; timetable?: { configured: boolean; complete: boolean } }
 const fetcher = async (url: string): Promise<Result> => {
  const response = await fetch(url)
  if (!response.ok) throw new Error('Live traffic unavailable')
@@ -20,21 +21,38 @@ const fetcher = async (url: string): Promise<Result> => {
 const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 
 export default function LiveFlights({ airport, airline, pair, standalone = false }: { airport?: string; airline?: string; pair?: [string,string]; standalone?: boolean }) {
+ const continuationRef=useRef<string|undefined>(undefined)
+ const cachedRef=useRef<ResolvedFlight[]>([])
  const filtersId=useId()
  const t = useT(), lang = useLang(s => s.lang)
  const [tab,setTab] = useState('all'), [query,setQuery] = useState(''), [operator,setOperator] = useState(''), [status,setStatus] = useState('all')
  const [showFilters,setShowFilters] = useState(false), [clock,setClock] = useState(() => Date.now())
+ const [extra,setExtra]=useState<ResolvedFlight[]>([]),[scanning,setScanning]=useState(false)
  const [cached,setCached] = useState<ResolvedFlight[]>([]), [device,setDevice] = useState<'loading'|'ready'|'session'>('loading')
  useEffect(() => { const timer = setInterval(() => setClock(Date.now()),30000); return () => clearInterval(timer) },[])
- const url = airport ? `/api/airports/${airport}/live` : pair && airline ? `/api/live/route?airline=${encodeURIComponent(airline)}&from=${pair[0]}&to=${pair[1]}` : '/api/live/now'
+ const url = airport ? `/api/airports/${airport}/live` : pair && airline ? `/api/live/route?airline=${encodeURIComponent(airline)}&from=${pair[0]}&to=${pair[1]}` : '/api/live/now?cursor=start'
  const {data,error,isLoading,isValidating,mutate} = useSWR<Result>(url,fetcher,{ refreshInterval:60000,revalidateOnFocus:false,shouldRetryOnError:false })
  useEffect(() => {
   let active = true
   cacheLiveFlights([...(data?.data || []),...(data?.retired || [])]).then(rows => { if(active){setCached(rows);setDevice('ready')} }).catch(() => { if(active)setDevice('session') })
   return () => { active = false }
  },[data])
+ useEffect(()=>{
+  if(!data?.ok||url!=='/api/live/now?cursor=start')return
+  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),45000)
+  let active=true
+  setScanning(true)
+  collectLivePages(continuationRef.current?{...data,globalFeed:{...data.globalFeed,nextHex:continuationRef.current}}:data,page=>{
+   if(!active)return
+   const updates=[...page.data,...(page.retired||[])]
+   setExtra(old=>mergeLiveHistory(old,updates))
+   cacheLiveFlights(updates).catch(()=>{})
+  },controller.signal,fetch,cachedRef.current).then(cursor=>{if(active)continuationRef.current=cursor}).catch(()=>{}).finally(()=>{if(active)setScanning(false)})
+  return()=>{active=false;clearTimeout(timeout);controller.abort()}
+ },[data,url])
+ cachedRef.current=cached
  const now = Math.max(clock,Date.now())
- const all = currentFlights(mergeLiveHistory(cached,[...(data?.data || []),...(data?.retired || [])],now),now)
+ const all = currentFlights(mergeLiveHistory(cached,[...extra,...(data?.data || []),...(data?.retired || [])],now),now)
   .filter(f => (!airport || airportDirection(f,airport)) && (!pair || (f.from===pair[0]&&f.to===pair[1]) || (f.from===pair[1]&&f.to===pair[0])) && (!airline || f.airlineIcao===airline || f.airlineIata===airline))
  const operators = [...new Map(all.map(f=>[f.airlineIcao || f.airlineIata || f.airlineName,f.airlineName])).entries()].sort((a,b)=>a[1].localeCompare(b[1]))
  const flights = all.filter(f => (tab==='all' || airportDirection(f,airport || '')===tab) && (!operator || (f.airlineIcao || f.airlineIata || f.airlineName)===operator) && (status==='all' || f.status===status) && norm([f.flightNumber,f.callsign,f.from,f.to,f.fromCity,f.toCity,f.airlineName,f.airlineIata,f.airlineIcao].join(' ')).includes(norm(query.trim())))
@@ -46,7 +64,7 @@ export default function LiveFlights({ airport, airline, pair, standalone = false
  return <section className={standalone ? 'mt-6' : 'mt-8'} aria-label={t('live.title')}>
   <div className="flex items-center justify-between gap-3">
    <h2 className="flex items-center gap-2 board-heading text-sm font-medium"><span className={`size-1.5 rounded-full ${failed?'bg-amber-300':'bg-green-400'}`} />{t('live.title')} <span className="text-white/35">{flights.length}</span></h2>
-   <button onClick={()=>mutate()} disabled={isValidating} aria-label={t('live.refresh')} className="flex min-h-11 items-center gap-2 text-xs text-white/45 disabled:opacity-30"><RefreshCw className={`size-3.5 ${isValidating?'animate-spin':''}`} />{t('live.refresh')}</button>
+   <button onClick={()=>mutate()} disabled={isValidating||scanning} aria-label={t('live.refresh')} className="flex min-h-11 items-center gap-2 text-xs text-white/45 disabled:opacity-30"><RefreshCw className={`size-3.5 ${isValidating||scanning?'animate-spin':''}`} />{t('live.refresh')}</button>
   </div>
   <div className="mt-3 flex gap-2">
    <label className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-xl bg-white/[.04] px-3"><Search className="size-4 shrink-0 text-white/35" /><span className="sr-only">{t('live.search')}</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={t('live.searchHint')} className="min-w-0 w-full bg-transparent text-sm outline-none placeholder:text-white/30" /></label>
@@ -57,6 +75,7 @@ export default function LiveFlights({ airport, airline, pair, standalone = false
    <label className="text-xs text-white/45">{t('live.status')}<select aria-label={t('live.status')} value={status} onChange={e=>setStatus(e.target.value)} className="mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-[#111] px-2 text-sm text-white">{['all','observed','estimated'].map(key=><option key={key} value={key}>{t(`live.${key}`)}</option>)}</select></label>
   </div>}
   {airport && <div className="mt-3 flex gap-5 border-b border-white/10" role="tablist" aria-label={t('live.title')}>{[['all','live.all'],['arriving','live.arrivals'],['departing','live.departures']].map(([key,label])=><button key={key} role="tab" aria-selected={tab===key} onClick={()=>setTab(key)} className={`min-h-11 border-b text-xs ${tab===key?'border-white text-white':'border-transparent text-white/40'}`}>{t(label)}</button>)}</div>}
+  {scanning&&<p role="status" className="mt-3 text-xs text-white/40">{t('live.loading')}</p>}
   {isLoading && !all.length && <p role="status" className="mt-5 text-sm text-white/40">{t('live.loading')}</p>}
   {failed && <p role="status" className="mt-4 text-sm text-amber-200">{t('live.unavailable')}</p>}
   {!isLoading&&!flights.length&&<p className="py-8 text-sm text-white/40">{t(all.length?'live.noMatch':'live.empty')}</p>}

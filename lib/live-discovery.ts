@@ -16,7 +16,8 @@ import { FlightObservations, currentFlights, radarExpiry, airportDirection, flig
 const observations = new FlightObservations()
 const pending = new Map<string, Promise<void>>()
 const scanned = new Map<string, number>()
-const satellites = ['NBJ', 'LIS', 'JNB', 'DXB', 'LHR', 'JFK', 'GRU', 'HND']
+const radarAnchors:RadarAirport[]=[{id:'FNLU',lat:-8.858375,lon:13.231178,kind:'airport'}]
+const satellites = ['FNLU','NBJ', 'LIS', 'JNB', 'DXB', 'LHR', 'JFK', 'GRU', 'HND']
 // Serverless can still discover traffic without a server database. Browser history persists it per device.
 const transientRows = new Map<string, HistoryRecord>(), transientSync = new Map<string, SyncState>()
 const transientHistory: LiveHistory = {
@@ -118,15 +119,16 @@ async function discoverRadar(background=false){
 
 let timetable: AviationstackTimetable | undefined
 
-let globalPending: Promise<import('@/lib/live-history-sqlite').SyncState> | undefined
-async function discoverGlobal(limit = 20) {
-  if (globalPending) return globalPending
-  globalPending = scanGlobal(limit)
-  try { return await globalPending } finally { globalPending = undefined }
+const globalPending=new Map<string,Promise<SyncState>>()
+async function discoverGlobal(limit=20,cursor?:string,seen:ReadonlySet<string>=new Set()) {
+ const key=(cursor===undefined?'automatic':cursor)+':'+[...seen].join(',')
+ const existing=globalPending.get(key);if(existing)return existing
+ const work=scanGlobal(limit,cursor,seen);globalPending.set(key,work)
+ try{return await work}finally{globalPending.delete(key)}
 }
-async function scanGlobal(limit: number) {
+async function scanGlobal(limit: number,cursor?:string,seen:ReadonlySet<string>=new Set()) {
   const scope='radar:global:v2',history=workingHistory(),previous=await history.getSync(scope)
-  if(previous&&Date.now()-previous.checkedAt<45000)return previous
+  if(cursor===undefined&&previous&&Date.now()-previous.checkedAt<45000)return previous
   const aircraft=(await liveGlobal()).sort((a,b)=>a.hex.localeCompare(b.hex)),now=Date.now(),deadline=now+12000
   const known=await knownFlights(),db=await getDb(),unresolved:LiveAircraft[]=[],refreshed:HistoryRecord[]=[]
   const iata=new Set(db.airlines?[...db.airlines.values()].map(a=>a.iata):[])
@@ -137,11 +139,17 @@ async function scanGlobal(limit: number) {
     observations.record(f);refreshed.push(f)
    }else if(routeCandidate(a,iata)&&!negativeFresh(old,a,now))unresolved.push(a)
   }
+  // Ground tombstones also reach browsers whose previous page ran on another instance.
+  for(const a of aircraft)if(a.onGround&&!known.has(a.hex)&&seen.has(a.hex)){
+   const f={...a,from:null,to:null,airlineIata:'',airlineIcao:'',airlineName:'',flightNumber:'',fromCity:'',toCity:'',observedAt:now,updatedAt:now,expiresAt:now+20*60_000,status:'observed' as const,remainingMinutes:null,terminal:true,id:`radar:${a.hex}`}
+   observations.record(f);refreshed.push(f)
+  }
   await history.write(refreshed)
   // An inclusive hex cursor is stable when the unresolved work list shrinks.
   let offset=previous?.nextHex?unresolved.findIndex(a=>a.hex>=previous.nextHex!):-1
   if(offset<0)offset=previous?.nextHex?0:Math.floor(now/45000)*limit%Math.max(unresolved.length,1)
-  const ordered=[...unresolved.slice(offset),...unresolved.slice(0,offset)],batch=ordered.slice(0,limit)
+  if(cursor!==undefined)offset=cursor==='start'?0:unresolved.findIndex(a=>a.hex>=cursor)
+  const ordered=cursor!==undefined?(offset<0?[]:unresolved.slice(offset)):[...unresolved.slice(offset),...unresolved.slice(0,offset)],batch=ordered.slice(0,limit)
   let failed=0,processed=0,resolved=0,consumed=0
   for(let i=0;i<batch.length&&Date.now()<deadline;i+=8){
    const selected=batch.slice(i,i+8),outcomes=await Promise.allSettled(selected.map(a=>resolveAircraft(a,now,{deadline,priority:10}))),rows=[]
@@ -153,7 +161,7 @@ async function scanGlobal(limit: number) {
   }
   const reachedEnd=consumed>=ordered.length,nextHex=ordered[consumed]?.hex
   const state={checkedAt:now,nextOffset:reachedEnd?0:unresolved.findIndex(a=>a.hex===nextHex),complete:reachedEnd&&!failed,total:aircraft.length,candidates:unresolved.length,processed,resolved,failedRoutes:failed,budgetLimited:consumed<batch.length,...(!reachedEnd&&nextHex?{nextHex}:{})}
-  await history.setSync(scope,state)
+  if(cursor===undefined)await history.setSync(scope,state)
   return state
 }
 
@@ -161,9 +169,9 @@ export async function discoverSupplementalRadar(){
  try{return await discoverRadar(false)}catch(error){console.warn('[live] Supplemental radar unavailable');return null}
 }
 
-export async function discoverFlights(airport?: string, options: { background?: boolean;radar?:boolean } = {}) {
+export async function discoverFlights(airport?: string, options: { background?: boolean;radar?:boolean;cursor?:string;stations?:boolean;global?:boolean;seen?:string[] } = {}) {
   const db = await getDb()
-  const codes = [...new Set(airport ? [airport, ...satellites] : satellites)].filter(code=>db.airports.has(code))
+  const codes = options.stations===false?[]:[...new Set(airport ? [airport, ...satellites] : satellites)].filter(code=>db.airports.has(code)||radarAnchors.some(a=>a.id===code))
   let historyAvailable = true
   let stored: ResolvedFlight[] = []
   let timetableStatus = { configured: false, complete: false, total: null as number | null, error: undefined as string | undefined }
@@ -177,9 +185,9 @@ export async function discoverFlights(airport?: string, options: { background?: 
   } catch { historyAvailable = false }
   // The global provider feed extends discovery beyond fixed satellites. Its route enrichment is
   // bounded and cursor-based; lack of coverage or a partially processed feed is never called complete.
-  const globalTask=discoverGlobal(options.background?300:100)
+  const globalTask=options.global===false?Promise.resolve({checkedAt:Date.now(),nextOffset:0,complete:false,total:null} as SyncState):discoverGlobal(options.background?300:100,options.cursor,new Set(options.seen))
   const radarTask=options.radar===false?Promise.resolve({codes:[],nextOffset:0,complete:false,total:null,deferred:true}):discoverRadar(options.background)
-  const outcomes=await Promise.allSettled([...codes.map(code=>discover(code)),radarTask,globalTask])
+  const outcomes=await Promise.allSettled([...codes.map(code=>discover(code,radarAnchors.find(a=>a.id===code))),radarTask,globalTask])
   try { stored = await workingHistory().read() } catch { historyAvailable = false }
   const snapshot = [...stored, ...observations.snapshot()]
   const flights = currentFlights(snapshot)
