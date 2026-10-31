@@ -1,3 +1,4 @@
+import {BRASILEIRINHO,specialQuery,isBrasileirinho} from '@/lib/brasileirinho'
 import { NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
 import { live, type LiveAircraft } from '@/lib/live'
@@ -15,6 +16,7 @@ export async function GET(req: Request) {
     openSky: 'https://map.opensky-network.org',
   }
   if (!q) return NextResponse.json({ query: q, airlines: [], airports: [], routes: [], flights: [], aircraftTypes: [], sources })
+  if(specialQuery(q)){let flights:LiveAircraft[]=[];try{flights=(await timeout(live('/reg/PS-BZR'),6000,[])).filter(isBrasileirinho)}catch{};return NextResponse.json({query:q,airlines:[BRASILEIRINHO],airports:[],routes:[],flights,aircraftTypes:[{name:'F33A Bonanza',icao:'BE33'}],sources})}
   try {
     const db = await Promise.race([
       getDb(),

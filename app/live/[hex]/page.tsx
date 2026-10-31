@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react'
 import { getAircraftByHex, formatAltitude, formatSpeed, formatVerticalRate, formatTrack } from '@/lib/live-traffic'
 import type { LiveAircraft } from '@/lib/live-traffic'
 import { useT } from '@/lib/i18n'
+import {estimatedArrival,isTransatlantic} from '@/lib/live-estimates'
 import { flightIdentity } from '@/lib/live-model'
 import { AirlineLogo } from '@/components/AirlineLogo'
 
@@ -17,6 +18,7 @@ export default function LiveAircraftPage() {
   const [aircraft, setAircraft] = useState<LiveAircraft | null>(null)
   const [loading, setLoading] = useState(true)
   const [lastUpdate, setLastUpdate] = useState<string | null>(null)
+  const [observedAt,setObservedAt]=useState(Date.now())
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [fr, setFr] = useState<any>(null)
   useEffect(() => {
@@ -34,6 +36,7 @@ export default function LiveAircraftPage() {
       setLoading(true)
       const data = await fetch(`/api/live/hex/${(hex as string).toUpperCase()}`).then((r) => r.json()).then((j) => { const a = j?.data?.[0]; return a ? ({ ...a, alt: a.altFt } as LiveAircraft) : null }).catch(() => null)
       setAircraft(data)
+      setObservedAt(Date.now())
       setLastUpdate(new Date().toLocaleTimeString())
       setLoading(false)
     }
@@ -115,6 +118,11 @@ export default function LiveAircraftPage() {
         </div>
       )}
 
+      <div className="mt-5 border-y border-white/10 py-4 text-sm text-white/60">
+        {isTransatlantic(fr?.fromAirport,fr?.toAirport)&&<p className="mb-2 text-sky-200">{t('live.transatlantic')}</p>}
+        <p>{t('live.lastPosition',{place:`${aircraft.lat.toFixed(2)}°, ${aircraft.lon.toFixed(2)}°`,time:new Date(observedAt).toLocaleTimeString()})}</p>
+        <p className="mt-2">{(()=>{const estimate=estimatedArrival({observedAt,lat:aircraft.lat,lon:aircraft.lon,gs:aircraft.gs,type:aircraft.type},fr?.toAirport);return estimate.eta?t('live.expectedArrival',{time:new Date(estimate.eta).toLocaleString()}):t('live.etaUnknown')})()}</p>
+      </div>
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div className="rounded-2xl border border-white/10 bg-[#0a0a0acc] p-6">
           <p className="text-xs font-semibold uppercase tracking-[.2em] text-white/60">{t('live.altitude')}</p>

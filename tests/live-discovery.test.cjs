@@ -16,6 +16,8 @@ function load(file, adapters) {
     if(name==='@/lib/db'&&adapters[name])return {getRadarAirports:async()=>[],...adapters[name]}
     if (Object.hasOwn(adapters, name)) return adapters[name]
     if (name === '@/lib/radar-airports') return load('lib/radar-airports.ts', {'./openflights-parse':{parseCsvLine:line=>JSON.parse('['+line+']')}})
+    if(name==='@/lib/brasileirinho')return load('lib/brasileirinho.ts',{})
+    if(name==='@/lib/live-estimates')return load('lib/live-estimates.ts',{'./live-geo':load('lib/live-geo.ts',{}),'./flags':load('lib/flags.ts',{})})
     if (name === '@/lib/live-geo') return load('lib/live-geo.ts', {})
     if (name === '@/lib/live-history') return { getLiveHistory: () => history }
     if (name === '@/lib/live-timetable') return load('lib/live-timetable.ts', {})

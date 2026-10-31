@@ -1,4 +1,5 @@
 'use client'
+import Brasileirinho from '@/components/Brasileirinho'
 import {usePageQuery} from '@/lib/use-page-query'
 import BackLink from '@/components/BackLink'
 
@@ -28,7 +29,7 @@ type Tab = 'all' | 'domestic' | 'international'
 
 const isDomestic = (r: Route) => !!r.fromAirport?.country && r.fromAirport.country === r.toAirport?.country
 
-export default function AirlineDetailPage() {
+function AirlineDetailPage() {
   const tr=useT()
   const { id } = useParams<{ id: string }>()
   const { data, error } = useSWR(id ? `/api/airlines/${id}` : null, fetcher)
@@ -172,3 +173,5 @@ export default function AirlineDetailPage() {
     </section>
   )
 }
+
+export default function AirlinePage(){const {id}=useParams<{id:string}>();return id==='brasileirinho'?<Brasileirinho/>:<AirlineDetailPage/>}

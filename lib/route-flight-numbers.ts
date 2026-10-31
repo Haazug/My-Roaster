@@ -1,5 +1,5 @@
 import {currentFlights,flightNumberPart,type ResolvedFlight} from './live-model'
-export type RouteFlightNumber={number:string;callsign:string;observedAt:number}
+export type RouteFlightNumber={number:string;callsign:string;observedAt:number;aircraftType?:string;registration?:string}
 export function routeFlightNumbers(flights:ResolvedFlight[],airline:{iata?:string;icao?:string},from:string,to:string,now=Date.now()):RouteFlightNumber[]{
  const found=new Map<string,RouteFlightNumber>()
  for(const f of currentFlights(flights,now).sort((a,b)=>b.observedAt-a.observedAt)){
@@ -9,7 +9,7 @@ export function routeFlightNumbers(flights:ResolvedFlight[],airline:{iata?:strin
   const part=flightNumberPart(f.flightNumber,airline.iata||'',airline.icao||'')
   if(!part)continue
   const number=`${airline.iata||airline.icao}${part}`
-  if(!found.has(number))found.set(number,{number,callsign:f.callsign,observedAt:f.observedAt})
+  if(!found.has(number))found.set(number,{number,callsign:f.callsign,observedAt:f.observedAt,...(f.type?{aircraftType:f.type}:{}),...(f.reg?{registration:f.reg}:{})})
  }
  return [...found.values()]
 }

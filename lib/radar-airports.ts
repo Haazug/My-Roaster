@@ -25,3 +25,22 @@ export function radarOffset(previous:number|undefined,total:number,limit:number,
  if(previous!==undefined)return previous
  return total>0&&limit>0?(Math.floor(now/45_000)%Math.ceil(total/limit))*limit:0
 }
+
+export function parseAirfieldRadar(text:string):RadarAirport[]{
+ const [header,...lines]=text.split(/\r?\n/),names=parseCsvLine(header),idx=(name:string)=>names.indexOf(name)
+ const latIndex=idx('latitude_deg'),lonIndex=idx('longitude_deg'),idIndex=idx('ident'),typeIndex=idx('type')
+ if([latIndex,lonIndex,idIndex,typeIndex].some(i=>i<0))throw Error('Invalid airfield source')
+ const out:RadarAirport[]=[]
+ for(const line of lines){
+  if(!line)continue
+  const row=parseCsvLine(line),lat=Number(row[latIndex]),lon=Number(row[lonIndex])
+  if(row[typeIndex]==='closed'||!row[idIndex]||!row[latIndex]||!row[lonIndex]||!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)continue
+  out.push({id:row[idIndex],lat,lon})
+ }
+ return out
+}
+export function mergeRadarStations(...sources:RadarAirport[][]){
+ const stations=new Map<string,RadarAirport>()
+ for(const source of sources)for(const point of source)stations.set(`${point.lat.toFixed(4)},${point.lon.toFixed(4)}`,point)
+ return [...stations.values()].sort((a,b)=>a.id.localeCompare(b.id))
+}

@@ -8,12 +8,21 @@ export function departureChoice(time: string, now = Date.now()) {
   if (differs && date.getTime() <= now) date.setDate(date.getDate()+1)
   return { differs, scheduledAt: date.getTime() }
 }
-export function tripState(f: { scheduledAt?: number; startedAt?: number; endedAt?: number; status?: string }, now = Date.now()): TripState {
-  if(f.status==='cancelled')return 'cancelled'
-  if(f.endedAt || f.status === 'completed')return 'completed'
-  if(f.startedAt)return 'running'
-  if(f.scheduledAt)return now>=f.scheduledAt?'delayed':'scheduled'
-  return 'booked'
+export type ScheduledTrip={scheduledAt?:number;startedAt?:number;takeoffAt?:number|null;endedAt?:number;status?:string}
+export const CANCELLATION_DELAY=3*3600_000
+export function hasDeparted(f:ScheduledTrip){return !!f.takeoffAt||(f.takeoffAt===undefined&&!!f.startedAt)}
+export function tripState(f:ScheduledTrip,now=Date.now()):TripState{
+ if(f.status==='cancelled')return 'cancelled'
+ if(f.endedAt||f.status==='completed')return 'completed'
+ if(hasDeparted(f))return 'running'
+ if(f.scheduledAt){if(now>=f.scheduledAt+CANCELLATION_DELAY)return 'cancelled';return now>=f.scheduledAt?'delayed':'scheduled'}
+ return 'booked'
+}
+export function scheduledEvent(f:ScheduledTrip,now=Date.now()){
+ if(!f.scheduledAt||f.endedAt||f.status==='completed'||f.status==='cancelled'||hasDeparted(f))return null
+ const delta=now-f.scheduledAt
+ const stages=[['checkin',-3600_000],['doors',-1800_000],['due',0],['disembark',25*60_000],['cancelled',CANCELLATION_DELAY]] as const
+ return [...stages].reverse().find(([,at])=>delta>=at)?.[0]||null
 }
 export function progressFraction(elapsed: number,total: number) {
  return Number.isFinite(elapsed)&&Number.isFinite(total)&&total>0?Math.max(0,Math.min(1,elapsed/total)):0

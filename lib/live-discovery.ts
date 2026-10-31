@@ -1,4 +1,6 @@
 import 'server-only'
+import {enrichLiveEstimate} from '@/lib/live-estimates'
+import {BRASILEIRINHO,isBrasileirinho} from '@/lib/brasileirinho'
 import { live, liveGlobal, type LiveAircraft } from '@/lib/live'
 import { lookupCallsign } from '@/lib/route-lookup'
 import { airlineByIcao, parseCallsign } from '@/lib/airline-lookup'
@@ -35,15 +37,16 @@ export async function resolveAircraft(a: LiveAircraft, observedAt = Date.now()):
   const db = await getDb()
   const destination = route?.to ? db.airports.get(route.to) : undefined
   const expiresAt = radarExpiry(observedAt, destination ? distNm(a, destination) : undefined, a.gs)
-  const airlineIata = route?.airlineIata || airline?.iata || ''
-  return {
-    ...a, expiresAt, routeCheckedAt: observedAt, source: 'radar', airlineIata, airlineIcao: route?.airlineIcao || airline?.icao || p?.icao || '',
-    airlineName: route?.airlineName || airline?.name || 'Unknown airline',
-    flightNumber: flightIdentity(a.callsign, airlineIata, route?.flightNumber),
+  const special=isBrasileirinho(a)
+  const airlineIata = special?'':route?.airlineIata || airline?.iata || ''
+  return enrichLiveEstimate({
+    ...a, expiresAt, routeCheckedAt: observedAt, source: 'radar', airlineIata, airlineIcao: special?'':route?.airlineIcao || airline?.icao || p?.icao || '',
+    airlineName: special?BRASILEIRINHO.name:route?.airlineName || airline?.name || 'Unknown airline',
+    flightNumber: special?'':flightIdentity(a.callsign, airlineIata, route?.flightNumber),
     from: route?.from || null, to: route?.to || null,
     fromCity: route?.fromCity || '', toCity: route?.toCity || '',
     observedAt, status: 'observed', remainingMinutes: null,
-  }
+  },db.airports)
 }
 
 async function discover(code: string, station?:RadarAirport, limit=20) {
@@ -181,7 +184,7 @@ export async function discoverFlights(airport?: string, options: { background?: 
   const retired = snapshot.filter(f=>f.onGround||f.terminal||!f.from||!f.to).map(f=>({...f, terminal:true}))
   if(outcomes.some(r=>r.status==='rejected'&&String(r.reason?.message)==='History write unavailable'))historyAvailable=false
   const data = (airport ? flights.filter(f => airportDirection(f, airport)) : flights).map(f => ({
-    ...f, fromCity: f.fromCity || db.airports.get(f.from || '')?.city || '', toCity: f.toCity || db.airports.get(f.to || '')?.city || '',
+    ...enrichLiveEstimate(f,db.airports), fromCity: f.fromCity || db.airports.get(f.from || '')?.city || '', toCity: f.toCity || db.airports.get(f.to || '')?.city || '',
     ...(airport ? { kind: airportDirection(f, airport) } : {}),
   }))
   const global = outcomes[outcomes.length - 1]

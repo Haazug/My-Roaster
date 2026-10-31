@@ -201,3 +201,13 @@ nav[class*="fixed"] { background: rgba(10,10,10,.8) !important; border-color: rg
 .board-heading { color:#facc15; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; text-transform:uppercase; letter-spacing:.12em; }
 .departure-board { background-image:radial-gradient(rgba(250,204,21,.055) .65px,transparent 1px); background-size:5px 5px; }
 .departure-board .board-code { text-transform:uppercase; }
+
+@font-face { font-family: 'Departure Dots'; src: url('/fonts/doto.ttf') format('truetype'); font-weight: 100 900; font-style: normal; font-display: swap; }
+.flight-board { border-top: 2px solid #facc15; border-bottom: 1px solid #facc1533; background:rgba(15,13,9,.45); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+.flight-board-head { display:grid; grid-template-columns:4.5rem 1fr auto; gap:1rem; padding:.8rem; border-bottom:1px solid #facc1566; font-size:10px; color:#bbb; text-transform:uppercase; letter-spacing:.12em; }
+.flight-board-row { border-bottom:1px solid #facc1522; padding:1rem .8rem; }
+.flight-board-row:nth-child(odd) { background:#facc1505; }
+.flight-board .board-led { font-family:'Departure Dots',monospace; font-weight:850; font-variation-settings:'ROND' 100; text-transform:uppercase; color:#facc15; letter-spacing:.05em; line-height:1.4; }
+.flight-board .board-status { font-family:'Departure Dots',monospace; font-weight:850; text-transform:uppercase; font-size:15px; letter-spacing:.04em; }
+.trip-board .flight-board-head { grid-template-columns:3.8rem minmax(0,1fr) 6.2rem; gap:.5rem; }
+@media(max-width:420px) { .trip-board .board-status { font-size:13px; } }

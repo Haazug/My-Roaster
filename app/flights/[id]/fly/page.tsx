@@ -120,8 +120,8 @@ export default function FlyNowPage() {
   useEffect(()=>{if(inactive)router.replace('/')},[inactive,router])
   useEffect(()=>{
    if(!checked||!handoffReady||readOnly)return
-   try{const plan=JSON.parse(localStorage.getItem('myroster.activePlan')||'null');if(plan?.scheduleId)updateTripStatus(plan.scheduleId,{startedAt:Date.now(),status:'running'})}catch{}
-  },[checked,handoffReady,readOnly])
+   try{const plan=JSON.parse(localStorage.getItem('myroster.activePlan')||'null');if(plan?.scheduleId)updateTripStatus(plan.scheduleId,{...(takeoffAt?{startedAt:takeoffAt}:{}),takeoffAt,status:takeoffAt?'running':'scheduled'})}catch{}
+  },[checked,handoffReady,readOnly,takeoffAt])
 
 
   // Load the actual plan saved by the Flight Plan page.

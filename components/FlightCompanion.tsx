@@ -1,10 +1,12 @@
 'use client'
 import {useEffect,useState} from 'react'
 import {useRouter} from 'next/navigation'
+import {scheduledEvent} from '@/lib/flight-workflow'
+import {updateTripStatus} from '@/lib/trip-client'
 import {toast} from 'sonner'
 import {supabase} from '@/lib/supabase'
 import {useT} from '@/lib/i18n'
-import {accountId,readCurrentFlight,flushEndedFlights,claimFlight,deviceId,saveLocalActive,type FlightRow} from '@/lib/active-flight'
+import {accountId,localActive,readCurrentFlight,flushEndedFlights,claimFlight,deviceId,saveLocalActive,type FlightRow} from '@/lib/active-flight'
 export default function FlightCompanion(){
  const t=useT(),router=useRouter()
  const [incoming,setIncoming]=useState<FlightRow|null>(null),[busy,setBusy]=useState(false)
@@ -23,19 +25,32 @@ export default function FlightCompanion(){
   return()=>{live=false;clearInterval(timer);window.removeEventListener('myroster:request-handoff',request);window.removeEventListener('myroster:active-flight',refresh);window.removeEventListener('myroster:data-changed',refresh);window.removeEventListener('online',refresh);window.removeEventListener('focus',refresh);data.subscription.unsubscribe()}
  },[])
  useEffect(()=>{
+  let checking=false,live=true
   const check=async()=>{
-   const uid=await accountId().catch(()=>null)
-   let bookings:any[]=[];try{bookings=JSON.parse(localStorage.getItem('myroster.bookings')||'[]')}catch{}
-   for(const b of bookings){if((b.accountId&&b.accountId!==uid)||!b.scheduledAt||b.startedAt||b.endedAt||b.scheduledAt>Date.now())continue
-    const key=`myroster.reminded.${b.id}`
-    if(localStorage.getItem(key))continue
-    localStorage.setItem(key,'1')
-    toast(t('schedule.due'),{description:`${b.flightNumber||''} ${b.orig} → ${b.dest}`,action:{label:t('trip.open'),onClick:()=>router.push('/trips')}})
-    try{if(typeof Notification!=='undefined'&&Notification.permission==='granted')new Notification(t('schedule.due'),{body:`${b.flightNumber||''} ${b.orig} → ${b.dest}`,tag:b.id})}catch{}
-   }
+   if(checking)return;checking=true
+   try{
+    const uid=await accountId().catch(()=>null)
+    let bookings:any[]=[];try{bookings=JSON.parse(localStorage.getItem('myroster.bookings')||'[]')}catch{}
+    for(let b of bookings){
+     if(!live||(b.accountId&&b.accountId!==uid))continue
+     const active=localActive()
+     if(b.scheduledAt&&b.takeoffAt===undefined&&active&&active.plan?.scheduleId===b.id&&!active.finished&&!active.takeoffAt){b={...b,takeoffAt:null};await updateTripStatus(b.id,{takeoffAt:null,status:'scheduled'})}
+     const stage=scheduledEvent(b)
+     if(!stage)continue
+     const key=`myroster.schedule.${uid||'guest'}.${b.id}.${b.scheduledAt}.${stage}`
+     if(localStorage.getItem(key))continue
+     if(stage==='cancelled')await updateTripStatus(b.id,{status:'cancelled'})
+     if(!live)continue
+     localStorage.setItem(key,'1')
+     const title=t(stage==='due'?'schedule.due':`schedule.${stage}`),body=`${b.flightNumber||''} ${b.orig} → ${b.dest}`
+     toast(title,{description:body,duration:15000,action:{label:t('trip.open'),onClick:()=>router.push('/trips')}})
+     try{if(typeof Notification!=='undefined'&&Notification.permission==='granted')new Notification(title,{body,tag:key,icon:'/icon-192.png?v=2.2.3'})}catch{}
+    }
+   }finally{checking=false}
   }
-  check();const timer=setInterval(check,15000);window.addEventListener('visibilitychange',check);window.addEventListener('myroster:data-changed',check)
-  return()=>{clearInterval(timer);window.removeEventListener('visibilitychange',check);window.removeEventListener('myroster:data-changed',check)}
+  void check();const timer=setInterval(check,15000)
+  document.addEventListener('visibilitychange',check);window.addEventListener('focus',check);window.addEventListener('myroster:data-changed',check)
+  return()=>{live=false;clearInterval(timer);document.removeEventListener('visibilitychange',check);window.removeEventListener('focus',check);window.removeEventListener('myroster:data-changed',check)}
  },[t,router])
  const follow=async()=>{
   if(!incoming)return;setBusy(true)

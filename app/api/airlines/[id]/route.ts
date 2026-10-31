@@ -1,3 +1,4 @@
+import {BRASILEIRINHO,brasileirinhoLegs} from '@/lib/brasileirinho'
 import { allianceFor } from '@/lib/airline-metadata'
 import { NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
@@ -7,6 +8,7 @@ import { mergeRoutes, hubRoutes } from '@/lib/route-merge'
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
+    if(id==='brasileirinho')return NextResponse.json({airline:BRASILEIRINHO,hubs:[],numRoutes:24,routes:brasileirinhoLegs,catalog:'user-provided-itinerary',asOf:BRASILEIRINHO.asOf})
     const db = await getDb()
     const a = db.airlines.get(id)
     if (!a) return NextResponse.json({ error: 'Not found' }, { status: 404 })

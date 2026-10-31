@@ -30,7 +30,7 @@ export async function cacheLiveFlights(updates: ResolvedFlight[]): Promise<Resol
         store.clear()
         rows.forEach(f => store.put({ cacheId: identity(f), flight: f }))
       }
-      tx.oncomplete = () => { db.close(); resolve(rows) }
+      tx.oncomplete = () => { db.close(); import('./route-number-memory').then(m=>m.observedRouteNumbers(updates)).catch(()=>{}).finally(()=>resolve(rows)) }
       tx.onerror = () => { db.close(); reject(new Error('Device history could not be saved')) }
       tx.onabort = tx.onerror
     }

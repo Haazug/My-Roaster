@@ -74,7 +74,7 @@ export default function Airlines() {
               <AirlineLogo iata={a.iata} icao={a.icao} name={fixName(a.name)} size="md" showText={false} />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold board-code">{fixName(a.name)}</p>
-                <p className="font-mono text-xs text-white/45">{a.iata} / {a.icao} · {tr('airlines.routes',{n:a.numRoutes})}{a.alliance && <span className="ml-2 text-yellow-200/70">{a.alliance}</span>}{!a.active && <span className="ml-2 text-xs text-amber-300">{tr('airlines.historical')}</span>}</p>
+                <p className="font-mono text-xs text-white/45">{a.id==='brasileirinho'?'PS-BZR':`${a.iata} / ${a.icao}`}  · {tr('airlines.routes',{n:a.numRoutes})}{a.alliance && <span className="ml-2 text-yellow-200/70">{a.alliance}</span>}{!a.active && <span className="ml-2 text-xs text-amber-300">{tr('airlines.historical')}</span>}</p>
               </div>
               <ChevronRight className="size-5 shrink-0 text-white/30" aria-hidden="true" />
             </Link>

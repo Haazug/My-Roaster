@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.2.3 — 2026-10-31
+
+- Use a locally bundled OFL Doto dot-matrix font for flight boards, trips and flight history.
+- Mark missed departures delayed and auto-cancel after three hours; send check-in, doors, overdue/disembark and cancellation reminders while the app is open. Opening preflight no longer counts as takeoff.
+- Expand radar-only sampling with active OurAirports airfields and heliports, without adding them to commercial airport lists.
+- Add the user-provided Brasileirinho profile: one F33A Bonanza, PS-BZR, 24 historical itinerary legs through 30 October, registration-only live tracking and optional Cessna simulation substitutions.
+- Retain observed route flight numbers and aircraft types on the device for 180 days independently of live-position expiry.
+- Show estimated arrivals, last-position context and transatlantic route labels; keep estimates anchored to observations and source timetables.
+
 ## v2.2.2 — 2026-10-31
 
 - Separate home discovery from route paths and replace country fill with subtle white boundaries.

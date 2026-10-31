@@ -11,7 +11,7 @@ test('a different local departure minute warns and a passed time schedules the n
 test('missing the start time becomes delayed, never automatically completed by the elapsed schedule',()=>{
  assert.equal(tripState({scheduledAt:1000},999),'scheduled')
  assert.equal(tripState({scheduledAt:1000},1000),'delayed')
- assert.equal(tripState({scheduledAt:1000},100000000),'delayed')
+ assert.equal(tripState({scheduledAt:1000},100000000),'cancelled')
  assert.equal(tripState({scheduledAt:1000,startedAt:2000},3000),'running')
  assert.equal(tripState({scheduledAt:1000,startedAt:2000,endedAt:3000},4000),'completed')
  assert.equal(tripState({departure:'ignored'}),'booked')

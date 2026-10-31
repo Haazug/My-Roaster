@@ -177,6 +177,7 @@ const RAW: [string, string, string[]?][] = [
   ['Piper PA-46 Malibu', 'PA46', ['Malibu']],
   ['Piper PA-18 Super Cub', 'PA18', ['Super Cub']],
   // Beechcraft
+  ['Beechcraft F33A Bonanza', 'BE33', ['F33A', 'F33A Bonanza', 'Bonanza F33A']],
   ['Beechcraft Bonanza G36', 'BE36', ['Bonanza']],
   ['Beechcraft Baron 58', 'BE58', ['Baron']],
   ['Beechcraft King Air 90', 'BE9L', ['King Air']],
