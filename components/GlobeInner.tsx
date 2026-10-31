@@ -42,7 +42,8 @@ type Cam = { key: string; lat: number; lng: number; alt: number }
 
 export default function GlobeInner() {
   const [size,setSize]=useState({width:900,height:700})
-  useEffect(()=>{const resize=()=>setSize({width:window.innerWidth,height:window.innerHeight});resize();window.addEventListener('resize',resize);return()=>window.removeEventListener('resize',resize)},[])
+  const [isIPad,setIsIPad]=useState(false)
+  useEffect(()=>{setIsIPad(/iPad/i.test(navigator.userAgent)||(/Macintosh/i.test(navigator.userAgent)&&navigator.maxTouchPoints>1));const resize=()=>setSize({width:window.innerWidth,height:window.innerHeight});resize();window.addEventListener('resize',resize);return()=>window.removeEventListener('resize',resize)},[])
   const ref = useRef<GlobeMethods | undefined>(undefined)
   const view = useMapStore((s) => s.view)
   const zoomKey = useRef('')
@@ -212,7 +213,7 @@ export default function GlobeInner() {
         waitForGlobeReady={false}
         width={size.width}
         height={size.height}
-        globeOffset={discovering&&selection&&size.width<768?[0,-size.height*.18]:!exploring&&size.width>=1024?[Math.min(250-size.width/2,0),0]:[0,0]}
+        globeOffset={discovering&&selection&&size.width<768?[0,-size.height*.18]:!exploring&&isIPad?[Math.min(250-size.width/2,0),0]:[0,0]}
         globeImageUrl="/globe/earth-blue-marble.jpg"
         bumpImageUrl="/globe/earth-topology.png"
         backgroundImageUrl="/globe/night-sky.png"
